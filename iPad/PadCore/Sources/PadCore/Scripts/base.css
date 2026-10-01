@@ -1,0 +1,12 @@
+/* The app's own rules for every page but a hands-off one (HandsOff.swift).
+   No long-press callout: a secondary click is the page's own context menu,
+   and the system's link and image callout on top of it made two. */
+html, html * {
+  -webkit-touch-callout: none !important;
+}
+
+/* No double-tap zoom. The page keeps its own touch-action on its elements;
+   this is only where it says nothing. */
+html {
+  touch-action: manipulation;
+}

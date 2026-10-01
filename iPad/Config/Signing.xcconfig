@@ -1,0 +1,6 @@
+// Signing for your own iPad, kept out of project.yml so a regenerated
+// project keeps it. Put your team ID after DEVELOPMENT_TEAM (Xcode > Settings
+// > Accounts shows it, or pick the team once under Signing & Capabilities),
+// and change the bundle identifier if another team already uses this one.
+PRODUCT_BUNDLE_IDENTIFIER = net.taehee.safience
+DEVELOPMENT_TEAM =

@@ -3,6 +3,7 @@
 build/
 .swiftpm/
 *.xcuserstate
+xcuserdata/
 .DS_Store
 
 # Python's bytecode cache, left in Tests/ by the probe scripts.
@@ -13,3 +14,6 @@ __pycache__/
 *.provisionprofile
 *.p12
 *.mobileprovision
+
+# Playwright, if installed next to the iPad app's bridge tests.
+node_modules/

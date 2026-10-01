@@ -1,0 +1,1 @@
+../../../../../Sources/Search/Registrable.swift

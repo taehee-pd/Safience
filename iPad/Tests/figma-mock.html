@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Figma stand-in</title>
+<!-- A stand-in for a Figma file, for Tests/bridge.mjs: a canvas under a thin
+     layer that takes the events, a zoom that changes by e^(-deltaY/100) on
+     ctrl+wheel, the zoom shown as a percentage in a toolbar, and the zoom in
+     window.figma.viewport unless the address says ?noapi. -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  canvas { position: absolute; left: 0; top: 40px; width: 100%; height: calc(100% - 40px); }
+  #layer { position: absolute; left: 0; top: 40px; right: 0; bottom: 0; }
+  #toolbar { height: 40px; display: flex; align-items: center; padding: 0 12px; font: 13px system-ui; }
+</style>
+<div id="toolbar"><span>Design</span>&nbsp;<button id="zoom">100%</button></div>
+<canvas></canvas>
+<div id="layer"></div>
+<script>
+  let zoom = 1;
+  const label = document.getElementById('zoom');
+  if (!location.search.includes('noapi')) {
+    window.figma = { viewport: { get zoom() { return zoom; } } };
+  }
+  document.getElementById('layer').addEventListener('wheel', (event) => {
+    if (window.__ignoreWheel) return;
+    event.preventDefault();
+    if (event.ctrlKey) zoom *= Math.exp(-event.deltaY / 100);
+    label.textContent = Math.round(zoom * 100) + '%';
+  }, { passive: false });
+</script>
