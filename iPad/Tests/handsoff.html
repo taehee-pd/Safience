@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hands off</title>
+<!-- Loaded by bridge.html: this page's own host is made a hands-off host,
+     and the bridge has to leave it exactly as it found it. -->
+<script>
+  window.__messages = [];
+  window.webkit = { messageHandlers: { safience: { postMessage: (m) => window.__messages.push(m) } } };
+  window.__safienceConfig = { adapter: 'test', css: 'html { --safience-test: 1 }', handsOff: [location.hostname] };
+</script>
+<script src="../PadCore/Sources/PadCore/Scripts/bridge.js"></script>
+<script>window.__ready = true;</script>

@@ -116,6 +116,10 @@ Bench tabs are never selected for you, never enter the session or the history, a
 
 `python3 Tests/split_view.py`, after `./build.sh`, checks Split View through the app's own model in a hidden test run with its own settings and files, all removed afterwards. It never makes or shows a window; what can only be seen (dragging onto a page's edge, the divider under the pointer, the motion) is checked by hand on a release candidate.
 
+### On iPad
+
+`iPad/` holds Safience, an iPad app built on the same WebKit for Figma and web apps used with a trackpad and keyboard: desktop pages as Mac Safari, trackpad pinch and scroll handed to the page, ⌘ shortcuts left to the page, a space per set of sign-ins. It shares this app's address parsing and nothing else. Building and validating it: [iPad/README.md](iPad/README.md).
+
 ### Contributing
 
 Issues and pull requests are genuinely welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for how this is reviewed and what tends to get merged. The short version: small changes, no new dependencies, nothing that phones home. Found a security problem? Please report it privately, as [SECURITY.md](SECURITY.md) says.
