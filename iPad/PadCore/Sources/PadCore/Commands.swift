@@ -147,8 +147,8 @@ public enum Shortcuts {
 }
 
 /// A line typed into the palette or the address bar, as the place it means:
-/// an address when it looks like one (the Mac app's own rules, in
-/// Address.swift), a search with the chosen engine otherwise.
+/// an address when it looks like one (Address.swift), a search with the
+/// chosen engine otherwise.
 public enum Destination {
     public static func url(for typed: String, engine: String) -> URL? {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -159,13 +159,13 @@ public enum Destination {
 
     /// The typed words as a search, never as an address.
     public static func search(_ text: String, engine: String) -> URL? {
-        let chosen = Engine(rawValue: engine).flatMap { $0 == .custom ? nil : $0 } ?? Engine.standard
-        return Engine.url(for: text, template: chosen.template(custom: ""))
+        let chosen = Engine(rawValue: engine) ?? Engine.standard
+        return Engine.url(for: text, template: chosen.template)
     }
 
     /// The engines Settings offers, as (id, name).
     public static var engines: [(id: String, name: String)] {
-        Engine.allCases.filter { $0 != .custom }.map { ($0.rawValue, $0.title) }
+        Engine.allCases.map { ($0.rawValue, $0.title) }
     }
 
     public static var standardEngine: String { Engine.standard.rawValue }

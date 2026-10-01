@@ -2,7 +2,7 @@
 
 A WebKit browser for iPad, made for Figma and web apps used with a trackpad and keyboard. iPad's own trackpad and keyboard behaviour (page zoom, scrolling, swipe back, callouts, the menu bar's ⌘ shortcuts) is turned off or handed to the page, so a web app gets what it would get from Safari on a Mac.
 
-It lives beside the Mac app and shares its address parsing (`Sources/Search/Address.swift`, `Engine.swift`, `Registrable.swift`, linked into `PadCore/Sources/PadCore/Shared/`). Nothing in the Mac app changed.
+Its address parsing (`Address.swift`, `Engine.swift` and `Registrable.swift` in PadCore) started as the Mac app's in this repository and is now its own copy: nothing in `iPad/` depends on the Mac app.
 
 ## Build and run
 

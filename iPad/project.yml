@@ -1,4 +1,4 @@
-# The iPad app's Xcode project, made from this file with XcodeGen
+# Safience's Xcode project, made from this file with XcodeGen
 # (https://github.com/yonaskolb/XcodeGen): run `xcodegen` in this folder after
 # adding or removing a file. Safience.xcodeproj is committed as generated, so
 # building needs nothing but Xcode.
@@ -11,8 +11,7 @@ options:
 settings:
   base:
     # Swift 6's language mode adds strict concurrency checking, which buys
-    # nothing in an app that is main-thread by nature; the Mac app's
-    # Package.swift says the same.
+    # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"

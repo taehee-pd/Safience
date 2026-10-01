@@ -60,7 +60,7 @@ public struct Workspace: Codable, Equatable, Sendable {
     /// Closed tabs remembered, newest last.
     public static let closedKept = 25
 
-    /// The symbols a space can wear: Apple's own, as the Mac app's spaces have.
+    /// The symbols a space can wear, from Apple's SF Symbols.
     public static let symbols = [
         "briefcase", "paintpalette", "building.2", "person.2", "sparkles", "lightbulb",
         "hammer", "book", "house", "heart", "leaf", "star",

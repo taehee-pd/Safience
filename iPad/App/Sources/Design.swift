@@ -1,10 +1,9 @@
 import SwiftUI
 import UIKit
 
-// The Mac app's colours (Design.swift there), on iPad: every colour a pair,
-// one for light and one for dark, resolved against the window's own
-// appearance. The page is the ground, so everything the app draws stays grey
-// and quiet around it.
+// Every colour is a pair, one for light and one for dark, resolved against
+// the window's own appearance. The page is the ground, so everything the app
+// draws stays grey and quiet around it.
 enum Palette {
     static let ground = Color(uiColor: UI.ground)
     static let ink = Color(uiColor: UI.ink)
