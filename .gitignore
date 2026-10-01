@@ -1,19 +1,17 @@
-# Build output — build.sh regenerates all of this.
+# Build output: Xcode and SwiftPM make all of this again.
 .build/
 build/
 .swiftpm/
-*.xcuserstate
 xcuserdata/
+*.xcuserstate
 .DS_Store
 
-# Python's bytecode cache, left in Tests/ by the probe scripts.
-__pycache__/
-
-# Signing material that's tied to one Apple Developer account and should
-# never be committed, even though the scripts happily run without it.
+# Your own team ID and bundle identifier (see README), and signing material
+# tied to one Apple Developer account.
+Config/Local.xcconfig
 *.provisionprofile
 *.p12
 *.mobileprovision
 
-# Playwright, if installed next to the iPad app's bridge tests.
+# Playwright, if installed next to the bridge tests.
 node_modules/
