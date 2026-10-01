@@ -1,0 +1,11 @@
+// Signing. Your own team ID goes in Config/Local.xcconfig, which git
+// ignores, so a regenerated project and a pull request both leave it alone:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//     PRODUCT_BUNDLE_IDENTIFIER = com.example.safience   (if this one is taken)
+//
+// Xcode > Settings > Accounts shows the team ID.
+PRODUCT_BUNDLE_IDENTIFIER = net.taehee.safience
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"
