@@ -46,16 +46,21 @@ public struct Bookmark: Codable, Identifiable, Equatable, Sendable {
 /// an import in.
 public enum Bookmarks {
     /// Two addresses that are the same page as far as a bookmark goes: no
-    /// difference for case in the scheme and host, or a lone trailing slash.
+    /// difference for case in the scheme and host, or a slash at the end of
+    /// the path. Only the path's: one at the end of a query or a fragment
+    /// (?next=/a/, #/home/) is part of where the link goes.
     static func key(_ url: URL) -> String {
         var text = url.absoluteString
+        if var parts = URLComponents(url: url, resolvingAgainstBaseURL: false), parts.percentEncodedPath.hasSuffix("/") {
+            parts.percentEncodedPath.removeLast()
+            text = parts.string ?? text
+        }
         if let scheme = url.scheme, let host = url.host {
             let start = "\(scheme)://\(host)"
             if text.lowercased().hasPrefix(start.lowercased()) {
                 text = start.lowercased() + text.dropFirst(start.count)
             }
         }
-        while text.hasSuffix("/") { text.removeLast() }
         return text
     }
 

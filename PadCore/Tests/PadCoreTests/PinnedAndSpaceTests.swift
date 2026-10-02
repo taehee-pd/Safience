@@ -184,4 +184,19 @@ final class SpaceTests: XCTestCase {
         w.removeBookmark(id, in: work)
         XCTAssertNil(w.bookmark(for: url, in: work))
     }
+
+    func testOnlyThePathsTrailingSlashIsTheSamePage() throws {
+        var w = Workspace.starting()
+        let work = w.spaces[0].id
+        func add(_ text: String) throws -> UUID? {
+            w.addBookmark(try XCTUnwrap(URL(string: text)), title: text, in: work)
+        }
+        let docs = try add("https://example.test/docs/")
+        XCTAssertEqual(try add("https://example.test/docs"), docs, "a slash at the end of the path changes nothing")
+        let next = try add("https://example.test/?next=/a/")
+        XCTAssertNotEqual(try add("https://example.test/?next=/a"), next, "one in the query is part of the link")
+        let route = try add("https://example.test/app#/home/")
+        XCTAssertNotEqual(try add("https://example.test/app#/home"), route, "so is one in the fragment")
+        XCTAssertEqual(w.space(work)?.bookmarks.count, 5)
+    }
 }

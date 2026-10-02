@@ -52,6 +52,9 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     /// interaction that hides the system pointer while it shows.
     private(set) var pageCursor: PageCursor = .system
     private var pictures: [Int: CursorPicture] = [:]
+    /// The pictures' ids, oldest first: past 128, the oldest goes. The page
+    /// names by id only its last 65 (bridge.js showCursor), so those stay.
+    private var pictureOrder: [Int] = []
     private let drawn = UIImageView()
     private var hider: UIPointerInteraction?
     private var hiding = false
@@ -158,7 +161,11 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         if case .image(let image) = asked {
             if let png = image.png {
                 if let picture = UIImage(data: png, scale: CGFloat(image.scale)) {
-                    if pictures.count >= 128 { pictures.removeAll() }
+                    pictureOrder.removeAll { $0 == image.id }
+                    pictureOrder.append(image.id)
+                    if pictureOrder.count > 128 {
+                        pictures[pictureOrder.removeFirst()] = nil
+                    }
                     pictures[image.id] = CursorPicture(
                         image: picture,
                         size: CGSize(width: image.width, height: image.height),

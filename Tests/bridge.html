@@ -334,6 +334,13 @@
   imageSpot.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, composed: true, pointerType: 'mouse', relatedTarget: null }));
   await wait(100);
   check('leaving the page gives back the system\'s pointer', cursorReports().some((m) => m.keyword === 'auto'), short(cursorReports()));
+  check('cursor ids are whole numbers the app can read', Number.isSafeInteger(firstId) && firstId > 0, String(firstId));
+  // Past 64 cursors the bridge forgets what it sent: one seen before comes
+  // with its picture again, under a new id.
+  for (let i = 0; i < 66; i++) await hover(spot(`url("${svg(80, 'gray')}") ${i} 1, auto`));
+  got = await hover(imageSpot);
+  check('past 64 cursors, one seen before is sent with its picture again',
+    got && /^data:image\/png;base64,/.test(got.image || '') && got.id !== firstId, short(got));
 
   const set = bridge.parseCursor('-webkit-image-set(url("a.png") 1x, url("b.png") 2x) 3 4, move');
   check('an image set is read with its densities', set.images.length === 1 && set.images[0].candidates.length === 2 &&

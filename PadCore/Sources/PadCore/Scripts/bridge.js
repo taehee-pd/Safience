@@ -556,7 +556,10 @@
 
   // What the app hears for a cursor value: the first of its images that
   // can be drawn, with an id of its own, or else its keyword.
-  let nextCursor = 1;
+  // Ids start from a number of this document's own, so a document's id is
+  // never another's: one from the back-forward cache comes back with ids
+  // the app may still have pictures for, and must not get another page's.
+  let nextCursor = Math.floor(Math.random() * 2 ** 30) * 2 ** 20 + 1;
   async function resolveCursor(value) {
     const parsed = parseCursor(value);
     for (const image of parsed.images) {
@@ -567,7 +570,10 @@
   }
 
   // Each value is looked at once; its picture goes to the app once, and
-  // after that its id stands for it.
+  // after that its id stands for it. Both are forgotten together past 64
+  // values (the set of pictures sent would otherwise only grow), so an id
+  // sent alone is always one of the last 65 pictures sent, which the app
+  // always keeps (Pointer.show).
   const cursorReports = new Map();
   const sentPictures = new Set();
   let cursorValue = null;
@@ -576,7 +582,10 @@
     cursorValue = value;
     let report = cursorReports.get(value);
     if (!report) {
-      if (cursorReports.size > 64) cursorReports.clear();
+      if (cursorReports.size > 64) {
+        cursorReports.clear();
+        sentPictures.clear();
+      }
       report = resolveCursor(value);
       cursorReports.set(value, report);
     }
