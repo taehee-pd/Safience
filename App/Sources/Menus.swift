@@ -22,7 +22,8 @@ enum Menus {
 
         builder.insertSibling(menu("Go", [.palette, .address, .back, .forward, .reload, .stop]), afterMenu: .application)
         builder.insertSibling(tabsMenu(), afterMenu: Identifier.go)
-        builder.insertSibling(menu("Spaces", [.nextSpace, .previousSpace, .newSpace, .newWindow, .closeWindow]),
+        builder.insertSibling(menu("Spaces", [.nextSpace, .previousSpace, .newSpace, .spaceSettings, .importBookmarks,
+                                              .newWindow, .closeWindow]),
                               afterMenu: Identifier.tabs)
         builder.insertSibling(menu("Window", [.tabBar, .diagnostics, .focusPage, .settings]), afterMenu: Identifier.spaces)
     }
@@ -48,7 +49,7 @@ enum Menus {
     }
 
     private static func tabsMenu() -> UIMenu {
-        let main = [Command.newTab, .closeTab, .reopenTab, .nextTab, .previousTab].compactMap(keyCommand)
+        let main = [Command.newTab, .closeTab, .reopenTab, .pinTab, .bookmark, .nextTab, .previousTab].compactMap(keyCommand)
         let numbers = Shortcuts.tabNumbers.enumerated().map { index, chord -> UIKeyCommand in
             let title = index == 8 ? "Last Tab" : "Tab \(index + 1)"
             return UIKeyCommand(title: title, action: #selector(Browser.browserTab(_:)), input: input(chord.key),

@@ -7,11 +7,23 @@ public enum Override: String, Codable, CaseIterable, Sendable {
     case off
 }
 
+/// Where the address goes.
+public enum TabLayout: String, Codable, CaseIterable, Sendable {
+    /// One row, as Safari's compact layout: the tab on screen is the address
+    /// bar, and every other tab sits beside it.
+    case compact
+    /// A row of tabs, the address bar under it.
+    case separate
+}
+
 /// Settings, saved as one JSON value. Every field has a default, and a field
 /// missing from what was saved takes its default, so a setting added later
 /// doesn't throw away the ones already there.
 public struct Preferences: Codable, Equatable, Sendable {
-    public var address: AddressMode = .automatic
+    /// Always, so the page's address and the way back are in view on every
+    /// page; Settings can keep it to sign-in pages.
+    public var layout: TabLayout = .compact
+    public var address: AddressMode = .always
     public var tabBar = true
     /// The wheel bridge for every site, or nil to leave it to each adapter.
     public var wheel: WheelMode?
@@ -20,22 +32,26 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var limits = LiveLimits()
     public var diagnostics = false
     public var engine = Destination.standardEngine
+    /// Pages' own cursor images, drawn over the hidden system pointer.
+    public var pageCursors = true
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case address, tabBar, wheel, keys, limits, diagnostics, engine
+        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        address = (try? c.decodeIfPresent(AddressMode.self, forKey: .address)) ?? .automatic
+        layout = (try? c.decodeIfPresent(TabLayout.self, forKey: .layout)) ?? .compact
+        address = (try? c.decodeIfPresent(AddressMode.self, forKey: .address)) ?? .always
         tabBar = (try? c.decodeIfPresent(Bool.self, forKey: .tabBar)) ?? true
         wheel = (try? c.decodeIfPresent(WheelMode.self, forKey: .wheel)) ?? nil
         keys = (try? c.decodeIfPresent(Override.self, forKey: .keys)) ?? .site
         limits = (try? c.decodeIfPresent(LiveLimits.self, forKey: .limits)) ?? LiveLimits()
         diagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .diagnostics)) ?? false
         engine = (try? c.decodeIfPresent(String.self, forKey: .engine)) ?? Destination.standardEngine
+        pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
     }
 
     /// An adapter's bridges with these settings laid over them.
@@ -47,6 +63,7 @@ public struct Preferences: Codable, Equatable, Sendable {
         case .on: bridges.keys = Set(RelayKey.allCases)
         case .off: bridges.keys = []
         }
+        if !pageCursors { bridges.cursors = false }
         return bridges
     }
 }

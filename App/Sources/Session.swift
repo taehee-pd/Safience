@@ -84,12 +84,41 @@ final class Session: ObservableObject {
         change { $0.record(tab, url: url, title: title) }
     }
 
+    /// A tab closed: gone, or, when it is pinned, unloaded and back at its
+    /// pinned page (Workspace.closeTab), when it may be the one to show.
     func closeTab(_ id: UUID) {
         let next = change { $0.closeTab(id) }
         pages.close(id)
         for window in allBrowsers where window.model.tabID == id {
-            window.show(tab: next.flatMap { browser(showing: $0) == nil ? $0 : nil }, inSpace: window.model.spaceID)
+            let shown = next.flatMap { $0 == id || browser(showing: $0) == nil ? $0 : nil }
+            window.show(tab: shown, inSpace: window.model.spaceID)
         }
+    }
+
+    /// A bookmarks file into a space: an HTML export (Chrome's, Safari's,
+    /// Firefox's) or the ZIP of Safari's Export Browsing Data with one in it.
+    /// Returns what to tell the person who chose it.
+    func importBookmarks(from file: URL, into space: UUID) -> (title: String, message: String) {
+        guard let data = try? Data(contentsOf: file) else {
+            return ("Couldn’t Read the File", "Choose the file again, or save a copy to On My iPad first.")
+        }
+        var html = data
+        if ZipFile.isArchive(data) {
+            guard let inside = ZipFile.file(in: data, matching: { $0.lowercased().hasSuffix("bookmarks.html") }) else {
+                return ("No Bookmarks in This Archive",
+                        "In Settings › Apps › Safari › Export, choose Bookmarks, then import the ZIP it saves to Downloads.")
+            }
+            html = inside
+        }
+        let read = BookmarkFile.parse(html)
+        guard read.count > 0 else {
+            return ("No Bookmarks Found", "Export them from Chrome (Bookmark Manager › Export Bookmarks) or Safari, then choose that file.")
+        }
+        let added = change { $0.importBookmarks(read.items, into: space) }
+        SiteIcons.shared.adopt(read.icons)
+        let name = workspace.space(space)?.name ?? "this space"
+        guard added > 0 else { return ("Already There", "Every bookmark in the file is in \(name) already.") }
+        return ("Bookmarks Imported", "\(added) of \(read.count) bookmarks added to \(name). They show on every new tab in it.")
     }
 
     func removeSpace(_ id: UUID) {

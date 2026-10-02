@@ -56,6 +56,18 @@ final class PaletteModel: ObservableObject {
                 ))
             }
         }
+        // This space's bookmarks, folders and all.
+        for bookmark in workspace.space(window.spaceID)?.bookmarks.flatMap(\.links) ?? [] {
+            guard let url = bookmark.url else { continue }
+            let host = Destination.pretty(url)
+            list.append(PaletteEntry(
+                id: "bookmark-\(bookmark.id)",
+                kind: .open(url),
+                title: bookmark.label,
+                detail: "Bookmark · \(host)",
+                keywords: [host, "bookmark"]
+            ))
+        }
         for space in workspace.spaces where space.id != window.spaceID {
             list.append(PaletteEntry(
                 id: "space-\(space.id)",
@@ -132,13 +144,15 @@ struct PaletteView: View {
     var body: some View {
         let rows = model.results
         ZStack(alignment: .top) {
-            Color.black.opacity(0.18)
+            // A light touch only: the page stays in view behind the
+            // palette, as with Raycast, and a tap on it puts the palette away.
+            Color.black.opacity(0.06)
                 .ignoresSafeArea()
                 .onTapGesture { model.cancel() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(Palette.muted)
+                        .foregroundStyle(Color.primary.opacity(0.5))
                     TextField("Tabs, spaces, commands, or an address", text: $model.query)
                         .textFieldStyle(.plain)
                         .font(.system(size: 17))
@@ -151,7 +165,7 @@ struct PaletteView: View {
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 52)
-                Rectangle().fill(Palette.hairline).frame(height: 1)
+                Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
                 ScrollViewReader { scroller in
                     ScrollView {
                         LazyVStack(spacing: 0) {
@@ -173,9 +187,15 @@ struct PaletteView: View {
                 }
             }
             .frame(maxWidth: 620)
-            .background(Palette.ground, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Palette.hairline))
-            .shadow(color: .black.opacity(0.18), radius: 30, y: 12)
+            // See-through and blurred, like Raycast: the system's material,
+            // which turns solid by itself under Reduce Transparency. What is
+            // drawn on it is the label colour at an opacity, not the
+            // system's vibrant .secondary: inside the scrolling list that
+            // drew nothing at all (iPadOS 27).
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.22), radius: 40, y: 16)
             .padding(.top, 80)
             .padding(.horizontal, 24)
         }
@@ -191,20 +211,21 @@ struct PaletteRow: View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
                 .frame(width: 20)
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(Color.primary.opacity(0.5))
             Text(entry.title)
-                .foregroundStyle(Palette.ink)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
             Spacer(minLength: 12)
             Text(entry.detail)
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(Color.primary.opacity(0.5))
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
         .font(.system(size: 14))
         .padding(.horizontal, 10)
         .frame(height: 36)
-        .background(selected ? Palette.wash : Color.clear, in: RoundedRectangle(cornerRadius: Metrics.corner))
+        .background(selected ? Color.primary.opacity(0.1) : Color.clear,
+                    in: RoundedRectangle(cornerRadius: Metrics.corner))
         .contentShape(Rectangle())
     }
 

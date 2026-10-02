@@ -38,7 +38,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   page.on('pageerror', (error) => check('no errors on the page', false, error.message));
   await page.goto(`${base}/Tests/bridge.html`);
-  await page.waitForFunction(() => /^(PASSED|FAILED)/.test(document.title), null, { timeout: 20000 });
+  await page.waitForFunction(() => /^(PASSED|FAILED)/.test(document.title), null, { timeout: 45000 });
   results.push(...await page.evaluate(() => window.__results));
 
   // WebKit's own wheel events, trusted, and the bridge standing aside for
@@ -78,6 +78,11 @@ try {
   await mock.evaluate(() => { window.__ignoreWheel = true; });
   const refused = await mock.evaluate(snippet);
   check('and fails on one that doesn\'t', refused && refused.pass === false, JSON.stringify(refused));
+  const slower = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+  await slower.goto(`${base}/Tests/figma-mock.html?k=200`);
+  const half = await slower.evaluate(snippet);
+  check('it passes on a page that zooms half as far, as Figma in Safari does', half && half.pass === true, JSON.stringify(half));
+  check('and reports the pinch factor that page needs', half && half.strength === 0.5 && half.pinchFactor === 200, JSON.stringify(half));
   const plain = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   await plain.goto(`${base}/Tests/figma-mock.html?noapi`);
   const fromToolbar = await plain.evaluate(snippet);

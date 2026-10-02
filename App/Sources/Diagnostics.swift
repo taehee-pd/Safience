@@ -53,6 +53,7 @@ enum Diagnostics {
             "WebKit wheel events seen by the page \(stats.webKitWheels) · last: \(stats.lastOutcome.isEmpty ? "none" : stats.lastOutcome)",
             "wheel bridge \(bridges.wheel.rawValue) · keys to page: \(bridges.keys.isEmpty ? "none" : bridges.keys.map(\.rawValue).sorted().joined(separator: ", ")) · relayed \(stats.relayedKeys) · typing: \(page.editing ? "yes" : "no")",
             "\(tabs) · process ends \(stats.processEnds)",
+            "cursor: \(bridges.cursors ? page.pointer?.cursorSummary ?? "the system's" : "the system's (pages' cursors off)")",
         ]
     }
 }

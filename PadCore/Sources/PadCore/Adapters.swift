@@ -35,14 +35,18 @@ public struct Bridges: Equatable, Codable, Sendable {
     /// The wheel delta for a pinch, per unit of the natural log of the scale
     /// step. 100 is Chrome's: a pinch to twice the size sends -69.3 in all.
     public var pinchFactor: Double
+    /// The page's own cursor images shown in place of the system pointer,
+    /// which WebKit on iPad shows whatever the page asks (PageCursor).
+    public var cursors: Bool
 
     public init(pinch: Bool = true, commandZoom: Bool = true, wheel: WheelMode = .auto,
-                keys: Set<RelayKey> = [], pinchFactor: Double = 100) {
+                keys: Set<RelayKey> = [], pinchFactor: Double = 100, cursors: Bool = true) {
         self.pinch = pinch
         self.commandZoom = commandZoom
         self.wheel = wheel
         self.keys = keys
         self.pinchFactor = pinchFactor
+        self.cursors = cursors
     }
 
     public static let standard = Bridges()
@@ -104,12 +108,17 @@ public enum Adapters {
     /// handling the bridges don't feed. With no touch points the page gets the
     /// Mac it was told it is. Fingers on the glass still work: WebKit sends
     /// their pointer and mouse events either way.
+    ///
+    /// Its pinch factor is twice Chrome's because Figma, told it is in
+    /// Safari, zooms by e^(-deltaY/200) for each ctrl+wheel event (measured
+    /// with Validation/figma-ctrl-wheel.js). At Chrome's 100, a pinch to
+    /// twice the size zoomed the canvas only 1.41 times.
     public static let figma = SiteAdapter(
         id: "figma",
         name: "Figma",
         domains: ["figma.com"],
         pageScript: Snippets.noTouchPoints,
-        bridges: Bridges(pinch: true, commandZoom: true, wheel: .auto, keys: [], pinchFactor: 100),
+        bridges: Bridges(pinch: true, commandZoom: true, wheel: .auto, keys: [], pinchFactor: 200),
         heavyPaths: ["/design/", "/file/", "/board/", "/proto/", "/slides/", "/deck/", "/make/", "/site/", "/buzz/"]
     )
 

@@ -2,6 +2,7 @@ import Combine
 import PadCore
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 import WebKit
 
 /// What a window's bars show, kept up to date from its page.
@@ -17,12 +18,31 @@ final class WindowModel: ObservableObject {
     @Published var canGoForward = false
     @Published var secure = false
     @Published var signIn = false
+    /// The address must show, whatever Settings says: a sign-in page, a page
+    /// that failed, a new tab (AddressVisibility).
+    @Published var addressRequired = false
+    /// The address is in view: the address bar, in the separate layout; in
+    /// the compact one, the tab on screen says where it is rather than what
+    /// it is called.
     @Published var showsAddress = false
     @Published var editingAddress = false
     @Published var banner: Banner?
+    /// The colour along the top of the page, which the bars take on.
+    @Published var siteColor: SiteColor?
+    /// The page is one of the space's bookmarks (the star in the address).
+    @Published var bookmarked = false
 
     init(spaceID: UUID) {
         self.spaceID = spaceID
+    }
+
+    /// The page, or something on it, came over a connection anyone on the
+    /// way can read. An http address says so at once; for the rest, WebKit
+    /// knows only once the page has loaded, so a page still loading isn't
+    /// marked, rather than marked and then unmarked a moment later.
+    var insecure: Bool {
+        guard let url else { return false }
+        return url.scheme?.lowercased() == "http" || (!loading && !secure)
     }
 }
 
@@ -42,7 +62,8 @@ enum Banner: Equatable {
 /// becomes active. The browser's own shortcuts are ⌃⌥ ones (Menus), out of
 /// the way of any page's.
 @MainActor
-final class Browser: UIViewController, PageHost, UIAdaptivePresentationControllerDelegate {
+final class Browser: UIViewController, PageHost, UIAdaptivePresentationControllerDelegate, UIDocumentPickerDelegate,
+    UIGestureRecognizerDelegate {
     let model: WindowModel
     private(set) var page: Page?
     private var firstTab: UUID?
@@ -55,6 +76,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var addressBar: UIHostingController<AddressBar>?
     private var bannerBar: UIHostingController<BannerBar>?
     private var empty: UIHostingController<EmptySpace>?
+    private var start: UIHostingController<StartPage>?
     private var diagnostics: UIHostingController<DiagnosticsView>?
     private var subscriptions: Set<AnyCancellable> = []
 
@@ -131,6 +153,14 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         stage.clipsToBounds = true
         stage.backgroundColor = Palette.UI.ground
         stack.addArrangedSubview(stage)
+        // A touch on the page while an address is typed puts the typing
+        // away, as in Safari; the touch itself stays the page's.
+        let away = UITapGestureRecognizer(target: self, action: #selector(touchedPage))
+        away.cancelsTouchesInView = false
+        away.delaysTouchesBegan = false
+        away.delaysTouchesEnded = false
+        away.delegate = self
+        stage.addGestureRecognizer(away)
 
         picture.contentMode = .scaleAspectFill
         picture.clipsToBounds = true
@@ -150,30 +180,87 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         blank.didMove(toParent: self)
         empty = blank
 
+        // A new tab's page: the space's bookmarks, until it goes somewhere.
+        let start = UIHostingController(rootView: StartPage(session: session, window: model) { [weak self] in self?.act($0) })
+        addChild(start)
+        start.view.frame = stage.bounds
+        start.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        start.view.backgroundColor = Palette.UI.ground
+        start.view.isHidden = true
+        stage.addSubview(start.view)
+        start.didMove(toParent: self)
+        self.start = start
+
         refreshChrome()
     }
 
     private func embed<V: View>(_ root: V) -> UIHostingController<V> {
         let host = UIHostingController(rootView: root)
-        host.view.backgroundColor = Palette.UI.ground
+        // The stack already keeps the bars inside the safe area. Left to
+        // SwiftUI, the keyboard's arrival moved what they draw up out of
+        // sight, .ignoresSafeArea(.keyboard) or not: both bars went blank
+        // whenever a field had the focus (iPadOS 27).
+        host.safeAreaRegions = []
+        // The window's own colour shows through: the site's (siteColor).
+        host.view.backgroundColor = .clear
         addChild(host)
         stack.addArrangedSubview(host.view)
         host.didMove(toParent: self)
         return host
     }
 
-    /// Which bars show, from Settings and the page.
+    /// Which bars show, from Settings and the page. In the compact layout
+    /// the address is in the tab on screen, so the row of tabs shows
+    /// whenever an address must: on sign-in pages, while one is typed, when
+    /// a page failed, on a new tab, even with the tab bar turned off.
     private func refreshChrome() {
-        let preferences = Session.shared.preferences
-        let url = page?.view.url ?? model.tabID.flatMap { Session.shared.workspace.tab($0)?.url }
-        model.showsAddress = AddressVisibility.shows(
-            mode: preferences.address, url: url, passwordField: page?.passwordField ?? false,
-            editing: model.editingAddress, failed: page?.failure != nil
+        let session = Session.shared
+        let preferences = session.preferences
+        let compact = preferences.layout == .compact
+        let url = page?.view.url ?? model.tabID.flatMap { session.workspace.tab($0)?.url }
+        let signIn = page?.passwordField ?? false
+        let failed = page?.failure != nil
+        let required = AddressVisibility.shows(mode: .automatic, url: url, passwordField: signIn,
+                                               editing: false, failed: failed)
+        if model.addressRequired != required { model.addressRequired = required }
+        let mustShow = required || model.editingAddress
+        // Typing doesn't count in the compact layout: the field is drawn
+        // over the tab, which keeps saying what it said, and its size.
+        let showsAddress = AddressVisibility.shows(
+            mode: preferences.address, url: url, passwordField: signIn, editing: !compact && model.editingAddress,
+            failed: failed
         )
-        topBar?.view.isHidden = !preferences.tabBar
-        addressBar?.view.isHidden = !model.showsAddress
+        if model.showsAddress != showsAddress { model.showsAddress = showsAddress }
+        topBar?.view.isHidden = !(preferences.tabBar || (compact && mustShow))
+        addressBar?.view.isHidden = compact || !model.showsAddress
         bannerBar?.view.isHidden = model.banner == nil
+        start?.view.isHidden = !(page != nil && model.url == nil)
+        let bookmarked = url.flatMap { session.workspace.bookmark(for: $0, in: model.spaceID) } != nil
+        if model.bookmarked != bookmarked { model.bookmarked = bookmarked }
         showDiagnostics(preferences.diagnostics)
+        applySiteColor()
+    }
+
+    /// The bars and the strip under the status bar in the colour along the
+    /// top of the page, so page and bars read as one, as in Safari. What
+    /// they draw turns light on a dark colour and dark on a light one; a
+    /// change of colour eases in rather than flashing.
+    private func applySiteColor() {
+        let color = model.siteColor
+        let style: UIUserInterfaceStyle = color.map { $0.isDark ? .dark : .light } ?? .unspecified
+        for bar in [topBar, addressBar, bannerBar] as [UIViewController?] where bar?.overrideUserInterfaceStyle != style {
+            bar?.overrideUserInterfaceStyle = style
+        }
+        let ground = color?.uiColor ?? Palette.UI.ground
+        if view.backgroundColor != ground {
+            UIView.animate(withDuration: 0.25) { self.view.backgroundColor = ground }
+        }
+        setNeedsStatusBarAppearanceUpdate()
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        guard let color = model.siteColor else { return .default }
+        return color.isDark ? .lightContent : .darkContent
     }
 
     private func showDiagnostics(_ on: Bool) {
@@ -230,6 +317,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         detach()
         let made = session.pages.page(for: record, in: owner)
         attach(made.page, thawed: made.thawed)
+        // Going to another tab ends typing an address, as in Safari.
+        model.editingAddress = false
         model.spaceID = owner
         model.tabID = id
         session.change { $0.select(id) }
@@ -258,6 +347,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         model.title = ""
         model.banner = nil
         model.loading = false
+        model.siteColor = nil
         empty?.view.isHidden = false
         refreshChrome()
         updateSceneTitle()
@@ -296,6 +386,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     private func workspaceChanged() {
+        defer { refreshChrome() }
         let workspace = Session.shared.workspace
         if workspace.space(model.spaceID) == nil {
             showSpace(workspace.spaces[0].id)
@@ -337,6 +428,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         model.canGoForward = view.canGoForward
         model.secure = view.hasOnlySecureContent
         model.signIn = page.isSignIn
+        model.siteColor = page.siteColor
         if page.googleRefused {
             model.banner = .googleRefused
         } else if page.exhausted {
@@ -411,6 +503,15 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         act(.cancelAddress)
     }
 
+    @objc private func touchedPage() {
+        if model.editingAddress { act(.cancelAddress) }
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
+
     func perform(_ command: Command) {
         let session = Session.shared
         switch command {
@@ -444,6 +545,12 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             model.editingAddress = false
             refreshChrome()
             focusPage()
+        case .pinTab:
+            guard let tab = model.tabID, let record = session.workspace.tab(tab) else { return }
+            session.change { record.isPinned ? $0.unpin(tab) : $0.pin(tab) }
+        case .bookmark: toggleBookmark()
+        case .spaceSettings: openSpaceSettings(model.spaceID)
+        case .importBookmarks: chooseBookmarksFile()
         }
     }
 
@@ -492,15 +599,6 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         }
     }
 
-    private func renameSpace(_ id: UUID) {
-        guard let space = Session.shared.workspace.space(id) else { return }
-        Dialogs.name(title: "Rename Space", message: nil, placeholder: space.name, initial: space.name,
-                     on: presenter ?? self) { name in
-            guard let name else { return }
-            Session.shared.change { $0.renameSpace(id, to: name) }
-        }
-    }
-
     private func removeSpace(_ id: UUID) {
         guard let space = Session.shared.workspace.space(id), Session.shared.workspace.spaces.count > 1 else { return }
         Dialogs.confirmRemoval(of: space.name, tabs: space.tabs.count, on: presenter ?? self) { sure in
@@ -517,9 +615,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .command(let command): perform(command)
         case .switchSpace(let space): showSpace(space)
         case .spaceInNewWindow(let space): session.openWindow(space: space, tab: nil)
-        case .renameSpace(let space): renameSpace(space)
+        case .spaceSettings(let space): openSpaceSettings(space)
         case .removeSpace(let space): removeSpace(space)
-        case .setSymbol(let space, let symbol): session.change { $0.setSymbol(space, to: symbol) }
         case .moveTab(let tab, let space): session.moveTab(tab, to: space)
         case .tabInNewWindow(let tab):
             if model.tabID == tab {
@@ -550,7 +647,79 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .dismissBanner:
             model.banner = nil
             refreshChrome()
+        case .pin(let tab): session.change { _ = $0.pin(tab) }
+        case .unpin(let tab): session.change { _ = $0.unpin(tab) }
+        case .backToPinned(let tab): backToPinned(tab)
+        case .openInNewTab(let url):
+            guard let tab = session.change({ $0.openTab(url, in: model.spaceID, after: model.tabID) }) else { return }
+            show(tab: tab, inSpace: model.spaceID)
+        case .toggleBookmark: toggleBookmark()
+        case .removeBookmark(let id): session.change { $0.removeBookmark(id, in: model.spaceID) }
+        case .importBookmarks: chooseBookmarksFile()
         }
+    }
+
+    // MARK: Pinned tabs and bookmarks
+
+    /// A pinned tab at the page it was pinned with: loaded there when it is
+    /// live, its frozen picture of where it had gone let go when it isn't.
+    private func backToPinned(_ tab: UUID) {
+        let session = Session.shared
+        guard let url = session.change({ $0.backToPinned(tab) }) else { return }
+        if let live = session.pages.live[tab] {
+            live.load(url)
+        } else {
+            session.pages.close(tab)
+        }
+    }
+
+    /// The page on screen into the space's bookmarks, or out of them.
+    private func toggleBookmark() {
+        guard let page, let url = page.view.url else { return }
+        let session = Session.shared
+        let space = model.spaceID
+        if let known = session.workspace.bookmark(for: url, in: space) {
+            session.change { $0.removeBookmark(known.id, in: space) }
+        } else {
+            session.change { $0.addBookmark(url, title: page.view.title ?? "", in: space) }
+        }
+        refreshChrome()
+    }
+
+    /// A bookmarks file for this window's space, from Files: Chrome's or
+    /// Firefox's export, Safari's Bookmarks.html, or the ZIP Safari's
+    /// Export Browsing Data saves to Downloads.
+    func chooseBookmarksFile() {
+        guard presentedViewController == nil else { return }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.html, .zip], asCopy: true)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let file = urls.first else { return }
+        let outcome = Session.shared.importBookmarks(from: file, into: model.spaceID)
+        try? FileManager.default.removeItem(at: file)
+        let alert = UIAlertController(title: outcome.title, message: outcome.message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in self?.focusPage() })
+        present(alert, animated: true)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        focusPage()
+    }
+
+    func openSpaceSettings(_ space: UUID) {
+        guard presentedViewController == nil else { return }
+        let editor = UIHostingController(rootView: NavigationStack {
+            SpaceEditor(session: Session.shared, spaceID: space) { [weak self] in
+                self?.dismiss(animated: true) { self?.focusPage() }
+            }
+        })
+        editor.modalPresentationStyle = .formSheet
+        editor.presentationController?.delegate = self
+        present(editor, animated: true)
     }
 
     /// A typed line: an address, or a search with the chosen engine.
@@ -561,6 +730,14 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             return
         }
         open(url)
+    }
+
+    /// A link from another app, or from any app once Safience is the default
+    /// browser: a tab of its own after this one, so the page it lands on top
+    /// of (a Figma file, a message half written) stays as it was.
+    func openLink(_ url: URL) {
+        guard let tab = Session.shared.change({ $0.openTab(url, in: model.spaceID, after: model.tabID) }) else { return }
+        show(tab: tab, inSpace: model.spaceID)
     }
 
     /// An address, in this window's tab, or in a new tab when there is none.
@@ -603,7 +780,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
     func openSettings() {
         guard presentedViewController == nil else { return }
-        let settings = UIHostingController(rootView: SettingsView(session: Session.shared) { [weak self] in
+        let settings = UIHostingController(rootView: SettingsView(session: Session.shared, spaceID: model.spaceID) { [weak self] in
             self?.dismiss(animated: true) { self?.focusPage() }
         })
         settings.modalPresentationStyle = .formSheet

@@ -14,10 +14,14 @@
 // the app, and pick the app's page under Develop › (your iPad).
 //
 // It sends a pinch to twice the size in ten steps at the middle of the
-// canvas, reads the zoom, then sends the same pinch back. PASS: the zoom
-// went up by at least half. It reads the zoom from Figma's plugin API when
-// the console has it, else from the zoom percentage in Figma's toolbar;
-// when it can read neither, look at the canvas: it zooms in, then back out.
+// canvas, the way Chrome sends one, reads the zoom, then sends the same pinch
+// back. PASS: the zoom went up by at least a tenth. How far it went is the
+// page's own business (Figma in Safari goes half as far as Chrome's pinch
+// asks), so it also prints `strength`, 1 when the zoom follows the pinch, and
+// `pinchFactor`, what the site's adapter needs for it to follow (Adapters.swift).
+// It reads the zoom from Figma's plugin API when the console has it, else
+// from the zoom percentage in Figma's toolbar; when it can read neither, look
+// at the canvas: it zooms in, then back out.
 (async () => {
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
@@ -73,10 +77,14 @@
   await pinch(0.5);
   await pause(300);
 
+  const ratio = before.value && after.value ? after.value / before.value : null;
+  const strength = ratio ? Math.log(ratio) / Math.log(2) : null;
   const verdict = {
-    pass: before.value && after.value ? after.value / before.value >= 1.5 : null,
+    pass: ratio ? ratio >= 1.1 : null,
     before: before.value,
     after: after.value,
+    strength: strength === null ? null : Math.round(strength * 100) / 100,
+    pinchFactor: strength > 0 ? Math.round(100 / strength) : null,
     readFrom: after.from,
     eventsTakenByThePage: taken,
     target: target.tagName.toLowerCase() + (target.className && typeof target.className === 'string' ? '.' + target.className.split(' ')[0] : ''),

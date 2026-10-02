@@ -2,6 +2,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bridge tests</title>
+<link rel="icon" href="icon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="touch.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="mask-icon" href="mask.png">
+<link rel="icon" href="icon-48.png" sizes="48x48">
 <!--
   Tests for bridge.js, the script Safience puts into every page.
 
@@ -268,6 +273,85 @@
 
   const state = bridge.state();
   check('state reports what Diagnostics shows', typeof state.userAgent === 'string' && state.bridged > 0 && state.adapter === 'test');
+
+  // MARK: The cursor
+
+  // A page's own cursor image is drawn to a PNG for the app to show; the
+  // pointer goes for cursor: none; any other keyword is the system's.
+  const svg = (size, color) => 'data:image/svg+xml,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="${color}"/></svg>`);
+  const spot = (cursor) => {
+    const element = document.createElement('div');
+    element.className = 'box';
+    element.style.cssText = 'left: 960px; top: 0; width: 60px; height: 60px';
+    element.style.cursor = cursor;
+    document.body.appendChild(element);
+    return element;
+  };
+  const cursorReports = () => __messages.filter((m) => m.kind === 'cursor');
+  async function hover(element) {
+    __messages.length = 0;
+    element.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, composed: true, pointerType: 'mouse' }));
+    for (let i = 0; i < 80 && !cursorReports().length; i++) await wait(25);
+    return cursorReports().pop();
+  }
+  const short = (report) => JSON.stringify(report || null).slice(0, 160);
+  const density = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+
+  const plainSpot = spot('default');
+  const imageSpot = spot(`url("${svg(32, 'red')}") 4 6, auto`);
+  let got = await hover(imageSpot);
+  check('a cursor image under the pointer is drawn for the app', got && /^data:image\/png;base64,/.test(got.image || ''), short(got));
+  check('at its own size, in CSS pixels', got && got.width === 32 && got.height === 32, short(got));
+  check('with its hotspot', got && got.x === 4 && got.y === 6, short(got));
+  check('at the screen\'s density', got && got.scale === density, short(got));
+  const firstId = got && got.id;
+  got = await hover(plainSpot);
+  check('a keyword is the system\'s pointer', got && got.keyword === 'default' && !got.image, short(got));
+  got = await hover(imageSpot);
+  check('a cursor got before goes by its id alone', got && got.id === firstId && !got.image, short(got));
+  __messages.length = 0;
+  imageSpot.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, composed: true, pointerType: 'mouse' }));
+  await wait(150);
+  check('and only when it changes', cursorReports().length === 0, short(cursorReports()));
+  got = await hover(spot('none'));
+  check('cursor: none says none', got && got.keyword === 'none', short(got));
+  got = await hover(spot(`url("data:image/png;base64,broken") 1 1, url("${svg(16, 'blue')}") 2 2, crosshair`));
+  check('an image that fails gives way to the next', got && got.width === 16 && got.x === 2 && got.y === 2, short(got));
+  got = await hover(spot('url("data:image/png;base64,broken"), pointer'));
+  check('and to the keyword when none can be drawn', got && got.keyword === 'pointer' && !got.image, short(got));
+  got = await hover(spot(`url("${svg(200, 'green')}") 0 0, auto`));
+  check('a cursor bigger than 128 is not shown', got && got.keyword === 'auto', short(got));
+  got = await hover(spot(`url("${svg(24, 'black')}") 40 -3, auto`));
+  check('a hotspot outside the picture is brought in', got && got.x === 24 && got.y === 0, short(got));
+  __messages.length = 0;
+  plainSpot.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, composed: true, pointerType: 'touch' }));
+  await wait(150);
+  check('a finger has no cursor', cursorReports().length === 0, short(cursorReports()));
+  // A pointer leaving the page leaves the system's pointer behind.
+  await hover(imageSpot);
+  __messages.length = 0;
+  imageSpot.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, composed: true, pointerType: 'mouse', relatedTarget: null }));
+  await wait(100);
+  check('leaving the page gives back the system\'s pointer', cursorReports().some((m) => m.keyword === 'auto'), short(cursorReports()));
+
+  const set = bridge.parseCursor('-webkit-image-set(url("a.png") 1x, url("b.png") 2x) 3 4, move');
+  check('an image set is read with its densities', set.images.length === 1 && set.images[0].candidates.length === 2 &&
+    set.images[0].candidates[1].url === 'b.png' && set.images[0].candidates[1].density === 2 &&
+    set.images[0].x === 3 && set.images[0].y === 4 && set.keyword === 'move', JSON.stringify(set));
+  const tricky = bridge.parseCursor('url("data:image/svg+xml,<svg fill=\'rgb(1,2,3)\'>\\"x\\"</svg>") 1 2, auto');
+  check('a URL with brackets and quotes in it is read whole', tricky.images.length === 1 &&
+    tricky.images[0].candidates[0].url === 'data:image/svg+xml,<svg fill=\'rgb(1,2,3)\'>"x"</svg>' && tricky.images[0].y === 2 &&
+    tricky.keyword === 'auto', JSON.stringify(tricky));
+  check('a keyword alone has no images', bridge.parseCursor('grab').images.length === 0 && bridge.parseCursor('grab').keyword === 'grab');
+
+  // MARK: The site's icon
+
+  const icons = bridge.siteIcons().map((url) => url.replace(location.origin, '').replace(/^.*\/Tests\//, ''));
+  check('the icons a page names come biggest first, the touch icon before them', icons[0] === 'touch.png' &&
+    icons[1] === 'icon-48.png' && icons[2] === 'icon-16.png', JSON.stringify(icons));
+  check('then /favicon.ico, and never an SVG or a mask icon', icons[3] === '/favicon.ico' && icons.length === 4,
+    JSON.stringify(icons));
 
   // MARK: Hands off
 

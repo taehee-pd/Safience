@@ -1,26 +1,61 @@
 import PadCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings (⌃⌥,). Short, because most of what this app does is meant to
 /// stay out of sight; the switches here are for checking and adjusting the
 /// bridges on a real iPad.
 struct SettingsView: View {
     @ObservedObject var session: Session
+    /// The space of the window Settings opened from, which imports go into.
+    let spaceID: UUID
     let done: () -> Void
+    @State private var importing = false
+    @State private var imported: (title: String, message: String)?
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Show the address bar", selection: $session.preferences.address) {
-                        Text("On sign-in pages and while typing").tag(AddressMode.automatic)
-                        Text("Always").tag(AddressMode.always)
+                    Picker("Tabs", selection: $session.preferences.layout) {
+                        Text("Compact").tag(TabLayout.compact)
+                        Text("Separate").tag(TabLayout.separate)
+                    }
+                    if session.preferences.layout == .separate {
+                        Picker("Show the address bar", selection: $session.preferences.address) {
+                            Text("On sign-in pages and while typing").tag(AddressMode.automatic)
+                            Text("Always").tag(AddressMode.always)
+                        }
+                    } else {
+                        Picker("The tab you are on shows", selection: $session.preferences.address) {
+                            Text("Its address").tag(AddressMode.always)
+                            Text("Its title").tag(AddressMode.automatic)
+                        }
                     }
                     Toggle("Show the tab bar", isOn: $session.preferences.tabBar)
                 } header: {
                     Text("Window")
                 } footer: {
-                    Text("Sign-in pages always show the address, so you can see which site is asking for your password. With the tab bar hidden, ⌃⌥K finds every tab.")
+                    Text("Compact puts the tabs and the address in one row, as Safari's compact layout does: a click on the tab you are on types a new address. Separate puts the address bar under the tabs. Sign-in pages always show the address, so you can see which site is asking for your password. With the tab bar hidden, ⌃⌥K finds every tab.")
+                }
+
+                Section {
+                    NavigationLink {
+                        SpaceList(session: session)
+                    } label: {
+                        HStack {
+                            Text("Spaces")
+                            Spacer()
+                            Text("\(session.workspace.spaces.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
+                    Button("Import Bookmarks into \(session.workspace.space(spaceID)?.name ?? "This Space")…") {
+                        importing = true
+                    }
+                } footer: {
+                    Text("Each space has its own name, colour and icon, its own sign-ins and its own bookmarks, which a new tab shows. Import from Chrome (Bookmark Manager › Export Bookmarks), from Safari on a Mac (File › Export › Bookmarks), or the ZIP Safari on this iPad saves from Settings › Apps › Safari › Export.")
                 }
 
                 Section {
@@ -45,10 +80,11 @@ struct SettingsView: View {
                         Text("Send to the page first").tag(Override.on)
                         Text("Leave to the system").tag(Override.off)
                     }
+                    Toggle("Show pages' own cursors", isOn: $session.preferences.pageCursors)
                 } header: {
                     Text("Trackpad and keyboard")
                 } footer: {
-                    Text("Pinch and ⌘ with two fingers zoom the page's own canvas, as on a Mac. Turn on “Send to the page first” if the system keeps Tab or the arrow keys from a page.")
+                    Text("Pinch and ⌘ with two fingers zoom the page's own canvas, as on a Mac. Turn on “Send to the page first” if the system keeps Tab or the arrow keys from a page. A page's own cursor, such as Figma's tools, takes the pointer's place; turn it off to keep the iPad's pointer.")
                 }
 
                 Section("Search") {
@@ -97,7 +133,7 @@ struct SettingsView: View {
 
                 Section("Known limitations") {
                     Text("iPadOS keeps its own shortcuts (⌘Tab, ⌘Space, the Globe key) and its three- and four-finger gestures; no app can give those to a page.")
-                    Text("Passkeys need an entitlement Apple grants only to default browsers, so sign in with a password, an email link, or your company's single sign-on.")
+                    Text("Until Apple grants Safience its browser entitlement, passkeys don't work and the Passwords app suggests nothing for a site; sign in with a password, an email link, or your company's single sign-on.")
                     Text("With VoiceOver on, ⌃⌥ is VoiceOver's own key; use the command palette instead.")
                 }
                 .font(.footnote)
@@ -105,6 +141,17 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .fileImporter(isPresented: $importing, allowedContentTypes: [.html, .zip]) { result in
+                guard case .success(let file) = result else { return }
+                let scoped = file.startAccessingSecurityScopedResource()
+                defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+                imported = session.importBookmarks(from: file, into: spaceID)
+            }
+            .alert(imported?.title ?? "", isPresented: Binding(get: { imported != nil }, set: { if !$0 { imported = nil } })) {
+                Button("OK") { imported = nil }
+            } message: {
+                Text(imported?.message ?? "")
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done", action: done)

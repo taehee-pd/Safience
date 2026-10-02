@@ -18,6 +18,7 @@ public enum Scripts {
         var handsOff: [String]
         var wheel: String
         var keys: [String]
+        var cursor: Bool
     }
 
     /// For the app's own content world: the bridge, told which site it is on
@@ -28,7 +29,8 @@ public enum Scripts {
             css: [style, adapter.css].filter { !$0.isEmpty }.joined(separator: "\n"),
             handsOff: HandsOff.hosts,
             wheel: bridges.wheel.rawValue,
-            keys: bridges.keys.map(\.rawValue).sorted()
+            keys: bridges.keys.map(\.rawValue).sorted(),
+            cursor: bridges.cursors
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
