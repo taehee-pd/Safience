@@ -3,8 +3,9 @@
 <title>Figma stand-in</title>
 <!-- A stand-in for a Figma file, for Tests/bridge.mjs: a canvas under a thin
      layer that takes the events, a zoom that changes by e^(-deltaY/100) on
-     ctrl+wheel, the zoom shown as a percentage in a toolbar, and the zoom in
-     window.figma.viewport unless the address says ?noapi. -->
+     ctrl+wheel (e^(-deltaY/200), as Figma does in Safari, when the address
+     says ?k=200), the zoom shown as a percentage in a toolbar, and the zoom
+     in window.figma.viewport unless the address says ?noapi. -->
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; }
   canvas { position: absolute; left: 0; top: 40px; width: 100%; height: calc(100% - 40px); }
@@ -16,6 +17,7 @@
 <div id="layer"></div>
 <script>
   let zoom = 1;
+  const k = Number(new URLSearchParams(location.search).get('k')) || 100;
   const label = document.getElementById('zoom');
   if (!location.search.includes('noapi')) {
     window.figma = { viewport: { get zoom() { return zoom; } } };
@@ -23,7 +25,7 @@
   document.getElementById('layer').addEventListener('wheel', (event) => {
     if (window.__ignoreWheel) return;
     event.preventDefault();
-    if (event.ctrlKey) zoom *= Math.exp(-event.deltaY / 100);
+    if (event.ctrlKey) zoom *= Math.exp(-event.deltaY / k);
     label.textContent = Math.round(zoom * 100) + '%';
   }, { passive: false });
 </script>

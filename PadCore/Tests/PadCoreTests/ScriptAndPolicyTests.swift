@@ -16,9 +16,20 @@ final class PreferencesTests: XCTestCase {
     func testUnknownValuesFallBackRatherThanFail() throws {
         let saved = Data(#"{"address":"sometimes","wheel":"sideways","tabBar":false}"#.utf8)
         let preferences = try JSONDecoder().decode(Preferences.self, from: saved)
-        XCTAssertEqual(preferences.address, .automatic)
+        XCTAssertEqual(preferences.address, .always)
         XCTAssertNil(preferences.wheel)
         XCTAssertFalse(preferences.tabBar)
+    }
+
+    func testTheTabBarIsCompactByDefault() throws {
+        XCTAssertEqual(Preferences().layout, .compact)
+        XCTAssertEqual(try JSONDecoder().decode(Preferences.self, from: Data(#"{"address":"automatic"}"#.utf8)).layout, .compact)
+        XCTAssertEqual(try JSONDecoder().decode(Preferences.self, from: Data(#"{"layout":"separate"}"#.utf8)).layout, .separate)
+    }
+
+    func testTheAddressBarStaysByDefault() throws {
+        XCTAssertEqual(Preferences().address, .always)
+        XCTAssertEqual(try JSONDecoder().decode(Preferences.self, from: Data("{}".utf8)).address, .always)
     }
 
     func testRoundTrip() throws {

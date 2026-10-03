@@ -10,7 +10,8 @@
 // step of a trackpad scroll or pinch, key() for a relayed key, unsaved()
 // before a tab is frozen, state() for Diagnostics. It hears back through the
 // "safience" message handler: where the focus is, whether there is a
-// password field, whether WebKit's own wheel events are arriving.
+// password field, whether WebKit's own wheel events are arriving, the
+// cursor the page asks for under the pointer, and the icons it names.
 (() => {
   'use strict';
   if (window.__safience) return;
@@ -402,6 +403,285 @@
     watch();
   }
 
+  // MARK: The cursor the page asks for
+
+  // WebKit on iPad shows the system pointer whatever cursor a page sets,
+  // but for the text beam over text. A page's own cursor image (Figma
+  // draws even its arrow) is drawn by the app instead (Pointer.swift):
+  // here the cursor under the pointer is read, its image drawn once to a
+  // PNG, and the app told whenever it changes. 'none' hides the pointer;
+  // any other keyword leaves the system's.
+  const largestCursor = 128;
+
+  // `cursor` as getComputedStyle gives it: images, each a url() or an
+  // image-set() with an optional hotspot, then a keyword, comma separated:
+  // url("data:…") 4 4, auto. A data URL can hold brackets and quotes, so
+  // the value is read a character at a time rather than split.
+  function parseCursor(value) {
+    const text = String(value || '');
+    const images = [];
+    let i = 0;
+    const space = () => { while (i < text.length && /\s/.test(text[i])) i++; };
+    const starts = (word) => text.slice(i, i + word.length).toLowerCase() === word;
+    const quoted = () => {
+      const quote = text[i++];
+      let out = '';
+      while (i < text.length && text[i] !== quote) {
+        if (text[i] === '\\' && i + 1 < text.length) i++;
+        out += text[i++];
+      }
+      i++;
+      return out;
+    };
+    const url = () => {
+      space();
+      let out = '';
+      if (text[i] === '"' || text[i] === "'") {
+        out = quoted();
+      } else {
+        while (i < text.length && text[i] !== ')') out += text[i++];
+        out = out.trim();
+      }
+      space();
+      if (text[i] === ')') i++;
+      return out;
+    };
+    for (;;) {
+      space();
+      const candidates = [];
+      if (starts('url(')) {
+        i += 4;
+        candidates.push({ url: url(), density: 1 });
+      } else if (starts('image-set(') || starts('-webkit-image-set(')) {
+        i += starts('image-set(') ? 10 : 18;
+        while (i < text.length) {
+          space();
+          let source = null;
+          if (starts('url(')) {
+            i += 4;
+            source = url();
+          } else if (text[i] === '"' || text[i] === "'") {
+            source = quoted();
+          }
+          // The rest of this choice: its density (2x, 2dppx, 192dpi), a type().
+          let rest = '';
+          let depth = 0;
+          while (i < text.length && !(depth === 0 && (text[i] === ',' || text[i] === ')'))) {
+            if (text[i] === '(') depth++;
+            if (text[i] === ')') depth--;
+            rest += text[i++];
+          }
+          const found = /(\d*\.?\d+)(x|dppx|dpi|dpcm)\b/i.exec(rest);
+          let density = 1;
+          if (found) {
+            const n = Number(found[1]);
+            const unit = found[2].toLowerCase();
+            density = unit === 'dpi' ? n / 96 : unit === 'dpcm' ? n * 2.54 / 96 : n;
+          }
+          if (source && density > 0) candidates.push({ url: source, density });
+          if (text[i] === ',') {
+            i++;
+            continue;
+          }
+          if (text[i] === ')') i++;
+          break;
+        }
+      } else {
+        break;
+      }
+      space();
+      const hotspot = /^(-?\d*\.?\d+)(?:px)?\s+(-?\d*\.?\d+)(?:px)?/.exec(text.slice(i, i + 64));
+      let x = 0;
+      let y = 0;
+      if (hotspot) {
+        x = Number(hotspot[1]);
+        y = Number(hotspot[2]);
+        i += hotspot[0].length;
+      }
+      if (candidates.length) images.push({ candidates, x, y });
+      space();
+      if (text[i] !== ',') break;
+      i++;
+    }
+    const keyword = text.slice(i).replace(/^[\s,]+/, '').trim().toLowerCase() || 'auto';
+    return { images, keyword };
+  }
+
+  // Of an image set, the one at the screen's density or the nearest above
+  // it, as a browser picks.
+  function pick(candidates) {
+    const want = window.devicePixelRatio || 1;
+    const sorted = candidates.slice().sort((a, b) => a.density - b.density);
+    return sorted.find((c) => c.density >= want) || sorted[sorted.length - 1];
+  }
+
+  // One image of a cursor, drawn to a PNG at the screen's density, so the
+  // app gets a picture it can show whatever the page gave (an SVG, an image
+  // set). Null when it can't be: it didn't load, it is bigger than a cursor
+  // may be, or it comes from another site that doesn't let it be read.
+  function drawCursor(image) {
+    const choice = pick(image.candidates);
+    return new Promise((resolve) => {
+      const picture = new Image();
+      if (/^https?:/i.test(choice.url)) picture.crossOrigin = 'anonymous';
+      picture.onload = () => {
+        const width = (picture.naturalWidth || 32) / choice.density;
+        const height = (picture.naturalHeight || 32) / choice.density;
+        if (!(width > 0 && height > 0) || width > largestCursor || height > largestCursor) {
+          resolve(null);
+          return;
+        }
+        const scale = Math.min(Math.max(window.devicePixelRatio || 1, 1), 3);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        try {
+          canvas.getContext('2d').drawImage(picture, 0, 0, canvas.width, canvas.height);
+          resolve({
+            image: canvas.toDataURL('image/png'),
+            width,
+            height,
+            scale,
+            x: Math.min(Math.max(image.x, 0), width),
+            y: Math.min(Math.max(image.y, 0), height),
+          });
+        } catch (_) {
+          resolve(null);
+        }
+      };
+      picture.onerror = () => resolve(null);
+      picture.src = choice.url;
+    });
+  }
+
+  // What the app hears for a cursor value: the first of its images that
+  // can be drawn, with an id of its own, or else its keyword.
+  // Ids start from a number of this document's own, so a document's id is
+  // never another's: one from the back-forward cache comes back with ids
+  // the app may still have pictures for, and must not get another page's.
+  let nextCursor = Math.floor(Math.random() * 2 ** 30) * 2 ** 20 + 1;
+  async function resolveCursor(value) {
+    const parsed = parseCursor(value);
+    for (const image of parsed.images) {
+      const drawn = await drawCursor(image);
+      if (drawn) return Object.assign({ id: nextCursor++ }, drawn);
+    }
+    return { keyword: parsed.keyword };
+  }
+
+  // Each value is looked at once; its picture goes to the app once, and
+  // after that its id stands for it. Both are forgotten together past 64
+  // values (the set of pictures sent would otherwise only grow), so an id
+  // sent alone is always one of the last 65 pictures sent, which the app
+  // always keeps (Pointer.show).
+  const cursorReports = new Map();
+  const sentPictures = new Set();
+  let cursorValue = null;
+  function showCursor(value) {
+    if (value === cursorValue) return;
+    cursorValue = value;
+    let report = cursorReports.get(value);
+    if (!report) {
+      if (cursorReports.size > 64) {
+        cursorReports.clear();
+        sentPictures.clear();
+      }
+      report = resolveCursor(value);
+      cursorReports.set(value, report);
+    }
+    Promise.resolve(report).then((done) => {
+      cursorReports.set(value, done);
+      if (cursorValue !== value) return;
+      if (done.id && sentPictures.has(done.id)) {
+        post({ kind: 'cursor', id: done.id });
+        return;
+      }
+      if (done.id) sentPictures.add(done.id);
+      post(Object.assign({ kind: 'cursor' }, done));
+    });
+  }
+
+  // What is under the pointer, read once a frame at most: the innermost
+  // element, through open shadow roots.
+  let cursorElement = null;
+  let cursorFrame = 0;
+  function checkCursor() {
+    cursorFrame = 0;
+    const element = cursorElement;
+    if (!element || !element.isConnected) return;
+    let value = 'auto';
+    try {
+      value = element.ownerDocument.defaultView.getComputedStyle(element).cursor || 'auto';
+    } catch (_) {}
+    showCursor(value);
+  }
+  function checkSoon() {
+    if (!cursorFrame) cursorFrame = requestAnimationFrame(checkCursor);
+  }
+  function pointerOver(event) {
+    // A finger on the glass has no cursor; a trackpad or a mouse does.
+    if (event.pointerType && event.pointerType !== 'mouse') return;
+    const path = event.composedPath ? event.composedPath() : [];
+    const first = path.length ? path[0] : event.target;
+    cursorElement = first && first.nodeType === 1 ? first : event.target;
+    checkSoon();
+  }
+  if (config.cursor !== false) {
+    for (const type of ['pointerover', 'pointermove', 'pointerdown', 'pointerup']) {
+      window.addEventListener(type, pointerOver, { capture: true, passive: true });
+    }
+    window.addEventListener('pointerout', (event) => {
+      if (event.pointerType && event.pointerType !== 'mouse') return;
+      if (event.relatedTarget) return;
+      cursorElement = null;
+      showCursor('auto');
+    }, { capture: true, passive: true });
+    // A page changes its cursor without the pointer moving too: a key picks
+    // another tool in Figma. So it is read again after a key, and every so
+    // often while the pointer is over the page.
+    for (const type of ['keydown', 'keyup']) {
+      window.addEventListener(type, () => { if (cursorElement) checkSoon(); }, { capture: true, passive: true });
+    }
+    setInterval(() => { if (cursorElement) checkSoon(); }, 400);
+  }
+
+  // MARK: The site's icon
+
+  // The icons the page names, best first, for its pinned tab and its
+  // bookmarks (SiteIcons.swift fetches the first that loads). Apple's touch
+  // icons are the big ones; a plain icon can be 16 pixels; /favicon.ico is
+  // the one every site had before <link> did. An SVG can't be shown by the
+  // app, and a mask icon is a single colour, so neither is named.
+  function siteIcons() {
+    const found = [];
+    for (const link of document.querySelectorAll('link[rel][href]')) {
+      const rel = String(link.rel || '').toLowerCase().split(/\s+/);
+      const touch = rel.includes('apple-touch-icon') || rel.includes('apple-touch-icon-precomposed');
+      if (!touch && !rel.includes('icon')) continue;
+      if (rel.includes('mask-icon')) continue;
+      const href = link.href;
+      const type = String(link.type || '').toLowerCase();
+      if (!/^(https?:|data:image\/)/i.test(href) || type.includes('svg') || /^data:image\/svg/i.test(href) ||
+          /\.svg([?#]|$)/i.test(href)) continue;
+      const sizes = String(link.getAttribute('sizes') || '').toLowerCase().split(/\s+/)
+        .map((size) => parseInt(size, 10) || 0);
+      found.push({ href, score: (touch ? 1000 : 0) + Math.min(Math.max(0, ...sizes), 512) });
+    }
+    found.sort((a, b) => b.score - a.score);
+    const urls = found.map((icon) => icon.href);
+    if (/^https?:$/.test(location.protocol)) urls.push(location.origin + '/favicon.ico');
+    return Array.from(new Set(urls)).slice(0, 6);
+  }
+  let iconsSent = '';
+  function reportIcons() {
+    const urls = siteIcons();
+    const key = urls.join(' ');
+    if (!urls.length || key === iconsSent) return;
+    iconsSent = key;
+    post({ kind: 'icons', urls });
+  }
+  window.addEventListener('load', () => setTimeout(reportIcons, 300), { once: true });
+
   // Whether freezing the tab would lose something typed and not sent: a
   // field whose text is not the one the page put there.
   const untyped = /^(button|checkbox|color|file|hidden|image|radio|range|reset|submit)$/;
@@ -428,6 +708,6 @@
   post({ kind: 'hello', userAgent: navigator.userAgent, adapter: config.adapter || '' });
 
   Object.defineProperty(window, '__safience', {
-    value: Object.freeze({ wheel, key, unsaved, state, clientPoint, hitTest }),
+    value: Object.freeze({ wheel, key, unsaved, state, clientPoint, hitTest, parseCursor, siteIcons }),
   });
 })();

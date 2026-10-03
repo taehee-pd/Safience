@@ -5,6 +5,11 @@
 //     PRODUCT_BUNDLE_IDENTIFIER = com.example.safience   (if this one is taken)
 //
 // Xcode > Settings > Accounts shows the team ID.
+//
+// Once Apple grants your team the browser entitlement (README), add this
+// line there too, for passkeys and to be offered as the default browser:
+//
+//     CODE_SIGN_ENTITLEMENTS = Config/Browser.entitlements
 PRODUCT_BUNDLE_IDENTIFIER = net.taehee.safience
 DEVELOPMENT_TEAM =
 

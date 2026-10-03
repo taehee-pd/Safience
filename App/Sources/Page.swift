@@ -53,6 +53,10 @@ final class Page: NSObject {
     private(set) var exhausted = false
     private var crashes = CrashGuard()
 
+    /// The colour of the page's top, which the bars above it take on.
+    private(set) var siteColor: SiteColor?
+    private var sampling: Task<Void, Never>?
+
     private(set) var pointer: Pointer?
     private var zoom: ZoomHold?
     private var observations: [NSKeyValueObservation] = []
@@ -123,7 +127,15 @@ final class Page: NSObject {
         pointer = Pointer(page: self)
         observations = [
             view.observe(\.title) { [weak self] _, _ in MainActor.assumeIsolated { self?.changed() } },
-            view.observe(\.url) { [weak self] _, _ in MainActor.assumeIsolated { self?.changed() } },
+            view.observe(\.url) { [weak self] _, _ in
+                MainActor.assumeIsolated {
+                    self?.changed()
+                    // A page that changes its address without loading (Figma
+                    // opening a file) may change its top too.
+                    self?.sampleSoon()
+                }
+            },
+            view.observe(\.themeColor) { [weak self] _, _ in MainActor.assumeIsolated { self?.sampleColor() } },
             view.observe(\.isLoading) { [weak self] _, _ in MainActor.assumeIsolated { self?.changed() } },
             view.observe(\.estimatedProgress) { [weak self] _, _ in MainActor.assumeIsolated { self?.changed() } },
             view.observe(\.canGoBack) { [weak self] _, _ in MainActor.assumeIsolated { self?.changed() } },
@@ -144,6 +156,8 @@ final class Page: NSObject {
     func tearDown() {
         observations.forEach { $0.invalidate() }
         observations = []
+        sampling?.cancel()
+        sampling = nil
         pointer?.stop()
         pointer = nil
         zoom = nil
@@ -209,7 +223,7 @@ final class Page: NSObject {
         bridges = Session.shared.preferences.bridges(for: adapter)
         view.customUserAgent = handsOff ? nil : adapter.userAgent
         let keys = bridges.keys.map(\.rawValue).sorted().joined(separator: ",")
-        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)"
+        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)|\(bridges.cursors)"
         guard wanted != installed else { return }
         installed = wanted
         controller.removeAllUserScripts()
@@ -227,6 +241,7 @@ final class Page: NSObject {
         bridges = Session.shared.preferences.bridges(for: adapter)
         installed = nil
         prepare(for: committed ?? view.url)
+        if !bridges.cursors { pointer?.show(.system) }
     }
 
     /// WebKit's own scrolling, off unless no bridge can run (Scrolling.swift).
@@ -318,6 +333,49 @@ final class Page: NSObject {
         view.takeSnapshot(with: configuration) { image, _ in done(image) }
     }
 
+    // MARK: The colour along the top
+
+    /// The colour the page's top edge shows, so the bars run on into it;
+    /// the page's theme-color when there is nothing to see yet, or the page
+    /// is off screen. A theme-color can differ from what is drawn (GitHub's
+    /// is grey over a navy top), which is why the picture comes first. A
+    /// picture, not a script, so it is the same on a hands-off page.
+    private func sampleColor() {
+        let theme = view.themeColor.flatMap { SiteColor($0) }
+        guard view.bounds.width > 0, view.window != nil else {
+            if let theme { setSiteColor(theme) }
+            return
+        }
+        let configuration = WKSnapshotConfiguration()
+        configuration.rect = CGRect(x: 0, y: 0, width: view.bounds.width, height: 2)
+        configuration.snapshotWidth = 64
+        configuration.afterScreenUpdates = false
+        view.takeSnapshot(with: configuration) { [weak self] image, _ in
+            if let color = image.flatMap({ SiteColor(picture: $0) }) ?? theme {
+                self?.setSiteColor(color)
+            }
+        }
+    }
+
+    /// Soon after a change, and twice more for pages that draw their top
+    /// after they have loaded (Figma's file view takes seconds).
+    private func sampleSoon() {
+        sampling?.cancel()
+        sampling = Task { [weak self] in
+            for delay in [0.3, 1.5, 4.0] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                self?.sampleColor()
+            }
+        }
+    }
+
+    private func setSiteColor(_ color: SiteColor) {
+        guard color != siteColor else { return }
+        siteColor = color
+        host?.pageDidChange(self)
+    }
+
     // MARK: Messages from the bridge
 
     fileprivate func received(_ message: WKScriptMessage) {
@@ -334,6 +392,11 @@ final class Page: NSObject {
             stats.webKitWheels = body["trusted"] as? Int ?? stats.webKitWheels
         case "hello":
             stats.userAgent = body["userAgent"] as? String
+        case "cursor":
+            pointer?.show(bridges.cursors ? PageCursor(message: body) : .system)
+        case "icons":
+            let urls = (body["urls"] as? [String] ?? []).compactMap(URL.init(string:))
+            SiteIcons.shared.learn(urls, for: view.url)
         default:
             break
         }
@@ -429,6 +492,8 @@ extension Page: WKNavigationDelegate {
         committed = webView.url
         passwordField = false
         editing = false
+        // The last page's cursor goes with it; this one says its own.
+        pointer?.show(.system)
         googleRefused = SignIn.googleRefused(webView.url)
         applyScrolling()
         host?.pageDidChange(self)
@@ -437,6 +502,7 @@ extension Page: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         applyScrolling()
         host?.pageDidChange(self)
+        sampleSoon()
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

@@ -7,12 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		134B206FE21F5C445DF8C30F /* TypingField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454BB91AD08E546C79F7A68B /* TypingField.swift */; };
 		1449E23068B46A41BE868E4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */; };
+		1B8C1AE2965FFB497E33CD89 /* Split.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35703117FE6070510D9ACD41 /* Split.swift */; };
 		2E2D6E9CA72640C621481A31 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074CA17DACDA7627B0F56156 /* Stores.swift */; };
 		391B4688B7965EC189CE6B5C /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF9E81EBAC67F3BB4262C21 /* Menus.swift */; };
 		3977933A53FA14627EF3C8F0 /* CommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512242CF748C7FC74E5144D7 /* CommandPalette.swift */; };
 		4BA36CAD321B3DAECE500DE2 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF971FC5BBD0193585DD8BF /* Diagnostics.swift */; };
+		5338A543700A5A09C804067C /* SiteIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42913D2892ED2BD37B49B46B /* SiteIcons.swift */; };
 		59BF9C5FA933841C774F11B2 /* Browser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07CD2B9AB17815079EA957CE /* Browser.swift */; };
+		62A4AEE0CD76A947B4755FB6 /* StartPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FCC216CAD2764E9BC35B99 /* StartPage.swift */; };
+		7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */; };
 		830AC5C5BD7674F0CE7E37FF /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = B455D4DFE19101DC8D9B04D6 /* Design.swift */; };
 		84FCF83CE8E1010D83C99B66 /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA24A05C238565C89C5709DE /* Downloads.swift */; };
 		8B82DF9060D876302EA0545B /* PageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D63E0D6CDA990090BB18797 /* PageView.swift */; };
@@ -20,6 +25,8 @@
 		94DA9C15A47FEC39C11F9063 /* Popup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1E327B0EF5710ADF1392D4 /* Popup.swift */; };
 		99D1C135FEB8AB5A736201C8 /* Bars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310BD6F1447DB8F94292DAF8 /* Bars.swift */; };
 		A85CD2814BD93FDD51B9A59D /* PadCore in Frameworks */ = {isa = PBXBuildFile; productRef = B6824DF218F1DEC5DB41FC8E /* PadCore */; };
+		B6BC6731F7D0A7A4D6A10A75 /* Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C853B222D6041EF25DDE463 /* Spaces.swift */; };
+		C87EB1061D76EA769C30C42C /* Safiens.icon in Resources */ = {isa = PBXBuildFile; fileRef = 188B73185591CC9E9998E418 /* Safiens.icon */; };
 		CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB06E275F05C5DC35F5F409 /* Dialogs.swift */; };
 		E7DF6BA50A37C08EFA6DD149 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98ADE0F015573BE29D113B69 /* AppDelegate.swift */; };
 		ED593CD2CCCF8AE55B5FD515 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A825AD3F237E75FE4112E0F /* SettingsView.swift */; };
@@ -32,17 +39,24 @@
 		0570CD44BA4C8F93288DEEE4 /* PadCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PadCore; path = PadCore; sourceTree = SOURCE_ROOT; };
 		074CA17DACDA7627B0F56156 /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores.swift; sourceTree = "<group>"; };
 		07CD2B9AB17815079EA957CE /* Browser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Browser.swift; sourceTree = "<group>"; };
+		188B73185591CC9E9998E418 /* Safiens.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Safiens.icon; sourceTree = "<group>"; };
 		1D01DEA252EBCFD4CF819C5B /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		22A76837AE5318B1FCA39940 /* Safience.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Safience.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		26830907E9299824307361FA /* Pointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pointer.swift; sourceTree = "<group>"; };
+		26FCC216CAD2764E9BC35B99 /* StartPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartPage.swift; sourceTree = "<group>"; };
 		2983A3132591D10150B7EDE6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		310BD6F1447DB8F94292DAF8 /* Bars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bars.swift; sourceTree = "<group>"; };
+		35703117FE6070510D9ACD41 /* Split.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Split.swift; sourceTree = "<group>"; };
+		3C853B222D6041EF25DDE463 /* Spaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces.swift; sourceTree = "<group>"; };
 		3EF9E81EBAC67F3BB4262C21 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
+		42913D2892ED2BD37B49B46B /* SiteIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteIcons.swift; sourceTree = "<group>"; };
+		454BB91AD08E546C79F7A68B /* TypingField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingField.swift; sourceTree = "<group>"; };
 		512242CF748C7FC74E5144D7 /* CommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette.swift; sourceTree = "<group>"; };
 		7D63E0D6CDA990090BB18797 /* PageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageView.swift; sourceTree = "<group>"; };
 		82E5D050E5C6B6B0BC0362ED /* Pages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pages.swift; sourceTree = "<group>"; };
 		98ADE0F015573BE29D113B69 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9A825AD3F237E75FE4112E0F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA24A05C238565C89C5709DE /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B455D4DFE19101DC8D9B04D6 /* Design.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design.swift; sourceTree = "<group>"; };
@@ -110,7 +124,12 @@
 				DC1E327B0EF5710ADF1392D4 /* Popup.swift */,
 				1D01DEA252EBCFD4CF819C5B /* Session.swift */,
 				9A825AD3F237E75FE4112E0F /* SettingsView.swift */,
+				42913D2892ED2BD37B49B46B /* SiteIcons.swift */,
+				3C853B222D6041EF25DDE463 /* Spaces.swift */,
+				35703117FE6070510D9ACD41 /* Split.swift */,
+				26FCC216CAD2764E9BC35B99 /* StartPage.swift */,
 				074CA17DACDA7627B0F56156 /* Stores.swift */,
+				454BB91AD08E546C79F7A68B /* TypingField.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -128,6 +147,8 @@
 			children = (
 				B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */,
 				2983A3132591D10150B7EDE6 /* Info.plist */,
+				9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */,
+				188B73185591CC9E9998E418 /* Safiens.icon */,
 				858BA53CA1824B50F80E165E /* Sources */,
 			);
 			path = App;
@@ -199,6 +220,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				1449E23068B46A41BE868E4C /* Assets.xcassets in Resources */,
+				7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */,
+				C87EB1061D76EA769C30C42C /* Safiens.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -225,7 +248,12 @@
 				94DA9C15A47FEC39C11F9063 /* Popup.swift in Sources */,
 				F5CF0DA5501ABC1FA2B87BC8 /* Session.swift in Sources */,
 				ED593CD2CCCF8AE55B5FD515 /* SettingsView.swift in Sources */,
+				5338A543700A5A09C804067C /* SiteIcons.swift in Sources */,
+				B6BC6731F7D0A7A4D6A10A75 /* Spaces.swift in Sources */,
+				1B8C1AE2965FFB497E33CD89 /* Split.swift in Sources */,
+				62A4AEE0CD76A947B4755FB6 /* StartPage.swift in Sources */,
 				2E2D6E9CA72640C621481A31 /* Stores.swift in Sources */,
+				134B206FE21F5C445DF8C30F /* TypingField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,7 +264,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Safiens;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;
@@ -288,7 +316,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -353,7 +381,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -381,7 +409,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Safiens;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;

@@ -43,7 +43,7 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(becameKey(_:)),
                                                name: UIWindow.didBecomeKeyNotification, object: window)
         if let url = connectionOptions.urlContexts.first?.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
-            browser.open(url)
+            browser.openLink(url)
         }
     }
 
@@ -69,6 +69,6 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     /// A link opened with the app, from another app or the share sheet.
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         guard let url = URLContexts.first?.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return }
-        browser?.open(url)
+        browser?.openLink(url)
     }
 }

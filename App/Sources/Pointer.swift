@@ -1,6 +1,7 @@
 import PadCore
 import QuartzCore
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 /// The trackpad, as a Mac's WebKit would hand it to the page.
 ///
@@ -19,12 +20,15 @@ import UIKit
 /// - Two fingers alone become wheel events too (the wheel bridge), unless
 ///   WebKit is sending the page its own, which bridge.js checks event by
 ///   event; a release with speed glides on, as on a Mac.
+/// - A page's own cursor picture, which WebKit on iPad never shows, is
+///   drawn where the pointer is, over the hidden system pointer (below).
 @MainActor
-final class Pointer: NSObject, UIGestureRecognizerDelegate {
+final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteractionDelegate {
     private weak var page: Page?
     private let hover: UIHoverGestureRecognizer
     private let pinch: UIPinchGestureRecognizer
     private let scroll: UIPanGestureRecognizer
+    private let press: PressWatcher
 
     /// Where the cursor last was over the page, in the page view's points.
     private(set) var cursor: CGPoint?
@@ -43,16 +47,35 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate {
     private var link: CADisplayLink?
     private var lastTick: CFTimeInterval = 0
 
+    /// The page's own cursor: the one it asks for, the pictures it has sent
+    /// by bridge.js's id, the view that draws the one showing, and the
+    /// interaction that hides the system pointer while it shows.
+    private(set) var pageCursor: PageCursor = .system
+    private var pictures: [Int: CursorPicture] = [:]
+    /// The pictures' ids, oldest first: past 128, the oldest goes. The page
+    /// names by id only its last 65 (bridge.js showCursor), so those stay.
+    private var pictureOrder: [Int] = []
+    private let drawn = UIImageView()
+    private var hider: UIPointerInteraction?
+    private var hiding = false
+    /// Where the pointer is while its button is down, which the hover
+    /// recognizer doesn't follow; and when the hover recognizer last did.
+    private var pressed: CGPoint?
+    private var lastHover: CFTimeInterval = 0
+
     init(page: Page) {
         self.page = page
         hover = UIHoverGestureRecognizer()
         pinch = UIPinchGestureRecognizer()
         scroll = UIPanGestureRecognizer()
+        press = PressWatcher()
         super.init()
         hover.addTarget(self, action: #selector(hovered(_:)))
         pinch.addTarget(self, action: #selector(pinched(_:)))
         scroll.addTarget(self, action: #selector(scrolled(_:)))
         let pointer = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        press.allowedTouchTypes = pointer
+        press.moved = { [weak self] point in self?.pressMoved(point) }
         pinch.allowedTouchTypes = pointer
         // Scroll events, from a trackpad or a mouse wheel. Fingers on the
         // glass never reach it; a click-drag with the pointer does, and is
@@ -60,20 +83,33 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate {
         // doesn't. Either stays the page's.
         scroll.allowedScrollTypesMask = .all
         scroll.allowedTouchTypes = pointer
-        for recognizer in [hover, pinch, scroll] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
             recognizer.delegate = self
             recognizer.cancelsTouchesInView = false
             recognizer.delaysTouchesBegan = false
             recognizer.delaysTouchesEnded = false
             page.view.addGestureRecognizer(recognizer)
         }
+
+        drawn.isUserInteractionEnabled = false
+        drawn.isHidden = true
+        drawn.accessibilityElementsHidden = true
+        page.view.addSubview(drawn)
+        let hider = UIPointerInteraction(delegate: self)
+        hider.isEnabled = false
+        page.view.addInteraction(hider)
+        self.hider = hider
     }
 
     func stop() {
         stopGlide()
-        for recognizer in [hover, pinch, scroll] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
             recognizer.view?.removeGestureRecognizer(recognizer)
         }
+        hideSystemPointer(false)
+        if let hider { hider.view?.removeInteraction(hider) }
+        hider = nil
+        drawn.removeFromSuperview()
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
@@ -87,10 +123,138 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate {
         switch recognizer.state {
         case .began, .changed:
             cursor = recognizer.location(in: recognizer.view)
+            lastHover = CACurrentMediaTime()
         default:
             // Gone from the page, or hidden while typing: the gestures' own
             // location stands in until it is back.
             cursor = nil
+        }
+        updateCursor()
+    }
+
+    /// The button went down, moved or came up (nil). On the way up the
+    /// pointer is taken to stay where it was, until the hover recognizer
+    /// says otherwise, so the page's cursor doesn't blink between the two.
+    private func pressMoved(_ point: CGPoint?) {
+        if let point {
+            pressed = point
+        } else if let last = pressed {
+            pressed = nil
+            cursor = page.map { $0.view.bounds.contains(last) } == true ? last : nil
+            let released = CACurrentMediaTime()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self, self.pressed == nil, self.lastHover < released else { return }
+                self.cursor = nil
+                self.updateCursor()
+            }
+        }
+        updateCursor()
+    }
+
+    // MARK: The page's own cursor
+
+    /// What bridge.js says the page asks for under the pointer. A picture
+    /// that doesn't decode, or one this page never sent, is the system's
+    /// pointer: never no pointer at all.
+    func show(_ asked: PageCursor) {
+        var asked = asked
+        if case .image(let image) = asked {
+            if let png = image.png {
+                if let picture = UIImage(data: png, scale: CGFloat(image.scale)) {
+                    pictureOrder.removeAll { $0 == image.id }
+                    pictureOrder.append(image.id)
+                    if pictureOrder.count > 128 {
+                        pictures[pictureOrder.removeFirst()] = nil
+                    }
+                    pictures[image.id] = CursorPicture(
+                        image: picture,
+                        size: CGSize(width: image.width, height: image.height),
+                        hotspot: CGPoint(x: image.hotspotX, y: image.hotspotY)
+                    )
+                } else {
+                    asked = .system
+                }
+            } else if pictures[image.id] == nil {
+                asked = .system
+            }
+        }
+        pageCursor = asked
+        updateCursor()
+    }
+
+    /// Over the page, the page's cursor: its picture drawn at the pointer,
+    /// the system pointer hidden under it. Anywhere else, or for a keyword,
+    /// the system pointer as WebKit chooses it.
+    private func updateCursor() {
+        let point = pressed ?? cursor
+        var picture: CursorPicture?
+        var hide = false
+        if point != nil {
+            switch pageCursor {
+            case .system:
+                break
+            case .hidden:
+                hide = true
+            case .image(let image):
+                picture = pictures[image.id]
+                hide = picture != nil
+            }
+        }
+        hideSystemPointer(hide)
+        guard let point, let picture else {
+            drawn.isHidden = true
+            return
+        }
+        UIView.performWithoutAnimation {
+            if drawn.image !== picture.image { drawn.image = picture.image }
+            drawn.frame = CGRect(x: point.x - picture.hotspot.x, y: point.y - picture.hotspot.y,
+                                 width: picture.size.width, height: picture.size.height)
+            if drawn.isHidden {
+                drawn.superview?.bringSubviewToFront(drawn)
+                drawn.isHidden = false
+            }
+        }
+    }
+
+    /// WebKit's own pointer interactions choose the pointer over the page,
+    /// and choose the system's whatever the page asks. While the page's own
+    /// cursor shows they are turned off, so that this one, which hides the
+    /// pointer, chooses instead; turned on again, the beam over text and the
+    /// rest are WebKit's as before.
+    private func hideSystemPointer(_ hide: Bool) {
+        guard hide != hiding, let view = page?.view, let hider else { return }
+        hiding = hide
+        for interaction in Self.pointerInteractions(in: view) where interaction !== hider {
+            interaction.isEnabled = !hide
+        }
+        hider.isEnabled = hide
+        hider.invalidate()
+    }
+
+    private static func pointerInteractions(in view: UIView) -> [UIPointerInteraction] {
+        view.interactions.compactMap { $0 as? UIPointerInteraction } + view.subviews.flatMap(pointerInteractions(in:))
+    }
+
+    func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest,
+                            defaultRegion: UIPointerRegion) -> UIPointerRegion? {
+        defaultRegion
+    }
+
+    func pointerInteraction(_ interaction: UIPointerInteraction, styleFor region: UIPointerRegion) -> UIPointerStyle? {
+        .hidden()
+    }
+
+    /// For Diagnostics.
+    var cursorSummary: String {
+        switch pageCursor {
+        case .system:
+            return "the system's"
+        case .hidden:
+            return "none, the pointer hidden"
+        case .image(let image):
+            guard let picture = pictures[image.id] else { return "the system's (picture missing)" }
+            let size = "\(Int(picture.size.width))×\(Int(picture.size.height)) at \(Int(picture.hotspot.x)),\(Int(picture.hotspot.y))"
+            return "the page's, \(size)\(hiding ? "" : ", pointer elsewhere")"
         }
     }
 
@@ -214,6 +378,42 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate {
         }
         self.glide = glide
         page.wheel(at: cursor ?? lastPoint, dx: step.x, dy: step.y, modifiers: [], zoom: false, guarded: "scroll")
+    }
+}
+
+/// A page's cursor picture, ready to draw: its size and hotspot in points.
+private struct CursorPicture {
+    let image: UIImage
+    let size: CGSize
+    let hotspot: CGPoint
+}
+
+/// Follows the pointer while its button is down, a click or a drag, which
+/// the hover recognizer doesn't. It never recognizes anything, so every
+/// touch stays the page's.
+private final class PressWatcher: UIGestureRecognizer {
+    var moved: ((CGPoint?) -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        report(touches)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        report(touches)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        moved?(nil)
+        state = .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        moved?(nil)
+        state = .failed
+    }
+
+    private func report(_ touches: Set<UITouch>) {
+        if let touch = touches.first { moved?(touch.location(in: view)) }
     }
 }
 

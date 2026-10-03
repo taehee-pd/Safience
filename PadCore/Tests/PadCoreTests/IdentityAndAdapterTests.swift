@@ -54,6 +54,14 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(bridges.pinchFactor, 100)
     }
 
+    func testFigmaFollowsThePinch() {
+        // Measured in Safari on a Mac (Validation/figma-ctrl-wheel.js): each
+        // ctrl+wheel event zooms Figma by e^(-deltaY / 200).
+        let figmaZoom = { (deltaY: Double) in Foundation.exp(-deltaY / 200) }
+        let delta = Pinch.wheelDelta(step: 2, factor: Adapters.figma.bridges.pinchFactor)
+        XCTAssertEqual(figmaZoom(delta), 2, accuracy: 0.001)
+    }
+
     func testFigmaHidesTouchPointsInThePagesOwnWorld() {
         XCTAssertTrue(Adapters.figma.pageScript.contains("maxTouchPoints"))
         XCTAssertTrue(Adapters.standard.pageScript.isEmpty)

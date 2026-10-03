@@ -23,6 +23,11 @@ public enum Command: String, CaseIterable, Sendable {
     case diagnostics
     case settings
     case focusPage
+    case pinTab
+    case splitTab
+    case bookmark
+    case spaceSettings
+    case importBookmarks
 
     public var title: String {
         switch self {
@@ -46,6 +51,11 @@ public enum Command: String, CaseIterable, Sendable {
         case .diagnostics: return "Show or Hide Diagnostics"
         case .settings: return "Settings"
         case .focusPage: return "Give Keys Back to the Page"
+        case .pinTab: return "Pin or Unpin Tab"
+        case .splitTab: return "Split or Separate Tabs"
+        case .bookmark: return "Bookmark This Page"
+        case .spaceSettings: return "Space Settings"
+        case .importBookmarks: return "Import Bookmarks"
         }
     }
 
@@ -69,6 +79,11 @@ public enum Command: String, CaseIterable, Sendable {
         case .diagnostics: return ["debug", "hud", "bridge", "memory"]
         case .settings: return ["preferences", "options"]
         case .focusPage: return ["keyboard", "first responder", "focus"]
+        case .pinTab: return ["pin", "keep", "unpin"]
+        case .splitTab: return ["split view", "side by side", "two", "pane", "unsplit"]
+        case .bookmark: return ["save", "favorite", "star", "remove bookmark"]
+        case .spaceSettings: return ["profile", "colour", "color", "icon", "rename"]
+        case .importBookmarks: return ["chrome", "safari", "html", "favorites"]
         }
     }
 }
@@ -130,6 +145,11 @@ public enum Shortcuts {
         .diagnostics: Chord(.character("d")),
         .settings: Chord(.character(",")),
         .focusPage: Chord(.character("p")),
+        .pinTab: Chord(.character("p"), shift: true),
+        .splitTab: Chord(.character("\\")),
+        .bookmark: Chord(.character("d"), shift: true),
+        .spaceSettings: Chord(.character("s"), shift: true),
+        .importBookmarks: Chord(.character("i"), shift: true),
     ]
 
     public static func chord(for command: Command) -> Chord? {
