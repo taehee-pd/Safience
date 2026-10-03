@@ -51,6 +51,8 @@ Before then, leave that line out: signing with an entitlement the team doesn't h
 | Settings | The app's preferences | You |
 | Anything else | Nowhere. There is no server, no analytics, no telemetry | |
 
+The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
+
 ## Layout
 
 | Path | What |
