@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:2064px;height:2752px;overflow:hidden}
+body{font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#111110;
+ background:linear-gradient(180deg,#f2f2ea 0%,#e4e4d8 55%,#d6d7c8 100%);position:relative}
+.ring{position:absolute;opacity:.13;pointer-events:none}
+/* One line of copy, the only words on the picture. */
+.copy{position:absolute;left:0;right:0;top:var(--copyTop);text-align:center;padding:0 120px}
+.copy p{font-size:88px;line-height:1.14;letter-spacing:-.032em;font-weight:680;color:#111110;text-wrap:balance}
+/* The whole iPad at a 13-inch screen's own 2064 by 2752 shape, large and low
+   enough that the picture's edge crops it; the bezel's corners follow the screen's. */
+.device{position:absolute;left:50%;transform:translateX(-50%);top:var(--top);padding:var(--bezel);
+ border-radius:calc(var(--radius) + var(--bezel));background:#0d0d0c;
+ box-shadow:0 2px 0 1px rgba(255,255,255,.35) inset,0 80px 160px -40px rgba(40,40,20,.45),0 30px 60px -30px rgba(0,0,0,.35)}
+.screen{width:var(--sw);aspect-ratio:2064/2752;border-radius:var(--radius);overflow:hidden;background:#fff}
+.screen img{display:block;width:100%;height:100%}
+</style></head><body>
+<img class="ring" id="ring" src="../../../App/Safiens.icon/Assets/Frame%201.png">
+<div class="copy"><p id="s"></p></div>
+<div class="device"><div class="screen"><img id="shot"></div></div>
+<script>
+const q=new URLSearchParams(location.search);
+document.getElementById('s').innerHTML=q.get('s');
+document.getElementById('shot').src=q.get('img');
+const g=document.getElementById('ring');const rp=(q.get('ring')||'1200,600,1400').split(',').map(Number);
+g.style.left=rp[0]+'px';g.style.top=rp[1]+'px';g.style.width=rp[2]+'px';
+const sw=Number(q.get('sw')||1800), bezel=28;
+const st=document.documentElement.style;
+st.setProperty('--sw',sw+'px');st.setProperty('--bezel',bezel+'px');st.setProperty('--radius',Math.round(sw*0.03)+'px');
+st.setProperty('--top',(q.get('top')||'560')+'px');st.setProperty('--copyTop',(q.get('ct')||'210')+'px');
+</script></body></html>

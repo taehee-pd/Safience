@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Launch plan · Margin</title><link rel="icon" href="/icons/margin.png"><style>:root{--ground:#f6f6f1;--paper:#ffffff;--ink:#141414;--muted:#77776f;--faint:#c9c9c0;--line:#e6e6df;--cyan:#1fb7d9;--yellow:#ffd23f;--coral:#ff5b3a;--violet:#6b5cff;--green:#2fbf71}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:var(--ink);background:var(--ground);-webkit-font-smoothing:antialiased}
+.top{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.pill{height:32px;padding:0 14px;border-radius:16px;display:inline-flex;align-items:center;font-weight:600;font-size:14px}
+.avatar{width:28px;height:28px;border-radius:14px;border:2px solid var(--paper);display:inline-block}
+</style>
+<style>
+body{background:var(--paper)}
+.top{border-bottom:0}
+.crumbs{font-size:14px;color:var(--muted)}.crumbs b{color:var(--ink);font-weight:600}
+.right{margin-left:auto;display:flex;gap:10px;align-items:center}
+article{max-width:640px;margin:0 auto;padding:56px 36px 80px}
+.kicker{display:inline-flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:#8a6d00;background:#fff4c7;border-radius:10px;padding:4px 10px;margin-bottom:18px}
+h1{font:700 44px/1.05 "New York",ui-serif,Georgia,serif;letter-spacing:-.02em;margin-bottom:14px}
+.meta{color:var(--muted);font-size:14px;margin-bottom:34px;display:flex;gap:10px;align-items:center}
+p{font-size:17px;line-height:1.6;margin-bottom:18px;color:#2a2a26}
+h2{font-size:21px;letter-spacing:-.01em;margin:34px 0 12px}
+.check{display:flex;gap:12px;align-items:flex-start;font-size:17px;margin:12px 0}
+.check i{flex:none;width:22px;height:22px;border-radius:7px;border:2px solid var(--faint);margin-top:2px}
+.check.done i{background:var(--ink);border-color:var(--ink);position:relative}
+.check.done i:after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.check.done span{color:var(--muted);text-decoration:line-through}
+.call{display:flex;gap:14px;background:var(--ground);border-radius:14px;padding:18px 20px;margin:26px 0;font-size:16px}
+.call b{flex:none;width:28px;height:28px;border-radius:14px;background:var(--cyan);color:#fff;display:grid;place-items:center}
+.img{height:200px;border-radius:16px;margin:24px 0;background:linear-gradient(120deg,var(--cyan),#9fe3f2 40%,var(--yellow) 70%,var(--coral));position:relative;overflow:hidden}
+.img:after{content:"";position:absolute;left:50%;top:50%;width:120px;height:120px;margin:-60px;border-radius:50%;border:22px solid var(--ink)}
+</style></head><body>
+<div class="top"><div class="logo" style="background:var(--yellow);color:var(--ink)">M</div><div class="crumbs">Studio / <b>Launch plan</b></div>
+<div class="right"><div class="stack" style="display:flex"><i class="avatar" style="background:var(--cyan)"></i><i class="avatar" style="background:var(--coral);margin-left:-8px"></i></div><div class="pill" style="background:var(--ground)">Share</div></div></div>
+<article>
+<div class="kicker">● In progress</div>
+<h1>Launch plan</h1>
+<div class="meta">Edited 2 minutes ago · 6 min read</div>
+<p>Everything for the spring release, in one place: the screens we still owe, the copy to review, and who signs off what.</p>
+<div class="img"></div>
+<h2>This week</h2>
+<div class="check done"><i></i><span>Final onboarding screens</span></div>
+<div class="check done"><i></i><span>Review the empty states with Mina</span></div>
+<div class="check"><i></i><span>Hand off the spaces flow to engineering</span></div>
+<div class="check"><i></i><span>Record the walkthrough video</span></div>
+<div class="call"><b>i</b><div>Keep the canvas open beside this page: comments land here as they come in.</div></div>
+<h2>Open questions</h2>
+<p>Do we show pinned tabs on the first run, or wait until someone pins one? Mina leans towards waiting.</p>
+</article></body></html>
