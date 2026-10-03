@@ -49,7 +49,8 @@ enum Menus {
     }
 
     private static func tabsMenu() -> UIMenu {
-        let main = [Command.newTab, .closeTab, .reopenTab, .pinTab, .bookmark, .nextTab, .previousTab].compactMap(keyCommand)
+        let main = [Command.newTab, .closeTab, .reopenTab, .pinTab, .splitTab, .bookmark, .nextTab, .previousTab]
+            .compactMap(keyCommand)
         let numbers = Shortcuts.tabNumbers.enumerated().map { index, chord -> UIKeyCommand in
             let title = index == 8 ? "Last Tab" : "Tab \(index + 1)"
             return UIKeyCommand(title: title, action: #selector(Browser.browserTab(_:)), input: input(chord.key),

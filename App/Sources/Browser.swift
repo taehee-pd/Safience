@@ -65,13 +65,23 @@ enum Banner: Equatable {
 final class Browser: UIViewController, PageHost, UIAdaptivePresentationControllerDelegate, UIDocumentPickerDelegate,
     UIGestureRecognizerDelegate {
     let model: WindowModel
+    /// The page on screen; with two side by side, the one with the keys,
+    /// which the bars show and act on.
     private(set) var page: Page?
+    /// The other pane, when the tab on screen is split with another tab.
+    private(set) var partner: Page?
     private var firstTab: UUID?
     private var connected = true
 
     private let stack = UIStackView()
     private let stage = UIView()
     private let picture = UIImageView()
+    private let partnerPicture = UIImageView()
+    private let divider = SplitDivider()
+    /// A line along the top of the pane with the keys, while there are two.
+    private let focusEdge = UIView()
+    /// Where the divider is while it is dragged, before the workspace hears.
+    private var dragRatio: Double?
     private var topBar: UIHostingController<TopBar>?
     private var addressBar: UIHostingController<AddressBar>?
     private var bannerBar: UIHostingController<BannerBar>?
@@ -81,6 +91,15 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var subscriptions: Set<AnyCancellable> = []
 
     var isConnected: Bool { connected }
+
+    /// The tabs this window has on screen: one, or a split's two.
+    var shownTabs: [UUID] {
+        [model.tabID, partner?.tab].compactMap { $0 }
+    }
+
+    func shows(_ tab: UUID) -> Bool {
+        model.tabID == tab || partner?.tab == tab
+    }
 
     init(state: WindowState) {
         let workspace = Session.shared.workspace
@@ -142,7 +161,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         top.view.heightAnchor.constraint(equalToConstant: Metrics.bar).isActive = true
         topBar = top
 
-        let address = embed(AddressBar(window: model) { [weak self] in self?.act($0) })
+        let address = embed(AddressBar(session: session, window: model) { [weak self] in self?.act($0) })
         address.view.heightAnchor.constraint(equalToConstant: Metrics.bar).isActive = true
         addressBar = address
 
@@ -162,13 +181,20 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         away.delegate = self
         stage.addGestureRecognizer(away)
 
-        picture.contentMode = .scaleAspectFill
-        picture.clipsToBounds = true
-        picture.isUserInteractionEnabled = false
-        picture.isHidden = true
-        picture.frame = stage.bounds
-        picture.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        stage.addSubview(picture)
+        // A click in the pane beside gives it the keys, and the bars.
+        let landing = TouchDown(target: nil, action: nil)
+        landing.delegate = self
+        landing.landed = { [weak self] point in self?.landed(at: point) }
+        stage.addGestureRecognizer(landing)
+
+        for frozen in [picture, partnerPicture] {
+            frozen.contentMode = .scaleAspectFill
+            frozen.clipsToBounds = true
+            frozen.isUserInteractionEnabled = false
+            frozen.isHidden = true
+            frozen.frame = stage.bounds
+            stage.addSubview(frozen)
+        }
 
         let blank = UIHostingController(rootView: EmptySpace(session: session, window: model) { [weak self] in self?.act($0) })
         addChild(blank)
@@ -191,7 +217,23 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         start.didMove(toParent: self)
         self.start = start
 
+        divider.moved = { [weak self] x in self?.dragDivider(to: x) }
+        divider.ended = { [weak self] in self?.dropDivider() }
+        divider.centered = { [weak self] in
+            guard let tab = self?.model.tabID else { return }
+            Session.shared.change { $0.setSplitRatio(tab, to: 0.5) }
+        }
+        stage.addSubview(divider)
+        focusEdge.isUserInteractionEnabled = false
+        focusEdge.isHidden = true
+        stage.addSubview(focusEdge)
+
         refreshChrome()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        layoutPanes()
     }
 
     private func embed<V: View>(_ root: V) -> UIHostingController<V> {
@@ -314,7 +356,25 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             focusPage()
             return
         }
-        detach()
+        let pairedWith = session.workspace.split(containing: id)?.partner(of: id)
+        // The pane beside, still split with the tab on screen: it takes the keys.
+        if let partner, partner.tab == id, session.pages.live[id] === partner, let page, pairedWith == page.tab {
+            swapPanes()
+            return
+        }
+        // The tab on screen split with the one asked for stays up, as the other pane.
+        if let page, pairedWith == page.tab, session.pages.live[page.tab] === page {
+            detachPartner()
+            self.page = nil
+            partner = page
+            partnerPicture.image = picture.image
+            partnerPicture.alpha = picture.alpha
+            partnerPicture.isHidden = picture.isHidden
+            picture.isHidden = true
+            picture.image = nil
+        } else {
+            detach()
+        }
         let made = session.pages.page(for: record, in: owner)
         attach(made.page, thawed: made.thawed)
         // Going to another tab ends typing an address, as in Safari.
@@ -322,16 +382,143 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         model.spaceID = owner
         model.tabID = id
         session.change { $0.select(id) }
+        syncSplit()
         pageDidChange(made.page)
         focusPage()
         session.pages.enforce()
     }
 
+    /// The other pane takes the keys: the bars show its page from now on.
+    private func swapPanes() {
+        guard let partner, let page else { return }
+        self.page = partner
+        self.partner = page
+        let frozen = (picture.image, picture.alpha, picture.isHidden)
+        picture.image = partnerPicture.image
+        picture.alpha = partnerPicture.alpha
+        picture.isHidden = partnerPicture.isHidden
+        (partnerPicture.image, partnerPicture.alpha, partnerPicture.isHidden) = frozen
+        model.editingAddress = false
+        model.tabID = partner.tab
+        Session.shared.change { $0.select(partner.tab) }
+        layoutPanes()
+        pageDidChange(partner)
+        focusPage()
+    }
+
+    /// A touch or a click landed on the stage: in the pane beside, that pane
+    /// gets the keys. The touch itself goes on to the page.
+    private func landed(at point: CGPoint) {
+        guard let partner, !partner.view.isHidden, partner.view.frame.contains(point) else { return }
+        show(tab: partner.tab, inSpace: model.spaceID)
+    }
+
+    /// The tab split with the one on screen, up in its pane beside it; or
+    /// taken down, when their split has ended or another window shows that
+    /// tab.
+    func syncSplit() {
+        let session = Session.shared
+        let workspace = session.workspace
+        guard connected, let tab = model.tabID, page != nil, let other = workspace.split(containing: tab)?.partner(of: tab),
+              let record = workspace.tab(other), let space = workspace.spaceID(of: other),
+              !session.allBrowsers.contains(where: { $0 !== self && $0.isConnected && $0.shows(other) })
+        else {
+            if partner != nil {
+                detachPartner()
+                session.pages.enforce()
+            }
+            layoutPanes()
+            return
+        }
+        if partner?.tab != other || session.pages.live[other] !== partner {
+            detachPartner()
+            let made = session.pages.page(for: record, in: space)
+            made.page.host = self
+            stage.insertSubview(made.page.view, at: 0)
+            partner = made.page
+            if made.thawed, let image = session.pages.picture(for: other) {
+                partnerPicture.image = image
+                partnerPicture.alpha = 1
+                partnerPicture.isHidden = false
+            }
+            session.pages.enforce()
+        }
+        layoutPanes()
+    }
+
+    private func detachPartner() {
+        guard let partner else { return }
+        if partner.view.superview === stage { partner.view.removeFromSuperview() }
+        if partner.host === self { partner.host = nil }
+        self.partner = nil
+        partnerPicture.isHidden = true
+        partnerPicture.image = nil
+    }
+
+    /// The narrowest a window shows a split in: two pages each wide enough
+    /// to read. Narrower, only the pane with the keys shows, and a click on
+    /// the other half of the split's tab goes over to the other.
+    private static let splitWidth: CGFloat = 2 * 360 + SplitDivider.width
+
+    /// The tab on screen across the stage; or a split's two side by side,
+    /// the divider between them and a line in the space's colour along the
+    /// top of the one with the keys.
+    private func layoutPanes() {
+        let bounds = stage.bounds
+        var main = bounds
+        let split = model.tabID.flatMap { Session.shared.workspace.split(containing: $0) }
+        if let page, let partner, let split, split.contains(partner.tab), bounds.width >= Self.splitWidth {
+            let gap = SplitDivider.width
+            let ratio = CGFloat(dragRatio ?? split.ratio)
+            let leftWidth = ((bounds.width - gap) * ratio).rounded()
+            let left = CGRect(x: 0, y: 0, width: leftWidth, height: bounds.height)
+            let right = CGRect(x: leftWidth + gap, y: 0, width: bounds.width - leftWidth - gap, height: bounds.height)
+            let onLeft = split.left == page.tab
+            main = onLeft ? left : right
+            partner.view.frame = onLeft ? right : left
+            partner.view.isHidden = false
+            partnerPicture.frame = partner.view.frame
+            partnerPicture.isHidden = partnerPicture.image == nil
+            divider.frame = CGRect(x: leftWidth, y: 0, width: gap, height: bounds.height)
+            divider.isHidden = false
+            focusEdge.frame = CGRect(x: main.minX, y: 0, width: main.width, height: 2)
+            focusEdge.backgroundColor = Session.shared.workspace.space(model.spaceID)?.color.uiColor ?? .tintColor
+            focusEdge.isHidden = false
+        } else {
+            partner?.view.isHidden = true
+            partnerPicture.isHidden = true
+            divider.isHidden = true
+            focusEdge.isHidden = true
+        }
+        page?.view.frame = main
+        picture.frame = main
+        start?.view.frame = main
+    }
+
+    private func dragDivider(to x: CGFloat) {
+        let width = stage.bounds.width - SplitDivider.width
+        guard width > 0 else { return }
+        let ratio = Double((x - SplitDivider.width / 2) / width)
+        dragRatio = min(max(ratio, Split.ratios.lowerBound), Split.ratios.upperBound)
+        layoutPanes()
+    }
+
+    private func dropDivider() {
+        guard let ratio = dragRatio, let tab = model.tabID else { return }
+        Session.shared.change { $0.setSplitRatio(tab, to: ratio) }
+        dragRatio = nil
+        layoutPanes()
+    }
+
     func showSpace(_ space: UUID) {
         let session = Session.shared
         guard let target = session.workspace.space(space) else { return }
-        let choice = [target.selected].compactMap { $0 }.first { session.browser(showing: $0) == nil }
-            ?? target.tabs.first { session.browser(showing: $0.id) == nil }?.id
+        // A tab this window has beside the one on screen is free for it.
+        let free = { (tab: UUID) -> Bool in
+            let shower = session.browser(showing: tab)
+            return shower == nil || shower === self
+        }
+        let choice = [target.selected].compactMap { $0 }.first(where: free) ?? target.tabs.first { free($0.id) }?.id
         if let choice {
             show(tab: choice, inSpace: space, userInitiated: false)
         } else {
@@ -356,7 +543,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private func attach(_ page: Page, thawed: Bool) {
         page.host = self
         page.view.frame = stage.bounds
-        page.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        page.view.autoresizingMask = []
+        page.view.isHidden = false
         stage.insertSubview(page.view, at: 0)
         empty?.view.isHidden = true
         self.page = page
@@ -368,6 +556,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     private func detach() {
+        detachPartner()
         guard let page else { return }
         if page.view.superview === stage { page.view.removeFromSuperview() }
         if page.host === self { page.host = nil }
@@ -399,6 +588,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             }
             if let owner = workspace.spaceID(of: tab), owner != model.spaceID { model.spaceID = owner }
         }
+        syncSplit()
         updateSceneTitle()
     }
 
@@ -418,6 +608,12 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     // MARK: PageHost
 
     func pageDidChange(_ page: Page) {
+        if page === partner, !partnerPicture.isHidden, !page.view.isLoading {
+            UIView.animate(withDuration: 0.2, animations: { self.partnerPicture.alpha = 0 }) { _ in
+                self.partnerPicture.isHidden = true
+                self.partnerPicture.image = nil
+            }
+        }
         guard page === self.page else { return }
         let view = page.view
         model.url = view.url ?? Session.shared.workspace.tab(page.tab)?.url
@@ -442,7 +638,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     func isShowing(_ page: Page) -> Bool {
-        connected && page === self.page
+        connected && (page === self.page || page === partner)
     }
 
     func page(_ page: Page, open configuration: WKWebViewConfiguration, for action: WKNavigationAction,
@@ -463,6 +659,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         attach(child, thawed: false)
         model.tabID = id
         model.spaceID = page.space
+        syncSplit()
         pageDidChange(child)
         focusPage()
         session.pages.enforce()
@@ -470,7 +667,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     func pageDidClose(_ page: Page) {
-        guard page === self.page else { return }
+        guard page === self.page || page === partner else { return }
         Session.shared.closeTab(page.tab)
     }
 
@@ -548,10 +745,32 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .pinTab:
             guard let tab = model.tabID, let record = session.workspace.tab(tab) else { return }
             session.change { record.isPinned ? $0.unpin(tab) : $0.pin(tab) }
+        case .splitTab:
+            guard let tab = model.tabID else { return }
+            if session.workspace.split(containing: tab) != nil {
+                session.change { $0.separate(tab) }
+            } else {
+                splitWithNewTab()
+            }
         case .bookmark: toggleBookmark()
         case .spaceSettings: openSpaceSettings(model.spaceID)
         case .importBookmarks: chooseBookmarksFile()
         }
+    }
+
+    /// A new tab beside the one on screen, typed into, as Dia's split.
+    private func splitWithNewTab() {
+        guard let tab = model.tabID, let new = Session.shared.change({ $0.splitWithNewTab(tab) }) else { return }
+        show(tab: new, inSpace: model.spaceID)
+        act(.editAddress)
+    }
+
+    /// `other` beside the tab on screen, on its right.
+    private func split(with other: UUID) {
+        let session = Session.shared
+        guard let tab = model.tabID, session.change({ $0.split(tab, with: other) }) else { return }
+        syncSplit()
+        focusPage()
     }
 
     private func newTab() {
@@ -566,7 +785,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         guard let current = model.tabID, let tabs = session.workspace.space(model.spaceID)?.tabs, tabs.count > 1 else { return }
         for offset in 1..<tabs.count {
             guard let next = session.workspace.neighbour(of: current, by: direction * offset) else { return }
-            if session.browser(showing: next) == nil {
+            // The pane beside is a step like any tab: it takes the keys.
+            let shower = session.browser(showing: next)
+            if shower == nil || shower === self {
                 show(tab: next, inSpace: model.spaceID)
                 return
             }
@@ -619,9 +840,13 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .removeSpace(let space): removeSpace(space)
         case .moveTab(let tab, let space): session.moveTab(tab, to: space)
         case .tabInNewWindow(let tab):
+            // A tab goes to a window of its own alone; the pane beside it stays here.
+            let beside = session.workspace.split(containing: tab)?.partner(of: tab)
+            session.change { $0.separate(tab) }
             if model.tabID == tab {
-                let next = session.workspace.neighbour(of: tab, by: 1)
-                if let next, next != tab, session.browser(showing: next) == nil {
+                let next = beside ?? session.workspace.neighbour(of: tab, by: 1)
+                let shower = next.flatMap { session.browser(showing: $0) }
+                if let next, next != tab, shower == nil || shower === self {
                     show(tab: next, inSpace: model.spaceID)
                 } else {
                     showEmpty(space: model.spaceID)
@@ -656,6 +881,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .toggleBookmark: toggleBookmark()
         case .removeBookmark(let id): session.change { $0.removeBookmark(id, in: model.spaceID) }
         case .importBookmarks: chooseBookmarksFile()
+        case .splitWith(let other): split(with: other)
+        case .splitWithNewTab: splitWithNewTab()
+        case .separate(let tab): session.change { $0.separate(tab) }
+        case .swapSides(let tab): session.change { $0.swapSides(tab) }
         }
     }
 

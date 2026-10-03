@@ -30,6 +30,11 @@ enum BarAction {
     case removeBookmark(UUID)
     case importBookmarks
     case dismissBanner
+    /// A tab beside the one on screen; a new one; apart again; sides swapped.
+    case splitWith(UUID)
+    case splitWithNewTab
+    case separate(UUID)
+    case swapSides(UUID)
 }
 
 /// The row along the top.
@@ -51,6 +56,11 @@ struct TopBar: View {
         session.preferences.layout == .compact
     }
 
+    /// The tab on screen can have another beside it: an ordinary tab.
+    private var canSplit: Bool {
+        window.tabID.flatMap { session.workspace.tab($0) }.map { !$0.isPinned } ?? false
+    }
+
     var body: some View {
         HStack(spacing: 2) {
             SpaceButton(session: session, window: window, act: act)
@@ -60,6 +70,11 @@ struct TopBar: View {
             }
             TabStrip(session: session, window: window, compact: compact, act: act)
             BarButton(symbol: "plus", label: "New Tab") { act(.command(.newTab)) }
+                .contextMenu {
+                    if canSplit {
+                        Button("New Tab in Split View", systemImage: "rectangle.split.2x1") { act(.splitWithNewTab) }
+                    }
+                }
             BarButton(symbol: "command", label: "Command Palette") { act(.command(.palette)) }
         }
         .padding(.horizontal, 6)
@@ -101,11 +116,14 @@ struct TabStrip: View {
 
     var body: some View {
         GeometryReader { box in
-            let row = TabRow(tabs: session.workspace.space(window.spaceID)?.tabs ?? [], current: window.tabID,
+            let space = session.workspace.space(window.spaceID)
+            let row = TabRow(tabs: space?.tabs ?? [], splits: space?.splits ?? [], current: window.tabID,
                              compact: compact, addressRequired: window.addressRequired, width: box.size.width)
             let bounds = CGRect(origin: .zero, size: box.size)
             let start = Self.start(row.current.flatMap { origins[$0.id] }, in: bounds)
             let field = wide ? bounds : start
+            // The tab's own shape at the tab, a capsule across the row.
+            let fieldShape = wide ? TabShape.whole : TabShape.half(meeting: row.current.flatMap { row.seam(of: $0.id) })
             let shown = compact && drawn
             ZStack(alignment: .topLeading) {
                 tabs(row)
@@ -114,7 +132,7 @@ struct TabStrip: View {
                         Rectangle()
                             .overlay {
                                 if shown {
-                                    Capsule()
+                                    fieldShape
                                         .frame(width: field.width, height: Metrics.control)
                                         .position(x: field.midX, y: bounds.midY)
                                         .blendMode(.destinationOut)
@@ -123,7 +141,7 @@ struct TabStrip: View {
                             .compositingGroup()
                     }
                 if shown {
-                    AddressField(window: window, typing: typing, act: act)
+                    AddressField(window: window, typing: typing, shape: fieldShape, act: act)
                         .frame(width: field.width, height: Metrics.control)
                         .position(x: field.midX, y: bounds.midY)
                         // On its way back it is only a picture: a click goes to the tabs.
@@ -168,7 +186,21 @@ struct TabStrip: View {
                                 .frame(width: 1, height: 18)
                                 .padding(.horizontal, 5)
                         }
-                        ForEach(row.others) { tab in chip(tab, in: row) }
+                        ForEach(row.items) { item in
+                            if item.tabs.count > 1 {
+                                // A split: its two tabs as one, on a shared ground.
+                                HStack(spacing: 2) {
+                                    ForEach(item.tabs) { tab in chip(tab, in: row) }
+                                }
+                                .background {
+                                    Capsule()
+                                        .fill(Palette.shade)
+                                        .frame(height: Metrics.control)
+                                }
+                            } else {
+                                ForEach(item.tabs) { tab in chip(tab, in: row) }
+                            }
+                        }
                     }
                     .frame(height: Metrics.bar)
                     // A pinned tab on screen opening up to say where it is, or closing.
@@ -185,15 +217,22 @@ struct TabStrip: View {
     @ViewBuilder
     private func chip(_ tab: TabRecord, in row: TabRow) -> some View {
         let selected = tab.id == window.tabID
+        let paired = row.paired.contains(tab.id)
         if compact && selected {
-            CurrentTab(window: window, tab: tab, width: row.width(of: tab), otherSpaces: otherSpaces, act: act)
+            CurrentTab(window: window, tab: tab, width: row.width(of: tab), paired: paired,
+                       shape: .half(meeting: row.seam(of: tab.id)), otherSpaces: otherSpaces, act: act)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(stripSpace)) } action: { origins[tab.id] = $0 }
                 .id(tab.id)
         } else if tab.isPinned {
             PinnedChip(tab: tab, selected: selected, otherSpaces: otherSpaces, act: act)
                 .id(tab.id)
         } else {
-            TabChip(tab: tab, selected: selected, width: row.each, otherSpaces: otherSpaces, act: act)
+            // Beside the tab on screen, in its split: on screen too.
+            let beside = paired && row.splits.contains { $0.contains(tab.id) && window.tabID.map($0.contains) == true }
+            let canJoin = !paired && !selected && row.current.map { !$0.isPinned } == true
+            TabChip(tab: tab, selected: selected, width: row.each, onScreen: beside,
+                    split: paired ? .inSplit : canJoin ? .canJoin : .none, shape: .half(meeting: row.seam(of: tab.id)),
+                    otherSpaces: otherSpaces, act: act)
                 .id(tab.id)
         }
     }
@@ -262,10 +301,34 @@ struct TabStrip: View {
     }
 }
 
+/// One tab of the row, or a split's two shown as one.
+private struct TabItem: Identifiable {
+    let tabs: [TabRecord]
+
+    var id: UUID {
+        tabs.first?.id ?? UUID()
+    }
+}
+
+/// What a tab's menu offers for splits.
+enum SplitChoice {
+    case none
+    /// Beside the tab on screen.
+    case canJoin
+    /// Separate, or swap sides.
+    case inSplit
+}
+
 /// The row's tabs, and how wide each is.
 private struct TabRow {
     let pinned: [TabRecord]
     let others: [TabRecord]
+    let splits: [Split]
+    /// The ordinary tabs as the row shows them: one at a time, or a split's
+    /// two together.
+    let items: [TabItem]
+    /// The tabs in a split.
+    let paired: Set<UUID>
     let current: TabRecord?
     /// A tab's width; a pinned tab is its icon.
     let each: CGFloat
@@ -278,9 +341,26 @@ private struct TabRow {
     /// The narrowest a tab gets: its name still reads.
     private static let narrowest: CGFloat = 120
 
-    init(tabs: [TabRecord], current id: UUID?, compact: Bool, addressRequired: Bool, width: CGFloat) {
+    init(tabs: [TabRecord], splits: [Split], current id: UUID?, compact: Bool, addressRequired: Bool, width: CGFloat) {
+        let ordinary = tabs.filter { !$0.isPinned }
         pinned = tabs.filter(\.isPinned)
-        others = tabs.filter { !$0.isPinned }
+        others = ordinary
+        self.splits = splits
+        paired = Set(splits.flatMap { [$0.left, $0.right] })
+        var items: [TabItem] = []
+        var index = 0
+        while index < ordinary.count {
+            let tab = ordinary[index]
+            let next = index + 1 < ordinary.count ? ordinary[index + 1].id : nil
+            if let next, splits.contains(where: { $0.left == tab.id && $0.right == next }) {
+                items.append(TabItem(tabs: [tab, ordinary[index + 1]]))
+                index += 2
+            } else {
+                items.append(TabItem(tabs: [tab]))
+                index += 1
+            }
+        }
+        self.items = items
         current = tabs.first { $0.id == id }
         openPinned = compact && addressRequired && current?.isPinned == true
         let icons = pinned.count - (openPinned ? 1 : 0)
@@ -293,6 +373,13 @@ private struct TabRow {
         let even = shares == 0 ? 0 : (room / CGFloat(shares)).rounded(.down)
         // Compact tabs fill the row, as Safari's do; separate ones stop where a name has room.
         each = compact ? max(even, Self.narrowest) : min(max(even, Self.narrowest), 280)
+    }
+
+    /// The end of a split's half that meets the other half: the left
+    /// one's trailing end, the right one's leading end; nil out of a split.
+    func seam(of tab: UUID) -> HorizontalEdge? {
+        guard let split = splits.first(where: { $0.contains(tab) }) else { return nil }
+        return split.left == tab ? .trailing : .leading
     }
 
     /// Nil for a pinned tab's icon alone.
@@ -374,7 +461,7 @@ struct PinnedChip: View {
     var body: some View {
         SiteIconView(url: tab.pinned ?? tab.url, size: 18)
             .frame(width: Metrics.target, height: Metrics.control)
-            .modifier(TabSurface(selected: selected, hovering: hovering))
+            .modifier(TabSurface(selected: selected, hovering: hovering, shape: .whole))
             .frame(height: Metrics.target)
             .contentShape(Rectangle())
             .onTapGesture { act(.select(tab.id)) }
@@ -400,6 +487,10 @@ struct TabChip: View {
     let tab: TabRecord
     let selected: Bool
     var width: CGFloat?
+    /// On screen beside the tab with the keys, in its split.
+    var onScreen = false
+    var split: SplitChoice = .none
+    var shape = TabShape.whole
     let otherSpaces: [Space]
     let act: (BarAction) -> Void
     @State private var hovering = false
@@ -420,20 +511,21 @@ struct TabChip: View {
             Text(tab.label)
                 .font(.system(size: 13, weight: selected ? .medium : .regular))
                 .lineLimit(1)
-                .foregroundStyle(selected ? Palette.ink : Palette.muted)
+                .foregroundStyle(selected || onScreen ? Palette.ink : Palette.muted)
                 .padding(.leading, TabFace.gap)
             Spacer(minLength: 0)
         }
         .padding(.trailing, 10)
         .frame(width: width, height: Metrics.control)
         .frame(maxWidth: width == nil ? 220 : nil, alignment: .leading)
-        .modifier(TabSurface(selected: selected, hovering: hovering))
+        .modifier(TabSurface(selected: selected, hovering: hovering, shape: shape))
         .frame(height: Metrics.target)
         .contentShape(Rectangle())
         .onTapGesture { act(.select(tab.id)) }
         .onHover { hovering = $0 }
         .animation(.bar, value: hovering)
         .contextMenu {
+            SplitButtons(tab: tab, choice: split, act: act)
             Button("Pin Tab", systemImage: "pin") { act(.pin(tab.id)) }
                 .disabled(tab.url == nil)
             Button("Close Tab", systemImage: "xmark") { act(.close(tab.id)) }
@@ -479,16 +571,23 @@ private struct CurrentTab: View {
     @ObservedObject var window: WindowModel
     let tab: TabRecord
     let width: CGFloat?
+    let paired: Bool
+    let shape: TabShape
     let otherSpaces: [Space]
     let act: (BarAction) -> Void
 
     var body: some View {
         CurrentTabFace(window: window, tab: tab, width: width, buttons: CurrentTabFace.roomy(width), act: act)
-            .liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
+            .liquidGlass(reacting: false, in: shape, otherwise: Palette.wash)
             .frame(height: Metrics.target)
             .contentShape(Rectangle())
             .onTapGesture { act(.editAddress) }
             .contextMenu {
+                if paired {
+                    SplitButtons(tab: tab, choice: .inSplit, act: act)
+                } else if !tab.isPinned {
+                    Button("Split with New Tab", systemImage: "rectangle.split.2x1") { act(.splitWithNewTab) }
+                }
                 if tab.isPinned {
                     Button("Back to Pinned Page", systemImage: "arrow.uturn.backward") { act(.backToPinned(tab.id)) }
                     Button("Unpin Tab", systemImage: "pin.slash") { act(.unpin(tab.id)) }
@@ -593,6 +692,26 @@ struct CurrentTabFace: View {
     }
 }
 
+/// A tab's split: beside the tab on screen; or apart again, or the other
+/// way round.
+private struct SplitButtons: View {
+    let tab: TabRecord
+    let choice: SplitChoice
+    let act: (BarAction) -> Void
+
+    var body: some View {
+        switch choice {
+        case .none:
+            EmptyView()
+        case .canJoin:
+            Button("Open in Split View", systemImage: "rectangle.split.2x1") { act(.splitWith(tab.id)) }
+        case .inSplit:
+            Button("Separate Tabs", systemImage: "rectangle") { act(.separate(tab.id)) }
+            Button("Swap Sides", systemImage: "arrow.left.arrow.right") { act(.swapSides(tab.id)) }
+        }
+    }
+}
+
 private struct MoveToSpace: View {
     let tab: TabRecord
     let otherSpaces: [Space]
@@ -614,12 +733,13 @@ private struct MoveToSpace: View {
 private struct TabSurface: ViewModifier {
     let selected: Bool
     let hovering: Bool
+    let shape: TabShape
 
     func body(content: Content) -> some View {
         if selected {
-            content.liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
+            content.liquidGlass(reacting: false, in: shape, otherwise: Palette.wash)
         } else {
-            content.background(hovering ? Palette.hover : Color.clear, in: Capsule())
+            content.background(hovering ? Palette.hoverShade : Color.clear, in: shape)
         }
     }
 }
@@ -790,22 +910,14 @@ struct AddressEditor: View {
     @ObservedObject var window: WindowModel
     let act: (BarAction) -> Void
     @State private var text = ""
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     var body: some View {
         HStack(spacing: 0) {
             SecurityIcon(window: window)
                 .frame(width: TabFace.slot, height: Metrics.control)
                 .padding(.leading, TabFace.lead)
-            TextField("Address or search", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-                .keyboardType(.webSearch)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.go)
-                .focused($focused)
-                .onSubmit { act(.go(text)) }
+            TypingField(text: $text, placeholder: "Address or search", focused: $focused) { typed in act(.go(typed)) }
                 .padding(.leading, TabFace.gap)
             if !text.isEmpty {
                 Button {
@@ -851,6 +963,8 @@ private struct AddressField: View {
     @ObservedObject var window: WindowModel
     /// The address shows; until then, the tab's own words do (TabStrip).
     let typing: Bool
+    /// The tab's shape at the tab, a capsule across the row.
+    let shape: TabShape
     let act: (BarAction) -> Void
 
     var body: some View {
@@ -860,9 +974,9 @@ private struct AddressField: View {
             // Not quite 0 before it shows: SwiftUI takes a view at 0 for gone,
             // and the field must take the keys from the start.
             .opacity(typing ? 1 : 0.01)
-            .liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
+            .liquidGlass(reacting: false, in: shape, otherwise: Palette.wash)
             // All of it answers, so a click on its empty parts never reaches the tabs under it.
-            .contentShape(Capsule())
+            .contentShape(shape)
     }
 }
 
@@ -944,6 +1058,7 @@ struct LoadingLine: View {
 /// Settings says, so the host asking for a password is never hidden
 /// (AddressVisibility).
 struct AddressBar: View {
+    @ObservedObject var session: Session
     @ObservedObject var window: WindowModel
     let act: (BarAction) -> Void
 
@@ -953,7 +1068,9 @@ struct AddressBar: View {
             // One piece of glass: the address and the address being typed
             // fade into each other on it, in place.
             ZStack {
-                if window.editingAddress {
+                // Only in its own layout: hidden in the compact one, an editor
+                // here would take the keys from the row's field and close it.
+                if window.editingAddress && session.preferences.layout == .separate {
                     AddressEditor(window: window, act: act)
                         .id(window.tabID)
                         .transition(.opacity)

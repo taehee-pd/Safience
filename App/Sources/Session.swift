@@ -88,11 +88,18 @@ final class Session: ObservableObject {
     /// pinned page (Workspace.closeTab), when it may be the one to show.
     func closeTab(_ id: UUID) {
         let next = change { $0.closeTab(id) }
-        pages.close(id)
+        // A pane beside a tab on screen goes before its page does.
+        for window in allBrowsers where window.partner?.tab == id { window.syncSplit() }
         for window in allBrowsers where window.model.tabID == id {
-            let shown = next.flatMap { $0 == id || browser(showing: $0) == nil ? $0 : nil }
+            // The tab beside it in a split is this window's already: it stays.
+            let shown = next.flatMap { tab -> UUID? in
+                let shower = browser(showing: tab)
+                return tab == id || shower == nil || shower === window ? tab : nil
+            }
             window.show(tab: shown, inSpace: window.model.spaceID)
         }
+        // Its page goes once no window has it up.
+        pages.close(id)
     }
 
     /// A bookmarks file into a space: an HTML export (Chrome's, Safari's,
@@ -154,13 +161,14 @@ final class Session: ObservableObject {
         browsers.allObjects
     }
 
+    /// The window with `tab` on screen, alone or as one of a split's panes.
     func browser(showing tab: UUID) -> Browser? {
-        allBrowsers.first { $0.model.tabID == tab && $0.isConnected }
+        allBrowsers.first { $0.shows(tab) && $0.isConnected }
     }
 
-    /// The tabs on screen, one per window.
+    /// The tabs on screen: one per window, two in a split.
     var shownTabs: Set<UUID> {
-        Set(allBrowsers.filter(\.isConnected).compactMap(\.model.tabID))
+        Set(allBrowsers.filter(\.isConnected).flatMap(\.shownTabs))
     }
 
     /// A new window, through the system, showing `space` and `tab`.

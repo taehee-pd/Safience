@@ -47,6 +47,35 @@ public enum SpaceColor: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Two tabs side by side in one window, as in Dia: `left` on the left.
+/// The space's selected tab is the pane with the keys; the other stays on
+/// screen beside it. A split's tabs sit next to each other in the row, left
+/// first, so the row shows them as one tab (Workspace keeps them so).
+public struct Split: Codable, Equatable, Sendable {
+    public var left: UUID
+    public var right: UUID
+    /// The left pane's share of the window's width.
+    public var ratio: Double
+
+    /// As far as the divider goes either way: each pane keeps a quarter.
+    public static let ratios: ClosedRange<Double> = 0.25...0.75
+
+    public init(left: UUID, right: UUID, ratio: Double = 0.5) {
+        self.left = left
+        self.right = right
+        self.ratio = min(max(ratio, Split.ratios.lowerBound), Split.ratios.upperBound)
+    }
+
+    public func contains(_ tab: UUID) -> Bool {
+        left == tab || right == tab
+    }
+
+    /// The other pane's tab, or nil for a tab not in this split.
+    public func partner(of tab: UUID) -> UUID? {
+        tab == left ? right : tab == right ? left : nil
+    }
+}
+
 /// A set of tabs with sign-ins of its own: each space's pages use a WebKit
 /// store made for it (WKWebsiteDataStore(forIdentifier:) with the space's
 /// id), so a client's Figma and your own can both stay signed in.
@@ -61,9 +90,12 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
     public var selected: UUID?
     /// This space's own bookmarks, for the grid a new tab shows.
     public var bookmarks: [Bookmark]
+    /// Tabs shown two at a time; a tab is in one split at most, and never a
+    /// pinned one.
+    public var splits: [Split]
 
     public init(id: UUID = UUID(), name: String, symbol: String, color: SpaceColor? = nil, tabs: [TabRecord] = [],
-                selected: UUID? = nil, bookmarks: [Bookmark] = []) {
+                selected: UUID? = nil, bookmarks: [Bookmark] = [], splits: [Split] = []) {
         self.id = id
         self.name = name
         self.symbol = symbol
@@ -71,10 +103,11 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
         self.tabs = tabs
         self.selected = selected
         self.bookmarks = bookmarks
+        self.splits = splits
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, symbol, color, tabs, selected, bookmarks
+        case id, name, symbol, color, tabs, selected, bookmarks, splits
     }
 
     public init(from decoder: Decoder) throws {
@@ -88,6 +121,12 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
         // neither, and must still read.
         color = (try? c.decodeIfPresent(SpaceColor.self, forKey: .color)) ?? SpaceColor.standard(for: symbol)
         bookmarks = (try? c.decodeIfPresent([Bookmark].self, forKey: .bookmarks)) ?? []
+        splits = (try? c.decodeIfPresent([Split].self, forKey: .splits)) ?? []
+    }
+
+    /// The split `tab` is in, if any.
+    public func split(containing tab: UUID) -> Split? {
+        splits.first { $0.contains(tab) }
     }
 
     /// How many tabs at the front of the row are pinned.
@@ -151,6 +190,14 @@ public struct Workspace: Codable, Equatable, Sendable {
         return nil
     }
 
+    /// The split `tab` is in, in whichever space.
+    public func split(containing tab: UUID) -> Split? {
+        for space in spaces {
+            if let split = space.split(containing: tab) { return split }
+        }
+        return nil
+    }
+
     /// The tab `offset` places along from `tab` in its space, going round.
     public func neighbour(of tab: UUID, by offset: Int) -> UUID? {
         guard let space = spaces.first(where: { $0.tabs.contains { $0.id == tab } }),
@@ -182,6 +229,7 @@ public struct Workspace: Codable, Equatable, Sendable {
             spaces[s].tabs.append(tab)
         }
         spaces[s].selected = tab.id
+        tidySplits(s)
         return tab.id
     }
 
@@ -205,6 +253,9 @@ public struct Workspace: Codable, Equatable, Sendable {
     public mutating func closeTab(_ id: UUID) -> UUID? {
         for s in spaces.indices {
             guard let index = spaces[s].tabs.firstIndex(where: { $0.id == id }) else { continue }
+            // Its split ends; the pane beside it is the one left on screen.
+            let partner = spaces[s].split(containing: id)?.partner(of: id)
+            spaces[s].splits.removeAll { $0.contains(id) }
             if let pinned = spaces[s].tabs[index].pinned {
                 spaces[s].tabs[index].url = pinned
                 spaces[s].tabs[index].title = ""
@@ -219,7 +270,7 @@ public struct Workspace: Codable, Equatable, Sendable {
             if closed.count > Workspace.closedKept { closed.removeFirst(closed.count - Workspace.closedKept) }
             if spaces[s].selected == id {
                 let tabs = spaces[s].tabs
-                spaces[s].selected = tabs.isEmpty ? nil : tabs[min(index, tabs.count - 1)].id
+                spaces[s].selected = partner ?? (tabs.isEmpty ? nil : tabs[min(index, tabs.count - 1)].id)
             }
             return spaces[s].selected
         }
@@ -237,6 +288,7 @@ public struct Workspace: Codable, Equatable, Sendable {
         let place = max(min(last.index, spaces[s].tabs.count), spaces[s].pinnedCount)
         spaces[s].tabs.insert(last.tab, at: place)
         spaces[s].selected = last.tab.id
+        tidySplits(s)
         return last.tab.id
     }
 
@@ -308,6 +360,7 @@ public struct Workspace: Codable, Equatable, Sendable {
               let to = spaces.firstIndex(where: { $0.id == space }), from != to,
               let index = spaces[from].tabs.firstIndex(where: { $0.id == id })
         else { return false }
+        spaces[from].splits.removeAll { $0.contains(id) }
         let tab = spaces[from].tabs.remove(at: index)
         if spaces[from].selected == id {
             let tabs = spaces[from].tabs
@@ -324,15 +377,20 @@ public struct Workspace: Codable, Equatable, Sendable {
     }
 
     /// A tab to another place in its own space's row: among the pinned tabs
-    /// when it is one, among the others when not.
+    /// when it is one, among the others when not. A split's two tabs go
+    /// together.
     public mutating func moveTab(_ id: UUID, toIndex target: Int) {
         for s in spaces.indices {
-            guard let index = spaces[s].tabs.firstIndex(where: { $0.id == id }) else { continue }
-            let tab = spaces[s].tabs.remove(at: index)
+            guard spaces[s].tabs.contains(where: { $0.id == id }) else { continue }
+            let moving = spaces[s].split(containing: id).map { [$0.left, $0.right] } ?? [id]
+            let tabs = moving.compactMap { m in spaces[s].tabs.first { $0.id == m } }
+            spaces[s].tabs.removeAll { moving.contains($0.id) }
+            let isPinned = tabs.first?.isPinned == true
             let pinned = spaces[s].pinnedCount
-            let lowest = tab.isPinned ? 0 : pinned
-            let highest = tab.isPinned ? pinned : spaces[s].tabs.count
-            spaces[s].tabs.insert(tab, at: max(lowest, min(target, highest)))
+            let lowest = isPinned ? 0 : pinned
+            let highest = isPinned ? pinned : spaces[s].tabs.count
+            spaces[s].tabs.insert(contentsOf: tabs, at: max(lowest, min(target, highest)))
+            tidySplits(s)
             return
         }
     }
@@ -348,6 +406,7 @@ public struct Workspace: Codable, Equatable, Sendable {
         for s in spaces.indices {
             guard let index = spaces[s].tabs.firstIndex(where: { $0.id == id }) else { continue }
             guard !spaces[s].tabs[index].isPinned, let url = spaces[s].tabs[index].url else { return false }
+            spaces[s].splits.removeAll { $0.contains(id) }
             var tab = spaces[s].tabs.remove(at: index)
             tab.pinned = url
             spaces[s].tabs.insert(tab, at: spaces[s].pinnedCount)
@@ -379,6 +438,80 @@ public struct Workspace: Codable, Equatable, Sendable {
             return pinned
         }
         return nil
+    }
+
+    // MARK: Splits
+
+    /// Shows `other` beside `tab`, on its right, as one tab of the row: the
+    /// two must be ordinary tabs of one space. A split either was in ends.
+    @discardableResult
+    public mutating func split(_ tab: UUID, with other: UUID) -> Bool {
+        guard tab != other, let s = spaces.firstIndex(where: { $0.tabs.contains { $0.id == tab } }),
+              let left = spaces[s].tabs.first(where: { $0.id == tab }), !left.isPinned,
+              let right = spaces[s].tabs.first(where: { $0.id == other }), !right.isPinned
+        else { return false }
+        spaces[s].splits.removeAll { $0.contains(tab) || $0.contains(other) }
+        spaces[s].splits.append(Split(left: tab, right: other))
+        tidySplits(s)
+        return true
+    }
+
+    /// A new tab beside `tab`, on its right, selected so it is the one typed
+    /// into. Returns its id; nil for a pinned tab or none.
+    @discardableResult
+    public mutating func splitWithNewTab(_ tab: UUID, url: URL? = nil, now: Date = Date()) -> UUID? {
+        guard let space = spaceID(of: tab), self.tab(tab)?.isPinned == false,
+              let new = openTab(url, in: space, after: tab, now: now), split(tab, with: new)
+        else { return nil }
+        select(new, now: now)
+        return new
+    }
+
+    /// The split `tab` is in ends; both tabs stay where they are.
+    public mutating func separate(_ tab: UUID) {
+        for s in spaces.indices { spaces[s].splits.removeAll { $0.contains(tab) } }
+    }
+
+    /// The two panes change sides.
+    public mutating func swapSides(_ tab: UUID) {
+        for s in spaces.indices {
+            guard let i = spaces[s].splits.firstIndex(where: { $0.contains(tab) }) else { continue }
+            let split = spaces[s].splits[i]
+            spaces[s].splits[i] = Split(left: split.right, right: split.left, ratio: 1 - split.ratio)
+            tidySplits(s)
+            return
+        }
+    }
+
+    /// Where the divider of `tab`'s split is: the left pane's share.
+    public mutating func setSplitRatio(_ tab: UUID, to ratio: Double) {
+        for s in spaces.indices {
+            guard let i = spaces[s].splits.firstIndex(where: { $0.contains(tab) }) else { continue }
+            let split = spaces[s].splits[i]
+            spaces[s].splits[i] = Split(left: split.left, right: split.right, ratio: ratio)
+            return
+        }
+    }
+
+    /// Keeps a space's splits as they must be: two ordinary tabs of its own
+    /// each, no tab in two, and each split's tabs side by side in the row,
+    /// left first, so the row shows them as one.
+    mutating func tidySplits(_ s: Int) {
+        let ordinary = Set(spaces[s].tabs.filter { !$0.isPinned }.map(\.id))
+        var seen: Set<UUID> = []
+        spaces[s].splits = spaces[s].splits.filter { split in
+            guard split.left != split.right, ordinary.contains(split.left), ordinary.contains(split.right),
+                  !seen.contains(split.left), !seen.contains(split.right)
+            else { return false }
+            seen.formUnion([split.left, split.right])
+            return true
+        }
+        for split in spaces[s].splits {
+            guard let r = spaces[s].tabs.firstIndex(where: { $0.id == split.right }) else { continue }
+            let right = spaces[s].tabs.remove(at: r)
+            let l = spaces[s].tabs.firstIndex { $0.id == split.left }
+            spaces[s].tabs.insert(right, at: l.map { $0 + 1 } ?? r)
+        }
     }
 
     // MARK: Bookmarks, each space its own
@@ -422,6 +555,7 @@ public struct Workspace: Codable, Equatable, Sendable {
             let ids = Set(spaces[s].tabs.map(\.id))
             if let selected = spaces[s].selected, !ids.contains(selected) { spaces[s].selected = nil }
             if spaces[s].selected == nil { spaces[s].selected = spaces[s].tabs.first?.id }
+            tidySplits(s)
         }
     }
 }

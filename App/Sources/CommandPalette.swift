@@ -139,7 +139,7 @@ final class PaletteController: UIHostingController<PaletteView> {
 
 struct PaletteView: View {
     @ObservedObject var model: PaletteModel
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     var body: some View {
         let rows = model.results
@@ -153,15 +153,8 @@ struct PaletteView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Color.primary.opacity(0.5))
-                    TextField("Tabs, spaces, commands, or an address", text: $model.query)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 17))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.webSearch)
-                        .submitLabel(.go)
-                        .focused($focused)
-                        .onSubmit { model.submit() }
+                    TypingField(text: $model.query, placeholder: "Tabs, spaces, commands, or an address", fontSize: 17,
+                                focused: $focused) { _ in model.submit() }
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 52)

@@ -14,7 +14,7 @@ settings:
     # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "2"
+    CURRENT_PROJECT_VERSION: "3"
 packages:
   PadCore:
     path: PadCore
@@ -37,7 +37,9 @@ targets:
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # App/Safiens.icon, made with Icon Composer: Liquid Glass on iPadOS
+        # 26 and later; Xcode draws flat pictures from it for earlier ones.
+        ASSETCATALOG_COMPILER_APPICON_NAME: Safiens
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
 schemes:

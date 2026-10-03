@@ -13,6 +13,12 @@ enum Palette {
     static let hairline = Color(uiColor: UI.hairline)
     static let wash = Color(uiColor: UI.wash)
     static let hover = Color(uiColor: UI.hover)
+    /// See-through dark, for what lies on the bars: they take the page's
+    /// colour, and a grey of its own would sit on it as a patch, where a
+    /// dark that lets the colour through reads as a deeper shade of it. A
+    /// split's shared ground, and a tab under the pointer.
+    static let shade = Color(uiColor: UI.shade)
+    static let hoverShade = Color(uiColor: UI.hoverShade)
     /// The only two that aren't grey: a connection nobody can read on the
     /// way, and one anybody can.
     static let safe = Color(uiColor: UI.safe)
@@ -26,12 +32,20 @@ enum Palette {
         static let hairline = pair(0.91, 0.20)
         static let wash = pair(0.937, 0.175)
         static let hover = pair(0.965, 0.15)
+        static let shade = dark(0.06, 0.24)
+        static let hoverShade = dark(0.04, 0.14)
         static let safe = tint(light: (0.08, 0.50, 0.24), dark: (0.29, 0.87, 0.50))
         static let unsafe = tint(light: (0.71, 0.33, 0.04), dark: (0.98, 0.75, 0.14))
 
         private static func pair(_ light: CGFloat, _ dark: CGFloat) -> UIColor {
             UIColor { traits in
                 UIColor(white: traits.userInterfaceStyle == .dark ? dark : light, alpha: 1)
+            }
+        }
+
+        private static func dark(_ light: CGFloat, _ dark: CGFloat) -> UIColor {
+            UIColor { traits in
+                UIColor(white: 0, alpha: traits.userInterfaceStyle == .dark ? dark : light)
             }
         }
 
@@ -166,6 +180,42 @@ private struct IconSwap: ViewModifier {
             .scaleEffect(0.25 + 0.75 * progress)
             .opacity(progress)
             .blur(radius: 4 * (1 - progress))
+    }
+}
+
+/// A tab's capsule; a split's half, its end against the other half nearly
+/// square, so the two read as one piece. The squared end eases into a round
+/// one, as the address field grows out of a half into the whole row.
+struct TabShape: Shape {
+    /// The radius at the end against the other half; half the height or
+    /// more is a capsule.
+    var joined: CGFloat
+    /// That end is the leading one.
+    var leading: Bool
+
+    /// A capsule.
+    static let whole = TabShape(joined: Metrics.control / 2, leading: false)
+    /// The radius where two halves of a split meet.
+    static let seam: CGFloat = 6
+
+    /// The half of a split meeting the other at `edge`; nil, a capsule.
+    static func half(meeting edge: HorizontalEdge?) -> TabShape {
+        edge.map { TabShape(joined: seam, leading: $0 == .leading) } ?? whole
+    }
+
+    var animatableData: CGFloat {
+        get { joined }
+        set { joined = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let round = rect.height / 2
+        let seam = min(max(joined, 0), round)
+        return UnevenRoundedRectangle(topLeadingRadius: leading ? seam : round,
+                                      bottomLeadingRadius: leading ? seam : round,
+                                      bottomTrailingRadius: leading ? round : seam,
+                                      topTrailingRadius: leading ? round : seam,
+                                      style: .continuous).path(in: rect)
     }
 }
 

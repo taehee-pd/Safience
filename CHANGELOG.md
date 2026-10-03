@@ -6,7 +6,9 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Added
 
+- A new app icon, made with Icon Composer: a ring in Liquid Glass on iPadOS 26 and later, with its light and dark looks, and a flat picture Xcode draws from it for earlier versions.
 - A compact layout, the new default, as Safari's: one row with the space, back and forward, the tabs sharing the row at one width, new tab and the palette. The tab on screen shows where it is (or its title: Settings › The tab you are on shows; sign-in pages always show where); clicking a tab only goes to it, and clicking the one on screen turns it into the address field the way Safari's does: its words give way to the address, selected, in place, then the field widens over the other tabs, which stay where they are underneath, and Return, Escape or a click on the page takes it back into the tab along the same path. A pinned tab on screen stays an icon, so going to it moves nothing, unless it is on a sign-in page. Settings › Window › Tabs keeps the separate address bar instead.
+- Split view, as in Dia: two tabs side by side in one window, shown as one tab in the row: the halves meet with squared ends on a shared ground, a see-through dark that takes on the bar's colour. A click in a pane gives it the keys and the bars, with a line in the space's colour along its top; drag the divider for more room on one side, or double-tap it for the middle. A tab's menu has Open in Split View, Separate Tabs and Swap Sides; the + button's menu, New Tab in Split View; ⌃⌥\\ splits the tab on screen with a new tab or separates it. Both pages stay live, closing one leaves the other, and a window narrower than two readable pages shows only the pane with the keys.
 - Pinned tabs, as in Dia and Arc: icons at the front of the row, each space its own. Closing one unloads it and takes it back to its pinned address; Back to Pinned Page and Unpin are in its menu; ⌃⌥⇧P pins or unpins the tab on screen.
 - Bookmarks, each space its own: a new tab shows them as a grid of site icons, folders and all; the star in the address (⌃⌥⇧D) adds or takes away the page; the palette finds them. Import from Chrome, Firefox or Safari (Bookmarks.html, or the ZIP of Safari's Export Browsing Data) in Settings, on the empty grid, or with ⌃⌥⇧I.
 - Sites' icons on tabs, pinned tabs and bookmarks: the icon a page names, fetched once per site without cookies, and the ones a Chrome bookmarks file carries; a site without one shows its first letter.
@@ -21,7 +23,7 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Changed
 
-- Only the tab on screen is in Liquid Glass; every other tab is flat, with a faint fill under the pointer.
+- Only the tab on screen is in Liquid Glass; every other tab is flat, with a faint see-through shade under the pointer that takes on the bar's colour.
 - Tapping or clicking the address selects all of it, so typing replaces it, as in Safari.
 - Bars are 44 points tall, so every control answers in at least 40 by 40, and presses give a little (to 0.96).
 - A link opened from another app opens in a new tab after the one on screen, instead of replacing that tab's page.
@@ -29,6 +31,7 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Fixed
 
+- The palette and the address field left out the last letter typed until the next key: the palette offered "Open github.co" for github.com, and Return opened github.co. The Korean keyboard keeps the last letter as text still being composed, which SwiftUI's text field doesn't pass on; both fields now read what they show, and Return commits the composition first.
 - The not-secure warning flashed in the address of an https page while it loaded, before WebKit knew the page was secure. It now shows at once for an http address, and for anything else once the page has loaded.
 - The tab bar and the address bar went blank whenever the keyboard was up, sign-in pages included, where the address must always show. SwiftUI moved what they draw out of sight to make room for the keyboard; they no longer make room for it.
 - A trackpad pinch zoomed Figma only 1.41 times for a pinch to twice the size. Figma, told it is in Safari, zooms half as far per wheel event as Chrome's pinch asks, so its adapter now sends twice the delta, and the canvas follows the fingers.
