@@ -1,0 +1,217 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Onboarding v3 · Forma</title><link rel="icon" href="/icons/forma.png"><style>:root{--ground:#f6f6f1;--paper:#ffffff;--ink:#141414;--muted:#77776f;--faint:#c9c9c0;--line:#e6e6df;--cyan:#1fb7d9;--yellow:#ffd23f;--coral:#ff5b3a;--violet:#6b5cff;--green:#2fbf71}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:var(--ink);background:var(--ground);-webkit-font-smoothing:antialiased}
+.top{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.pill{height:32px;padding:0 14px;border-radius:16px;display:inline-flex;align-items:center;font-weight:600;font-size:14px}
+.avatar{width:28px;height:28px;border-radius:14px;border:2px solid var(--paper);display:inline-block}
+</style>
+<style>
+/* A design tool's file, drawn as one: panels either side, the canvas between,
+   frames at the canvas's zoom and everything about the selection at screen size. */
+:root{--select:#0d99ff;--mina:#ff5b3a;--panel:#ffffff;--canvas:#efefea;--hair:rgba(0,0,0,.08);--text2:#6f6f68}
+body{display:flex;height:100vh;overflow:hidden;background:var(--canvas);font-size:12px;font-variant-numeric:tabular-nums}
+.panel{flex:none;background:var(--panel);display:flex;flex-direction:column;position:relative;z-index:2}
+.panel.l{width:232px;box-shadow:1px 0 0 var(--hair)}
+.panel.r{width:240px;box-shadow:-1px 0 0 var(--hair)}
+.sec{padding:12px 12px 14px;box-shadow:0 1px 0 var(--hair)}
+.sec:last-child{box-shadow:none}
+.cap{display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:11px;margin-bottom:10px;color:var(--ink)}
+.cap .plus{color:var(--text2);font-weight:400;font-size:15px;line-height:1}
+.file{display:flex;align-items:center;gap:8px;padding:12px}
+.logo{width:24px;height:24px;border-radius:7px;background:var(--ink);display:grid;place-items:center}
+.logo i{width:11px;height:11px;border-radius:50%;border:3px solid var(--yellow)}
+.fname{font-weight:650;font-size:13px}
+.fsub{color:var(--text2);font-size:11px;margin-top:1px}
+.tabs{display:flex;gap:4px;padding:0 8px 10px;box-shadow:0 1px 0 var(--hair)}
+.tab{height:24px;padding:0 8px;border-radius:6px;display:flex;align-items:center;font-weight:600;font-size:11px;color:var(--text2)}
+.tab.on{background:#f1f1ec;color:var(--ink)}
+.row{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.row.on{background:#e5f4ff;color:#0062a8;font-weight:600}
+.row.child{padding-left:26px}
+.row.child.on{background:#f2f9ff;font-weight:500}
+.row svg{flex:none;color:var(--text2)}
+.row.on svg{color:var(--select)}
+.page{display:flex;align-items:center;height:26px;padding:0 8px;border-radius:6px}
+.page.on{font-weight:600}
+.page.on:before{content:"";width:5px;height:5px;border-radius:3px;background:var(--ink);margin:0 8px 0 -2px}
+.page:not(.on){padding-left:21px;color:var(--text2)}
+/* Right panel */
+.share{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.av{width:24px;height:24px;border-radius:12px;box-shadow:0 0 0 2px var(--panel);margin-right:-6px;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:700}
+.btn{margin-left:auto;height:28px;padding:0 12px;border-radius:8px;background:var(--ink);color:#fff;font-weight:600;font-size:12px;display:flex;align-items:center}
+.ptabs{display:flex;align-items:center;gap:4px;padding:0 8px 10px;box-shadow:0 1px 0 var(--hair)}
+.zoom{margin-left:auto;color:var(--text2);font-weight:500;font-size:11px;padding-right:4px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inp{height:28px;border-radius:6px;background:#f3f3ee;display:flex;align-items:center;gap:8px;padding:0 8px;font-size:12px}
+.inp b{color:var(--text2);font-weight:500;width:12px}
+.inp svg{flex:none;color:var(--text2)}
+.inp.full{grid-column:span 2}
+.seg{display:flex;padding:2px;border-radius:8px;background:#f3f3ee;gap:2px}
+.seg i{flex:1;height:24px;border-radius:6px;display:grid;place-items:center;color:var(--text2)}
+.seg i.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)}
+.fill{display:flex;align-items:center;gap:8px;height:28px;font-size:12px}
+.sw{width:16px;height:16px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.pct{margin-left:auto;color:var(--text2)}
+/* Canvas */
+.canvas{flex:1;position:relative;overflow:hidden;min-width:0}
+.board{position:absolute;left:0;top:0;transform-origin:0 0;transform:translate(var(--tx),var(--ty)) scale(var(--s))}
+.frame{position:absolute;background:#fff;box-shadow:0 0 0 calc(1px / var(--s)) rgba(0,0,0,.06)}
+.name{position:absolute;left:0;bottom:100%;margin-bottom:calc(6px / var(--s));font-size:calc(11px / var(--s));font-weight:500;color:var(--text2);white-space:nowrap}
+.name.on{color:var(--select)}
+.phone{width:390px;height:844px;padding:0 24px}
+.status{height:54px;display:flex;align-items:center;justify-content:space-between;font-weight:650;font-size:16px;padding:6px 8px 0}
+.art{height:400px;border-radius:32px;margin-top:10px;position:relative;overflow:hidden}
+.art:after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.w .art{background:var(--yellow)}.w .art:after{width:150px;height:150px;border-radius:50%;border:34px solid var(--ink)}
+.s .art{background:var(--cyan)}.s .art:after{width:170px;height:170px;border-radius:48px;border:34px solid #fff;transform:translate(-50%,-50%) rotate(16deg)}
+.d .art{background:var(--ink)}.d .art:after{width:150px;height:150px;border-radius:50%;border:34px solid var(--coral)}
+.h{font-size:32px;line-height:1.08;letter-spacing:-.025em;font-weight:750;margin:34px 4px 12px;text-wrap:balance}
+.b{font-size:17px;line-height:1.4;color:var(--text2);margin:0 4px;text-wrap:pretty}
+.dots{display:flex;gap:6px;margin:30px 4px 0}
+.dots i{width:7px;height:7px;border-radius:4px;background:#dcdcd4}.dots i.on{width:20px;background:var(--ink)}
+.cta{position:absolute;left:24px;right:24px;bottom:44px;height:58px;border-radius:29px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:650;font-size:18px}
+.d .cta{background:var(--coral)}
+/* The selection: the frame's bounds, a handle at each corner and its size under it. */
+.sel{position:absolute;inset:0;box-shadow:0 0 0 calc(1.5px / var(--s)) var(--select);pointer-events:none}
+.hd{position:absolute;width:calc(8px / var(--s));height:calc(8px / var(--s));background:#fff;box-shadow:0 0 0 calc(1px / var(--s)) var(--select);transform:translate(-50%,-50%)}
+.hd.tl{left:0;top:0}.hd.tr{left:100%;top:0}.hd.bl{left:0;top:100%}.hd.br{left:100%;top:100%}
+.size{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:calc(8px / var(--s));background:var(--select);color:#fff;font-size:calc(11px / var(--s));font-weight:600;padding:calc(2px / var(--s)) calc(6px / var(--s));border-radius:calc(4px / var(--s));white-space:nowrap}
+/* Someone else in the file: Mina's selection and cursor in her colour. */
+.other{position:absolute;box-shadow:0 0 0 calc(1.5px / var(--s)) var(--mina);border-radius:29px}
+.cursor{position:absolute;width:calc(22px / var(--s))}
+.cursor svg{display:block;width:100%;height:auto;filter:drop-shadow(0 calc(2px / var(--s)) calc(3px / var(--s)) rgba(0,0,0,.2))}
+.cursor .tag{position:absolute;left:calc(15px / var(--s));top:calc(19px / var(--s));background:var(--mina);color:#fff;font-size:calc(12px / var(--s));font-weight:600;padding:calc(3px / var(--s)) calc(8px / var(--s));border-radius:calc(8px / var(--s));white-space:nowrap}
+.pin{position:absolute;width:calc(30px / var(--s));height:calc(30px / var(--s));border-radius:50% 50% 50% 0;background:var(--violet);box-shadow:0 0 0 calc(2px / var(--s)) #fff,0 calc(4px / var(--s)) calc(12px / var(--s)) rgba(0,0,0,.18);color:#fff;font-size:calc(11px / var(--s));font-weight:700;display:grid;place-items:center}
+.field{height:64px;border-radius:16px;background:#f3f3ee;margin:12px 0 0;padding:12px 16px;font-size:17px;display:flex;flex-direction:column;justify-content:center}
+.field span{font-size:12px;color:var(--text2);font-weight:600;margin-bottom:2px}
+.marks{display:grid;grid-template-columns:repeat(3,1fr);gap:22px 20px;margin-top:30px}
+.marks div{display:flex;flex-direction:column;align-items:center;gap:8px;font-size:14px;font-weight:500}
+.marks i{width:100%;aspect-ratio:1;border-radius:24px;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.marks svg{width:56%;height:56%}
+.list{margin-top:26px;border-radius:20px;background:#f3f3ee;padding:0 18px}
+.list div{height:60px;display:flex;align-items:center;justify-content:space-between;font-size:17px;box-shadow:0 1px 0 rgba(0,0,0,.06)}
+.list div:last-child{box-shadow:none}
+.list span{color:var(--text2)}
+.tg{width:46px;height:28px;border-radius:14px;background:var(--green);position:relative}.tg:after{content:"";position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+/* The tools, floating at the bottom: buttons of radius 8 in padding 6, so the bar's corner is 14. */
+.tools{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:2px;padding:6px;border-radius:14px;background:var(--panel);
+ box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.06),0 10px 24px -6px rgba(0,0,0,.16);z-index:3}
+.tool{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--ink)}
+.tool.on{background:var(--select);color:#fff}
+.tdiv{width:1px;margin:6px 4px;background:var(--hair)}
+@media (max-width:1000px){.panel.r{display:none}}
+@media (max-width:760px){.panel.l{display:none}}
+</style></head><body>
+<aside class="panel l">
+  <div class="file"><div class="logo"><i></i></div><div><div class="fname">Onboarding v3</div><div class="fsub">Studio · Drafts</div></div></div>
+  <div class="tabs"><div class="tab on">File</div><div class="tab">Assets</div></div>
+  <div class="sec">
+    <div class="cap">Pages<span class="plus">+</span></div>
+    <div class="page on">Mobile</div><div class="page">Tablet</div><div class="page">Components</div>
+  </div>
+  <div class="sec" style="flex:1">
+    <div class="cap">Layers</div>
+    <div class="row"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Settings</div>
+    <div class="row"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Bookmarks</div>
+    <div class="row"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Sign in</div>
+    <div class="row"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Ready</div>
+    <div class="row on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Spaces</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="3.5" width="9" height="5" rx="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Button</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="3" cy="6" r="1.4" fill="currentColor"/><circle cx="6" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="6" r="1.4" fill="currentColor"/></svg>Pager</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 2.5h7M6 2.5v7.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>Body</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 2.5h7M6 2.5v7.5" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>Headline</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Illustration</div>
+    <div class="row child on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.5l4.5 4.5L6 10.5 1.5 6z" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Status bar</div>
+    <div class="row"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 1v10M8 1v10M1 4h10M1 8h10" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>Welcome</div>
+  </div>
+</aside>
+<div class="canvas" id="canvas">
+  <div class="board" id="board">
+    <div class="frame phone w" style="left:0;top:0"><div class="name">Welcome</div>
+      <div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="art"></div><div class="h">Start with one tab.</div><div class="b">Open what you need now and keep the rest a click away.</div>
+      <div class="dots"><i class="on"></i><i></i><i></i></div><div class="cta">Continue</div></div>
+    <div class="frame phone s" id="spaces" style="left:470px;top:0"><div class="name on">Spaces</div>
+      <div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="art"></div><div class="h">Keep every client apart.</div><div class="b">Each space has its own sign-ins, colour and bookmarks.</div>
+      <div class="dots"><i></i><i class="on"></i><i></i></div><div class="cta">Make a space</div>
+      <div class="sel"></div><i class="hd tl"></i><i class="hd tr"></i><i class="hd bl"></i><i class="hd br"></i><div class="size">390 × 844</div></div>
+    <div class="frame phone d" style="left:940px;top:0"><div class="name">Ready</div>
+      <div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="art"></div><div class="h">Pinch. Scroll. Ship.</div><div class="b">Zoom where you point, with every shortcut you know.</div>
+      <div class="dots"><i></i><i></i><i class="on"></i></div><div class="cta">Open canvas</div>
+      <div class="other" style="left:24px;right:24px;top:64px;height:400px;border-radius:32px"></div></div>
+    <div class="frame phone" style="left:0;top:964px"><div class="name">Sign in</div><div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="h" style="margin-top:40px">Welcome back.</div><div class="b">Sign in once for each space.</div>
+      <div class="field"><span>Email</span>mina@studio.design</div><div class="field"><span>Password</span>••••••••••</div>
+      <div class="cta" style="position:static;margin:28px 0 0">Sign in</div></div>
+    <div class="frame phone" style="left:470px;top:964px"><div class="name">Bookmarks</div><div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="h" style="margin-top:40px">Bookmarks</div><div class="b">Studio</div>
+      <div class="marks"><div><i style="background:var(--ink)"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="none" stroke="var(--yellow)" stroke-width="7"/></svg></i><span>Forma</span></div><div><i style="background:var(--yellow)"><svg viewBox="0 0 40 40"><path d="M11 29V11l9 11 9-11v18" fill="none" stroke="var(--ink)" stroke-width="4.5" stroke-linejoin="round"/></svg></i><span>Margin</span></div><div><i style="background:var(--violet)"><svg viewBox="0 0 40 40"><g fill="#fff"><rect x="10" y="10" width="5.5" height="20" rx="2.75"/><rect x="17.25" y="10" width="5.5" height="13" rx="2.75"/><rect x="24.5" y="10" width="5.5" height="16" rx="2.75"/></g></svg></i><span>Lanes</span></div><div><i style="background:var(--cyan)"><svg viewBox="0 0 40 40"><rect x="9" y="12" width="22" height="16" rx="3.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M10.5 14l9.5 7.5 9.5-7.5" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg></i><span>Post</span></div><div><i style="background:var(--coral)"><svg viewBox="0 0 40 40"><g fill="#fff"><rect x="9" y="17" width="3.5" height="6" rx="1.75"/><rect x="14.5" y="12" width="3.5" height="16" rx="1.75"/><rect x="20" y="15" width="3.5" height="10" rx="1.75"/><rect x="25.5" y="10" width="3.5" height="20" rx="1.75"/></g></svg></i><span>Sound</span></div><div><i style="background:var(--green)"><svg viewBox="0 0 40 40"><path d="M8 29l8-15 5 8 3-4 8 11z" fill="#fff"/></svg></i><span>Atlas</span></div><div><i style="background:#f3f3ee"><svg viewBox="0 0 40 40"><text x="20" y="26" text-anchor="middle" font-size="16" font-weight="600" fill="var(--ink)" font-family="-apple-system,system-ui">Aa</text></svg></i><span>Type</span></div><div><i style="background:var(--ink)"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="11" fill="none" stroke="#fff" stroke-width="2.5"/><path d="M20 12l3.5 10L20 20l-3.5 2z" fill="var(--coral)"/></svg></i><span>North</span></div><div><i style="background:var(--cyan)"><svg viewBox="0 0 40 40"><g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="M10 16c3.5-3 6.5-3 10 0s6.5 3 10 0"/><path d="M10 23c3.5-3 6.5-3 10 0s6.5 3 10 0"/></g></svg></i><span>Tide</span></div></div></div>
+    <div class="frame phone" style="left:940px;top:964px"><div class="name">Settings</div><div class="status">9:41<svg width="66" height="13" viewBox="0 0 66 13"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0.5" width="3" height="11.5" rx="1"/></g><rect x="38.5" y="0.5" width="24" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="40.5" y="2.5" width="20" height="8" rx="2" fill="currentColor"/><rect x="63.5" y="4.5" width="1.5" height="4" rx=".75" fill="currentColor" opacity=".4"/></svg></div>
+      <div class="h" style="margin-top:40px">Settings</div>
+      <div class="list"><div>Tabs<span>Compact</span></div><div>Spaces<span>3</span></div><div>Page cursors<i class="tg"></i></div><div>Import bookmarks<span>›</span></div></div></div>
+    <div class="pin" style="left:872px;top:560px">MK</div>
+    <div class="cursor" style="left:1000px;top:330px"><svg viewBox="0 0 22 26"><path d="M2 2l17 10-7.5 1.6L8 23z" fill="var(--mina)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg><div class="tag">Mina</div></div>
+  </div>
+  <div class="tools">
+    <div class="tool on"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3.5 2.5l9 5.2-4 .9-2.1 3.9z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg></div>
+    <div class="tool"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M5 2v12M11 2v12M2 5h12M2 11h12" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></div>
+    <div class="tool"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></div>
+    <div class="tool"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 13l2-5 5-5 3 3-5 5z M3 13l3-1" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/></svg></div>
+    <div class="tool" style="font-weight:700;font-size:15px">T</div>
+    <div class="tdiv"></div>
+    <div class="tool"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2.5a5.5 5.5 0 015.5 5.5A5.5 5.5 0 018 13.5H2.5V8A5.5 5.5 0 018 2.5z" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></div>
+  </div>
+</div>
+<aside class="panel r">
+  <div class="share"><i class="av" style="background:var(--mina)">M</i><i class="av" style="background:var(--cyan)">J</i><i class="av" style="background:var(--violet)">K</i><div class="btn">Share</div></div>
+  <div class="ptabs"><div class="tab on">Design</div><div class="tab">Prototype</div><div class="zoom" id="zoom">56%</div></div>
+  <div class="sec">
+    <div class="cap">Frame</div>
+    <div class="grid"><div class="inp"><b>X</b>470</div><div class="inp"><b>Y</b>0</div><div class="inp"><b>W</b>390</div><div class="inp"><b>H</b>844</div></div>
+  </div>
+  <div class="sec">
+    <div class="cap">Auto layout<span class="plus">−</span></div>
+    <div class="seg" style="margin-bottom:8px">
+      <i class="on"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 1.5v9M3 7.5l3 3 3-3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg></i>
+      <i><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 6h9M7.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" fill="none"/></svg></i>
+      <i><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2h3v3H2zM7 2h3v3H7zM2 7h3v3H2zM7 7h3v3H7z" stroke="currentColor" stroke-width="1.1" fill="none"/></svg></i>
+    </div>
+    <div class="grid"><div class="inp"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 1.5h8M2 10.5h8M6 3.5v5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>24</div><div class="inp"><svg width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.2" fill="none" stroke-dasharray="2 1.5"/></svg>24</div></div>
+  </div>
+  <div class="sec">
+    <div class="cap">Appearance</div>
+    <div class="grid"><div class="inp"><svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 1.5a4.5 4.5 0 010 9z" fill="currentColor"/></svg>100%</div><div class="inp"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M1.5 10.5V6A4.5 4.5 0 016 1.5h4.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>0</div></div>
+  </div>
+  <div class="sec">
+    <div class="cap">Fill<span class="plus">+</span></div>
+    <div class="fill"><i class="sw" style="background:#fff"></i>FFFFFF<span class="pct">100%</span></div>
+  </div>
+  <div class="sec">
+    <div class="cap">Selection colours</div>
+    <div class="fill"><i class="sw" style="background:var(--cyan)"></i>1FB7D9<span class="pct">100%</span></div>
+    <div class="fill"><i class="sw" style="background:var(--ink)"></i>141414<span class="pct">100%</span></div>
+    <div class="fill"><i class="sw" style="background:#fff"></i>FFFFFF<span class="pct">100%</span></div>
+  </div>
+  <div class="sec"><div class="cap" style="margin:0">Stroke<span class="plus">+</span></div></div>
+  <div class="sec"><div class="cap" style="margin:0">Effects<span class="plus">+</span></div></div>
+  <div class="sec"><div class="cap" style="margin:0">Export<span class="plus">+</span></div></div>
+</aside>
+<script>
+// The canvas at the zoom where a phone frame takes 46% of it, the selected
+// frame in the middle and its neighbours running off either side and below.
+function fit(){
+  const c=document.getElementById('canvas'), b=document.getElementById('board').style;
+  const s=Math.min(c.clientWidth*0.46/390,0.72);
+  b.setProperty('--s',s);
+  b.setProperty('--tx',(c.clientWidth/2-(470+195)*s)+'px');
+  b.setProperty('--ty','62px');
+  document.getElementById('zoom').textContent=Math.round(s*100)+'%';
+}
+addEventListener('resize',fit);fit();
+</script>
+</body></html>

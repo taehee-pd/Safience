@@ -13,8 +13,8 @@ settings:
     # Swift 6's language mode adds strict concurrency checking, which buys
     # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "4"
 packages:
   PadCore:
     path: PadCore

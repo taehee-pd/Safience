@@ -1,0 +1,57 @@
+[
+ {
+  "name": "01-hero",
+  "params": {
+   "s": "Your trackpad and keyboard reach the page:<br>pinch, scroll and every shortcut.",
+   "img": "raw/1-hero.png",
+   "ring": "1250,420,1400",
+   "sw": "1840",
+   "top": "600",
+   "ct": "205"
+  }
+ },
+ {
+  "name": "02-split",
+  "params": {
+   "s": "A design and its notes in one window.<br>Drag the divider for room.",
+   "img": "raw/2-split.png",
+   "ring": "-520,600,1400",
+   "sw": "1840",
+   "top": "600",
+   "ct": "205"
+  }
+ },
+ {
+  "name": "03-spaces",
+  "params": {
+   "s": "Every space keeps its own sign-ins,<br>colour and bookmarks.",
+   "img": "raw/3-client.png",
+   "ring": "1230,540,1450",
+   "sw": "1840",
+   "top": "600",
+   "ct": "205"
+  }
+ },
+ {
+  "name": "04-palette",
+  "params": {
+   "s": "Tabs, spaces and commands<br>in one search.",
+   "img": "raw/5-palette.png",
+   "ring": "-480,460,1350",
+   "sw": "1840",
+   "top": "600",
+   "ct": "205"
+  }
+ },
+ {
+  "name": "05-bookmarks",
+  "params": {
+   "s": "Bookmarks for every space, brought over<br>from Chrome, Firefox or Safari.",
+   "img": "raw/4-start.png",
+   "ring": "1230,1000,1400",
+   "sw": "1840",
+   "top": "600",
+   "ct": "205"
+  }
+ }
+]

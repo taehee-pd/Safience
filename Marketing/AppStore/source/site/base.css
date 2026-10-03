@@ -1,0 +1,8 @@
+:root{--ground:#f6f6f1;--paper:#ffffff;--ink:#141414;--muted:#77776f;--faint:#c9c9c0;--line:#e6e6df;--cyan:#1fb7d9;--yellow:#ffd23f;--coral:#ff5b3a;--violet:#6b5cff;--green:#2fbf71}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:var(--ink);background:var(--ground);-webkit-font-smoothing:antialiased}
+.top{height:52px;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--paper);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+.pill{height:32px;padding:0 14px;border-radius:16px;display:inline-flex;align-items:center;font-weight:600;font-size:14px}
+.avatar{width:28px;height:28px;border-radius:14px;border:2px solid var(--paper);display:inline-block}
