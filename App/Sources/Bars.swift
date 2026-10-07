@@ -35,6 +35,8 @@ enum BarAction {
     case splitWithNewTab
     case separate(UUID)
     case swapSides(UUID)
+    /// The space's tabs as a grid, from the phone bar.
+    case showTabs
 }
 
 /// The row along the top.
@@ -124,7 +126,7 @@ struct TabStrip: View {
             let field = wide ? bounds : start
             // The tab's own shape at the tab, a capsule across the row.
             let fieldShape = wide ? TabShape.whole : TabShape.half(meeting: row.current.flatMap { row.seam(of: $0.id) })
-            let shown = compact && drawn
+            let shown = compact && drawn && !window.phone
             ZStack(alignment: .topLeading) {
                 tabs(row)
                     .mask {
@@ -242,7 +244,8 @@ struct TabStrip: View {
     /// until it moves. A turn later, once it is there, the tab's words give
     /// way to the address, quickly, and the field widens over the row.
     private func open() {
-        guard compact else { return }
+        // On a phone-width window the phone bar's field is the one typed in.
+        guard compact, !window.phone else { return }
         if !drawn {
             var still = Transaction()
             still.disablesAnimations = true
@@ -286,7 +289,7 @@ struct TabStrip: View {
 
     /// As things are, without moving: a window opened, or the layout changed, mid-typing.
     private func settle() {
-        let editing = compact && window.editingAddress
+        let editing = compact && window.editingAddress && !window.phone
         drawn = editing
         wide = editing
         typing = editing
@@ -594,6 +597,9 @@ private struct CurrentTab: View {
                 } else {
                     Button("Pin Tab", systemImage: "pin") { act(.pin(tab.id)) }
                         .disabled(tab.url == nil)
+                }
+                if window.url != nil {
+                    Button("Share Page…", systemImage: "square.and.arrow.up") { act(.command(.share)) }
                 }
                 Button("Close Tab", systemImage: "xmark") { act(.close(tab.id)) }
                 Button("Open in New Window", systemImage: "macwindow.badge.plus") { act(.tabInNewWindow(tab.id)) }
@@ -917,7 +923,7 @@ struct AddressEditor: View {
             SecurityIcon(window: window)
                 .frame(width: TabFace.slot, height: Metrics.control)
                 .padding(.leading, TabFace.lead)
-            TypingField(text: $text, placeholder: "Address or search", focused: $focused) { typed in act(.go(typed)) }
+            TypingField(text: $text, placeholder: "Address or search", focused: $focused, selectsAll: true) { typed in act(.go(typed)) }
                 .padding(.leading, TabFace.gap)
             if !text.isEmpty {
                 Button {
@@ -947,13 +953,10 @@ struct AddressEditor: View {
         }
     }
 
-    /// The tab's address, all of it selected, with the keys.
+    /// The tab's address, all of it selected (TypingField.selectsAll), with the keys.
     private func begin() {
         text = window.url.map(Destination.editable) ?? ""
         focused = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            UIApplication.shared.sendAction(#selector(UIResponder.selectAll(_:)), to: nil, from: nil, for: nil)
-        }
     }
 }
 
@@ -1065,35 +1068,49 @@ struct AddressBar: View {
     var body: some View {
         HStack(spacing: 4) {
             HistoryButtons(window: window, act: act)
-            // One piece of glass: the address and the address being typed
-            // fade into each other on it, in place.
-            ZStack {
-                // Only in its own layout: hidden in the compact one, an editor
-                // here would take the keys from the row's field and close it.
-                if window.editingAddress && session.preferences.layout == .separate {
-                    AddressEditor(window: window, act: act)
-                        .id(window.tabID)
-                        .transition(.opacity)
-                } else {
-                    HStack(spacing: 2) {
-                        AddressSummary(window: window, act: act)
-                        if window.signIn { SignInBadge() }
-                        if window.url != nil { BookmarkStar(window: window, act: act) }
-                        ReloadButton(window: window, act: act)
-                    }
-                    .padding(.trailing, 2)
-                    .transition(.opacity)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: Metrics.control)
-            .liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
-            .frame(height: Metrics.target)
+            // Only in its own layout: hidden in the others, an editor here
+            // would take the keys from the field that shows and close it.
+            AddressCapsule(window: window, editable: session.preferences.layout == .separate && !window.phone, act: act)
         }
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.bar, value: window.editingAddress)
         .ignoresSafeArea(.keyboard)
+    }
+}
+
+/// The address in one piece of glass: where the page is, its key badge on a
+/// sign-in page, the star and reload; a tap types a new address, and the
+/// address and the address being typed fade into each other on it, in place.
+/// The separate layout's address bar, and the phone bar's.
+struct AddressCapsule: View {
+    @ObservedObject var window: WindowModel
+    /// This capsule is the one typed in; otherwise another field is.
+    let editable: Bool
+    let act: (BarAction) -> Void
+
+    var body: some View {
+        ZStack {
+            if window.editingAddress && editable {
+                AddressEditor(window: window, act: act)
+                    .id(window.tabID)
+                    .transition(.opacity)
+            } else {
+                HStack(spacing: 2) {
+                    AddressSummary(window: window, act: act)
+                    if window.signIn { SignInBadge() }
+                    if window.url != nil { BookmarkStar(window: window, act: act) }
+                    ReloadButton(window: window, act: act)
+                }
+                .padding(.trailing, 2)
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: Metrics.control)
+        .liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
+        .frame(height: Metrics.target)
+        .animation(.bar, value: window.editingAddress)
     }
 }
 

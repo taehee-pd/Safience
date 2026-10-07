@@ -14,7 +14,7 @@ settings:
     # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
 packages:
   PadCore:
     path: PadCore
@@ -33,13 +33,13 @@ targets:
       base:
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
-        TARGETED_DEVICE_FAMILY: "2"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
         SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
-        # App/Safiens.icon, made with Icon Composer: Liquid Glass on iPadOS
-        # 26 and later; Xcode draws flat pictures from it for earlier ones.
-        ASSETCATALOG_COMPILER_APPICON_NAME: Safiens
+        # App/Safience.icon, made with Icon Composer: Liquid Glass on iOS and
+        # iPadOS 26 and later; Xcode draws flat pictures from it for earlier ones.
+        ASSETCATALOG_COMPILER_APPICON_NAME: Safience
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
 schemes:

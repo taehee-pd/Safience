@@ -21,6 +21,9 @@ final class Session: ObservableObject {
             }
             for page in pages.live.values { page.settingsChanged() }
             if preferences.limits != oldValue.limits { pages.enforce() }
+            if preferences.iCloudSync != oldValue.iCloudSync {
+                if preferences.iCloudSync { Sync.shared.start(join: true) } else { Sync.shared.stop() }
+            }
         }
     }
 
@@ -51,6 +54,7 @@ final class Session: ObservableObject {
         Stores.sweep()
         Snapshots.prune(keeping: Set(workspace.spaces.flatMap { $0.tabs.map(\.id) }))
         pages.watchMemory()
+        if preferences.iCloudSync { Sync.shared.start(join: false) }
     }
 
     // MARK: The workspace
@@ -61,9 +65,12 @@ final class Session: ObservableObject {
     func change<T>(_ edit: (inout Workspace) -> T) -> T {
         var copy = workspace
         let result = edit(&copy)
+        if Sync.shared.assigns { CloudSync.assignIDs(&copy) }
         if copy != workspace {
+            let old = workspace
             workspace = copy
             save()
+            Sync.shared.changed(from: old, to: copy)
         }
         return result
     }

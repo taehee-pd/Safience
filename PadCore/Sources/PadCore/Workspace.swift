@@ -93,6 +93,10 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
     /// Tabs shown two at a time; a tab is in one split at most, and never a
     /// pinned one.
     public var splits: [Split]
+    /// The id iCloud knows this space by, the same on every device; nil for
+    /// a space that has never been synced (CloudSync.swift). Not `id`: that
+    /// one names this device's sign-ins for the space.
+    public var cloudID: UUID?
 
     public init(id: UUID = UUID(), name: String, symbol: String, color: SpaceColor? = nil, tabs: [TabRecord] = [],
                 selected: UUID? = nil, bookmarks: [Bookmark] = [], splits: [Split] = []) {
@@ -107,7 +111,7 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, symbol, color, tabs, selected, bookmarks, splits
+        case id, name, symbol, color, tabs, selected, bookmarks, splits, cloudID
     }
 
     public init(from decoder: Decoder) throws {
@@ -122,6 +126,7 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
         color = (try? c.decodeIfPresent(SpaceColor.self, forKey: .color)) ?? SpaceColor.standard(for: symbol)
         bookmarks = (try? c.decodeIfPresent([Bookmark].self, forKey: .bookmarks)) ?? []
         splits = (try? c.decodeIfPresent([Split].self, forKey: .splits)) ?? []
+        cloudID = try? c.decodeIfPresent(UUID.self, forKey: .cloudID)
     }
 
     /// The split `tab` is in, if any.

@@ -430,7 +430,7 @@ final class ZoomHold: NSObject {
         self.scrollView = scrollView
         super.init()
         let changed: @Sendable (UIScrollView, NSKeyValueObservedChange<CGFloat>) -> Void = { [weak self] _, _ in
-            DispatchQueue.main.async { self?.hold() }
+            DispatchQueue.main.async { self?.keep() }
         }
         observations = [
             scrollView.observe(\.zoomScale, changeHandler: changed),
@@ -439,8 +439,22 @@ final class ZoomHold: NSObject {
         ]
     }
 
+    /// Let go: the page's own zoom, pinched by a finger, as in Safari.
+    private var free = false
+
+    func release() {
+        free = true
+        scrollView?.pinchGestureRecognizer?.isEnabled = true
+        scrollView?.bouncesZoom = true
+    }
+
     func hold() {
-        guard let scrollView, !holding else { return }
+        free = false
+        keep()
+    }
+
+    private func keep() {
+        guard let scrollView, !holding, !free else { return }
         holding = true
         defer { holding = false }
         scrollView.pinchGestureRecognizer?.isEnabled = false

@@ -26,6 +26,8 @@ public enum Command: String, CaseIterable, Sendable {
     case pinTab
     case splitTab
     case bookmark
+    case share
+    case siteMode
     case spaceSettings
     case importBookmarks
 
@@ -54,6 +56,8 @@ public enum Command: String, CaseIterable, Sendable {
         case .pinTab: return "Pin or Unpin Tab"
         case .splitTab: return "Split or Separate Tabs"
         case .bookmark: return "Bookmark This Page"
+        case .share: return "Share Page…"
+        case .siteMode: return "Request Desktop or Mobile Site"
         case .spaceSettings: return "Space Settings"
         case .importBookmarks: return "Import Bookmarks"
         }
@@ -82,6 +86,8 @@ public enum Command: String, CaseIterable, Sendable {
         case .pinTab: return ["pin", "keep", "unpin"]
         case .splitTab: return ["split view", "side by side", "two", "pane", "unsplit"]
         case .bookmark: return ["save", "favorite", "star", "remove bookmark"]
+        case .share: return ["add to home screen", "copy link", "send", "airdrop", "web app"]
+        case .siteMode: return ["desktop site", "mobile site", "user agent", "phone"]
         case .spaceSettings: return ["profile", "colour", "color", "icon", "rename"]
         case .importBookmarks: return ["chrome", "safari", "html", "favorites"]
         }
@@ -148,6 +154,8 @@ public enum Shortcuts {
         .pinTab: Chord(.character("p"), shift: true),
         .splitTab: Chord(.character("\\")),
         .bookmark: Chord(.character("d"), shift: true),
+        .share: Chord(.character("s")),
+        .siteMode: Chord(.character("m"), shift: true),
         .spaceSettings: Chord(.character("s"), shift: true),
         .importBookmarks: Chord(.character("i"), shift: true),
     ]

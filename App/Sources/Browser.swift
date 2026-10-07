@@ -31,6 +31,10 @@ final class WindowModel: ObservableObject {
     @Published var siteColor: SiteColor?
     /// The page is one of the space's bookmarks (the star in the address).
     @Published var bookmarked = false
+    /// A phone-width window: the bars at the bottom, as on an iPhone (PhoneBar).
+    @Published var phone = false
+    /// The page on screen is its mobile site (SiteMode).
+    @Published var mobileSite = false
 
     init(spaceID: UUID) {
         self.spaceID = spaceID
@@ -83,6 +87,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     /// Where the divider is while it is dragged, before the workspace hears.
     private var dragRatio: Double?
     private var topBar: UIHostingController<TopBar>?
+    private var phoneBar: UIHostingController<PhoneBar>?
+    /// The bars' bottom: the safe area's, or the keyboard's while an address
+    /// is typed on a phone, so the bar at the bottom rides above it.
+    private var safeBottom: NSLayoutConstraint?
+    private var keyboardBottom: NSLayoutConstraint?
     private var addressBar: UIHostingController<AddressBar>?
     private var bannerBar: UIHostingController<BannerBar>?
     private var empty: UIHostingController<EmptySpace>?
@@ -130,6 +139,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshChrome() }
             .store(in: &subscriptions)
+        // A window that turns phone-width (an iPhone, the Duo folding, a narrow
+        // iPad window) moves its bars to the bottom, and back.
+        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _: UITraitCollection) in
+            self.refreshChrome()
+        }
         show(tab: firstTab, inSpace: model.spaceID, userInitiated: false)
     }
 
@@ -149,11 +163,14 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
         let safe = view.safeAreaLayoutGuide
+        let bottom = stack.bottomAnchor.constraint(equalTo: safe.bottomAnchor)
+        safeBottom = bottom
+        keyboardBottom = stack.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: safe.topAnchor),
             stack.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+            bottom,
         ])
 
         let session = Session.shared
@@ -172,6 +189,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         stage.clipsToBounds = true
         stage.backgroundColor = Palette.UI.ground
         stack.addArrangedSubview(stage)
+
+        let phone = embed(PhoneBar(session: session, window: model) { [weak self] in self?.act($0) })
+        phone.view.heightAnchor.constraint(equalToConstant: PhoneBar.height).isActive = true
+        phoneBar = phone
         // A touch on the page while an address is typed puts the typing
         // away, as in Safari; the touch itself stays the page's.
         let away = UITapGestureRecognizer(target: self, action: #selector(touchedPage))
@@ -273,8 +294,21 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             failed: failed
         )
         if model.showsAddress != showsAddress { model.showsAddress = showsAddress }
-        topBar?.view.isHidden = !(preferences.tabBar || (compact && mustShow))
-        addressBar?.view.isHidden = compact || !model.showsAddress
+        let phone = traitCollection.horizontalSizeClass == .compact
+        if model.phone != phone { model.phone = phone }
+        topBar?.view.isHidden = phone || !(preferences.tabBar || (compact && mustShow))
+        addressBar?.view.isHidden = phone || compact || !model.showsAddress
+        // On a phone the bar at the bottom is the only way around: always there.
+        phoneBar?.view.isHidden = !phone
+        let typing = phone && model.editingAddress
+        // The one going first, so the two are never on together.
+        if typing, safeBottom?.isActive == true {
+            safeBottom?.isActive = false
+            keyboardBottom?.isActive = true
+        } else if !typing, keyboardBottom?.isActive == true {
+            keyboardBottom?.isActive = false
+            safeBottom?.isActive = true
+        }
         bannerBar?.view.isHidden = model.banner == nil
         start?.view.isHidden = !(page != nil && model.url == nil)
         let bookmarked = url.flatMap { session.workspace.bookmark(for: $0, in: model.spaceID) } != nil
@@ -290,7 +324,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private func applySiteColor() {
         let color = model.siteColor
         let style: UIUserInterfaceStyle = color.map { $0.isDark ? .dark : .light } ?? .unspecified
-        for bar in [topBar, addressBar, bannerBar] as [UIViewController?] where bar?.overrideUserInterfaceStyle != style {
+        for bar in [topBar, addressBar, bannerBar, phoneBar] as [UIViewController?] where bar?.overrideUserInterfaceStyle != style {
             bar?.overrideUserInterfaceStyle = style
         }
         let ground = color?.uiColor ?? Palette.UI.ground
@@ -625,6 +659,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         model.secure = view.hasOnlySecureContent
         model.signIn = page.isSignIn
         model.siteColor = page.siteColor
+        model.mobileSite = page.mode == .mobile
         if page.googleRefused {
             model.banner = .googleRefused
         } else if page.exhausted {
@@ -753,6 +788,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
                 splitWithNewTab()
             }
         case .bookmark: toggleBookmark()
+        case .share: sharePage()
+        case .siteMode: switchSiteMode()
         case .spaceSettings: openSpaceSettings(model.spaceID)
         case .importBookmarks: chooseBookmarksFile()
         }
@@ -881,6 +918,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .toggleBookmark: toggleBookmark()
         case .removeBookmark(let id): session.change { $0.removeBookmark(id, in: model.spaceID) }
         case .importBookmarks: chooseBookmarksFile()
+        case .showTabs: showTabs()
         case .splitWith(let other): split(with: other)
         case .splitWithNewTab: splitWithNewTab()
         case .separate(let tab): session.change { $0.separate(tab) }
@@ -900,6 +938,54 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         } else {
             session.pages.close(tab)
         }
+    }
+
+    /// The page on screen as its desktop site, or its mobile one: kept for
+    /// the site, and loaded again. A choice the window's size would make
+    /// anyway isn't kept.
+    private func switchSiteMode() {
+        guard let page, let url = page.view.url, let key = SiteMode.siteKey(url.host) else { return }
+        let wanted: SiteMode = page.mode == .desktop ? .mobile : .desktop
+        let size = view.window?.bounds.size ?? view.bounds.size
+        let natural = SiteMode.choose(host: nil, width: Double(size.width), height: Double(size.height), overrides: [:])
+        Session.shared.preferences.siteModes[key] = wanted == natural ? nil : wanted
+        page.reload(as: wanted)
+    }
+
+    /// Shows the space's tabs as a grid, from the phone bar's Tabs button.
+    private func showTabs() {
+        guard presentedViewController == nil else { return }
+        let overview = UIHostingController(rootView: TabOverview(session: Session.shared, window: model, act: { [weak self] action in
+            self?.act(action)
+        }, done: { [weak self] action in
+            self?.dismiss(animated: true) {
+                if let action { self?.act(action) } else { self?.focusPage() }
+            }
+        }))
+        overview.modalPresentationStyle = .pageSheet
+        overview.presentationController?.delegate = self
+        present(overview, animated: true)
+    }
+
+    /// The page on screen, through the system's share sheet. The web view
+    /// goes in with its address: for a browser with Apple's entitlement, that
+    /// is what puts Add to Home Screen in the sheet, so a web app gets its
+    /// own icon on the Home Screen.
+    private func sharePage() {
+        guard let page, let url = page.view.url, presentedViewController == nil else { return }
+        let sheet = UIActivityViewController(activityItems: [url, page.view], applicationActivities: nil)
+        // From the bar the address is in: the address bar, or the row of tabs.
+        if let popover = sheet.popoverPresentationController,
+           let anchor = [phoneBar?.view, addressBar?.view, topBar?.view, view].compactMap({ $0 }).first(where: { !$0.isHidden }) {
+            popover.sourceView = anchor
+            // Under a bar at the top; over the one at the bottom on a phone-width window.
+            let below = anchor !== phoneBar?.view
+            popover.sourceRect = CGRect(x: anchor.bounds.midX, y: below ? anchor.bounds.maxY - 6 : anchor.bounds.minY + 6,
+                                        width: 1, height: 1)
+            popover.permittedArrowDirections = below ? .up : .down
+        }
+        sheet.completionWithItemsHandler = { [weak self] _, _, _, _ in self?.focusPage() }
+        present(sheet, animated: true)
     }
 
     /// The page on screen into the space's bookmarks, or out of them.

@@ -20,7 +20,7 @@ enum Menus {
         }
         builder.replaceChildren(ofMenu: .application) { _ in [] }
 
-        builder.insertSibling(menu("Go", [.palette, .address, .back, .forward, .reload, .stop]), afterMenu: .application)
+        builder.insertSibling(menu("Go", [.palette, .address, .back, .forward, .reload, .stop, .share, .siteMode]), afterMenu: .application)
         builder.insertSibling(tabsMenu(), afterMenu: Identifier.go)
         builder.insertSibling(menu("Spaces", [.nextSpace, .previousSpace, .newSpace, .spaceSettings, .importBookmarks,
                                               .newWindow, .closeWindow]),

@@ -34,11 +34,15 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var engine = Destination.standardEngine
     /// Pages' own cursor images, drawn over the hidden system pointer.
     public var pageCursors = true
+    /// Request Desktop Site or Request Mobile Site, by site (SiteMode.siteKey).
+    public var siteModes: [String: SiteMode] = [:]
+    /// Spaces and their bookmarks kept in iCloud (CloudSync.swift); off until turned on.
+    public var iCloudSync = false
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors
+        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync
     }
 
     public init(from decoder: Decoder) throws {
@@ -52,6 +56,8 @@ public struct Preferences: Codable, Equatable, Sendable {
         diagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .diagnostics)) ?? false
         engine = (try? c.decodeIfPresent(String.self, forKey: .engine)) ?? Destination.standardEngine
         pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
+        siteModes = (try? c.decodeIfPresent([String: SiteMode].self, forKey: .siteModes)) ?? [:]
+        iCloudSync = (try? c.decodeIfPresent(Bool.self, forKey: .iCloudSync)) ?? false
     }
 
     /// An adapter's bridges with these settings laid over them.

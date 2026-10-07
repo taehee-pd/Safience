@@ -16,6 +16,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                DefaultBrowserSection()
+
+                CloudSection(session: session)
+
                 Section {
                     Picker("Tabs", selection: $session.preferences.layout) {
                         Text("Compact").tag(TabLayout.compact)
@@ -133,7 +137,6 @@ struct SettingsView: View {
 
                 Section("Known limitations") {
                     Text("iPadOS keeps its own shortcuts (⌘Tab, ⌘Space, the Globe key) and its three- and four-finger gestures; no app can give those to a page.")
-                    Text("Until Apple grants Safience its browser entitlement, passkeys don't work and the Passwords app suggests nothing for a site; sign in with a password, an email link, or your company's single sign-on.")
                     Text("With VoiceOver on, ⌃⌥ is VoiceOver's own key; use the command palette instead.")
                 }
                 .font(.footnote)

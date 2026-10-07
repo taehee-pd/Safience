@@ -10,6 +10,7 @@
 		134B206FE21F5C445DF8C30F /* TypingField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 454BB91AD08E546C79F7A68B /* TypingField.swift */; };
 		1449E23068B46A41BE868E4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */; };
 		1B8C1AE2965FFB497E33CD89 /* Split.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35703117FE6070510D9ACD41 /* Split.swift */; };
+		2A3FB3504D820D72F3BAF3F1 /* Sync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59424532390F476D1CD955FB /* Sync.swift */; };
 		2E2D6E9CA72640C621481A31 /* Stores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074CA17DACDA7627B0F56156 /* Stores.swift */; };
 		391B4688B7965EC189CE6B5C /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF9E81EBAC67F3BB4262C21 /* Menus.swift */; };
 		3977933A53FA14627EF3C8F0 /* CommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 512242CF748C7FC74E5144D7 /* CommandPalette.swift */; };
@@ -17,6 +18,7 @@
 		5338A543700A5A09C804067C /* SiteIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42913D2892ED2BD37B49B46B /* SiteIcons.swift */; };
 		59BF9C5FA933841C774F11B2 /* Browser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07CD2B9AB17815079EA957CE /* Browser.swift */; };
 		62A4AEE0CD76A947B4755FB6 /* StartPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FCC216CAD2764E9BC35B99 /* StartPage.swift */; };
+		63D22B81ACB5611434171F0F /* PhoneBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A46847BFA9A21CE9DA37629 /* PhoneBar.swift */; };
 		7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */; };
 		830AC5C5BD7674F0CE7E37FF /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = B455D4DFE19101DC8D9B04D6 /* Design.swift */; };
 		84FCF83CE8E1010D83C99B66 /* Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA24A05C238565C89C5709DE /* Downloads.swift */; };
@@ -25,8 +27,9 @@
 		94DA9C15A47FEC39C11F9063 /* Popup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1E327B0EF5710ADF1392D4 /* Popup.swift */; };
 		99D1C135FEB8AB5A736201C8 /* Bars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310BD6F1447DB8F94292DAF8 /* Bars.swift */; };
 		A85CD2814BD93FDD51B9A59D /* PadCore in Frameworks */ = {isa = PBXBuildFile; productRef = B6824DF218F1DEC5DB41FC8E /* PadCore */; };
+		A8F9425B2A6CE470488C51A6 /* Safience.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5830B26128EEF110ED7570D /* Safience.icon */; };
+		B29000F2CB7FBA70A95528B3 /* DefaultBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A692F505F9CB22A005F6972A /* DefaultBrowser.swift */; };
 		B6BC6731F7D0A7A4D6A10A75 /* Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C853B222D6041EF25DDE463 /* Spaces.swift */; };
-		C87EB1061D76EA769C30C42C /* Safiens.icon in Resources */ = {isa = PBXBuildFile; fileRef = 188B73185591CC9E9998E418 /* Safiens.icon */; };
 		CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB06E275F05C5DC35F5F409 /* Dialogs.swift */; };
 		E7DF6BA50A37C08EFA6DD149 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98ADE0F015573BE29D113B69 /* AppDelegate.swift */; };
 		ED593CD2CCCF8AE55B5FD515 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A825AD3F237E75FE4112E0F /* SettingsView.swift */; };
@@ -39,7 +42,6 @@
 		0570CD44BA4C8F93288DEEE4 /* PadCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PadCore; path = PadCore; sourceTree = SOURCE_ROOT; };
 		074CA17DACDA7627B0F56156 /* Stores.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stores.swift; sourceTree = "<group>"; };
 		07CD2B9AB17815079EA957CE /* Browser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Browser.swift; sourceTree = "<group>"; };
-		188B73185591CC9E9998E418 /* Safiens.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Safiens.icon; sourceTree = "<group>"; };
 		1D01DEA252EBCFD4CF819C5B /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		22A76837AE5318B1FCA39940 /* Safience.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Safience.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		26830907E9299824307361FA /* Pointer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pointer.swift; sourceTree = "<group>"; };
@@ -52,11 +54,15 @@
 		42913D2892ED2BD37B49B46B /* SiteIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteIcons.swift; sourceTree = "<group>"; };
 		454BB91AD08E546C79F7A68B /* TypingField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingField.swift; sourceTree = "<group>"; };
 		512242CF748C7FC74E5144D7 /* CommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette.swift; sourceTree = "<group>"; };
+		59424532390F476D1CD955FB /* Sync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sync.swift; sourceTree = "<group>"; };
 		7D63E0D6CDA990090BB18797 /* PageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageView.swift; sourceTree = "<group>"; };
 		82E5D050E5C6B6B0BC0362ED /* Pages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pages.swift; sourceTree = "<group>"; };
 		98ADE0F015573BE29D113B69 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		9A46847BFA9A21CE9DA37629 /* PhoneBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneBar.swift; sourceTree = "<group>"; };
 		9A825AD3F237E75FE4112E0F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A5830B26128EEF110ED7570D /* Safience.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Safience.icon; sourceTree = "<group>"; };
+		A692F505F9CB22A005F6972A /* DefaultBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultBrowser.swift; sourceTree = "<group>"; };
 		AA24A05C238565C89C5709DE /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B455D4DFE19101DC8D9B04D6 /* Design.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Design.swift; sourceTree = "<group>"; };
@@ -112,6 +118,7 @@
 				310BD6F1447DB8F94292DAF8 /* Bars.swift */,
 				07CD2B9AB17815079EA957CE /* Browser.swift */,
 				512242CF748C7FC74E5144D7 /* CommandPalette.swift */,
+				A692F505F9CB22A005F6972A /* DefaultBrowser.swift */,
 				B455D4DFE19101DC8D9B04D6 /* Design.swift */,
 				EEF971FC5BBD0193585DD8BF /* Diagnostics.swift */,
 				CDB06E275F05C5DC35F5F409 /* Dialogs.swift */,
@@ -120,6 +127,7 @@
 				EFBA45B9156A4F863CB6645F /* Page.swift */,
 				82E5D050E5C6B6B0BC0362ED /* Pages.swift */,
 				7D63E0D6CDA990090BB18797 /* PageView.swift */,
+				9A46847BFA9A21CE9DA37629 /* PhoneBar.swift */,
 				26830907E9299824307361FA /* Pointer.swift */,
 				DC1E327B0EF5710ADF1392D4 /* Popup.swift */,
 				1D01DEA252EBCFD4CF819C5B /* Session.swift */,
@@ -129,6 +137,7 @@
 				35703117FE6070510D9ACD41 /* Split.swift */,
 				26FCC216CAD2764E9BC35B99 /* StartPage.swift */,
 				074CA17DACDA7627B0F56156 /* Stores.swift */,
+				59424532390F476D1CD955FB /* Sync.swift */,
 				454BB91AD08E546C79F7A68B /* TypingField.swift */,
 			);
 			path = Sources;
@@ -148,7 +157,7 @@
 				B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */,
 				2983A3132591D10150B7EDE6 /* Info.plist */,
 				9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */,
-				188B73185591CC9E9998E418 /* Safiens.icon */,
+				A5830B26128EEF110ED7570D /* Safience.icon */,
 				858BA53CA1824B50F80E165E /* Sources */,
 			);
 			path = App;
@@ -221,7 +230,7 @@
 			files = (
 				1449E23068B46A41BE868E4C /* Assets.xcassets in Resources */,
 				7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */,
-				C87EB1061D76EA769C30C42C /* Safiens.icon in Resources */,
+				A8F9425B2A6CE470488C51A6 /* Safience.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +245,7 @@
 				99D1C135FEB8AB5A736201C8 /* Bars.swift in Sources */,
 				59BF9C5FA933841C774F11B2 /* Browser.swift in Sources */,
 				3977933A53FA14627EF3C8F0 /* CommandPalette.swift in Sources */,
+				B29000F2CB7FBA70A95528B3 /* DefaultBrowser.swift in Sources */,
 				830AC5C5BD7674F0CE7E37FF /* Design.swift in Sources */,
 				4BA36CAD321B3DAECE500DE2 /* Diagnostics.swift in Sources */,
 				CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */,
@@ -244,6 +254,7 @@
 				F8C48630A396E0E9BB9442BC /* Page.swift in Sources */,
 				8B82DF9060D876302EA0545B /* PageView.swift in Sources */,
 				934D5B77AD2C2BBFDE6C83E7 /* Pages.swift in Sources */,
+				63D22B81ACB5611434171F0F /* PhoneBar.swift in Sources */,
 				EFB4ED839E8488D924234E49 /* Pointer.swift in Sources */,
 				94DA9C15A47FEC39C11F9063 /* Popup.swift in Sources */,
 				F5CF0DA5501ABC1FA2B87BC8 /* Session.swift in Sources */,
@@ -253,6 +264,7 @@
 				1B8C1AE2965FFB497E33CD89 /* Split.swift in Sources */,
 				62A4AEE0CD76A947B4755FB6 /* StartPage.swift in Sources */,
 				2E2D6E9CA72640C621481A31 /* Stores.swift in Sources */,
+				2A3FB3504D820D72F3BAF3F1 /* Sync.swift in Sources */,
 				134B206FE21F5C445DF8C30F /* TypingField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -264,7 +276,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = Safiens;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Safience;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;
@@ -278,7 +290,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = 2;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -316,7 +328,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -381,7 +393,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -409,7 +421,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = Safiens;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Safience;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;
@@ -423,7 +435,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = 2;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

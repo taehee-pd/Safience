@@ -100,13 +100,15 @@ For each:
 
 ## 6. With Apple's browser entitlement
 
-Only after Apple grants it (README › With Apple's browser entitlement).
+On a build signed with it (README › With Apple's browser entitlement).
 
-- [ ] Settings › Apps › Safience shows Default Browser App; choose Safience.
+- [ ] Safience's Settings › Default browser › Make Safience the Default Browser opens Settings › Apps › Default Apps; choose Browser App › Safience. Back in Safience's Settings, it says Safience is your default browser.
 - [ ] A link tapped in Mail, Notes or Slack opens in Safience, in a new tab after the one on screen, which stays as it was.
 - [ ] On a site that offers passkeys (Google, GitHub, Figma if offered), signing in with a passkey shows the system's passkey sheet and signs in.
 - [ ] Creating a passkey on a site saves it in the Passwords app.
 - [ ] The key button above the keyboard lists the site's own passwords without searching, and a verification code field offers the code.
+- [ ] Share Page (⌃⌥S, or the tab's menu) shows the share sheet with Add to Home Screen; the icon it adds opens the page.
+- [ ] A site with a service worker (an offline-capable web app) registers it: Diagnostics or the site itself says so.
 
 ## 7. Compact tabs, pinned tabs, bookmarks, spaces
 
@@ -121,3 +123,13 @@ Only after Apple grants it (README › With Apple's browser entitlement).
 - [ ] Import Chrome's export, then Safari's ZIP (Settings › Apps › Safari › Export › Bookmarks), into one space: the grid on a new tab shows them, the second import of the same file adds nothing, and another space's grid stays empty.
 - [ ] The star adds and takes away the page; a bookmark's menu opens it in a new tab or deletes it; ⌃⌥K finds bookmarks by name.
 - [ ] Space Settings changes the name, colour and icon at once in the bar; Settings › Spaces › Edit reorders, and ⌃⌥↑ ⌃⌥↓ follow the new order.
+
+## 8. iPhone, iPhone Duo, iCloud
+
+- [ ] On an iPhone, the bars are at the bottom: back and forward, the address, the tabs (with their count), the space, + and the menu. Tapping the address types a new one, the address selected, with the bar above the keyboard; Return goes.
+- [ ] A site's mobile version loads (the page names an iPhone); it scrolls and pinches with a finger. Menu › Request Desktop Site loads the desktop version, and the site keeps it next time.
+- [ ] The tabs button shows the space's tabs as a grid; a tap goes to one, × closes one, + opens a new tab.
+- [ ] Turned sideways, an iPhone keeps the bars at the bottom (a Pro Max turns to the iPad's row) and keeps mobile sites.
+- [ ] On an iPhone Duo: folded, the bars are at the bottom and sites are mobile; unfolded, the iPad's row comes back and sites load as desktop on the next page. Folding mid-typing leaves the address as it was.
+- [ ] Settings › iCloud › Sync Spaces and Bookmarks on two devices with the same account: a space of the same name joins with both devices' bookmarks; a bookmark added on one shows on the other within a minute; a space removed on one goes on the other; tabs and sign-ins don't move.
+- [ ] Signed out of iCloud, Settings says to sign in.

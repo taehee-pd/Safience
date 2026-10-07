@@ -43,6 +43,8 @@ final class Page: NSObject {
     /// settings, "hands-off", or nil before the first page.
     private var installed: String?
     private(set) var committed: URL?
+    /// Desktop or mobile site, chosen for each page as it loads (SiteMode).
+    private(set) var mode: SiteMode = .desktop
     private(set) var mimeType: String?
     private(set) var passwordField = false
     /// The focus is in a field someone types in (bridge.js decides).
@@ -221,9 +223,17 @@ final class Page: NSObject {
         let handsOff = HandsOff.covers(url)
         adapter = Adapters.adapter(for: url)
         bridges = Session.shared.preferences.bridges(for: adapter)
-        view.customUserAgent = handsOff ? nil : adapter.userAgent
+        if handsOff {
+            view.customUserAgent = nil
+        } else if mode == .mobile {
+            // WebKit's own, in a mobile layout, lacks the "Mobile" sites look for.
+            view.customUserAgent = Identity.mobileUserAgent(for: ProcessInfo.processInfo.operatingSystemVersion,
+                                                            pad: UIDevice.current.userInterfaceIdiom == .pad)
+        } else {
+            view.customUserAgent = adapter.userAgent
+        }
         let keys = bridges.keys.map(\.rawValue).sorted().joined(separator: ",")
-        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)|\(bridges.cursors)"
+        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)|\(bridges.cursors)|\(mode.rawValue)"
         guard wanted != installed else { return }
         installed = wanted
         controller.removeAllUserScripts()
@@ -245,10 +255,42 @@ final class Page: NSObject {
     }
 
     /// WebKit's own scrolling, off unless no bridge can run (Scrolling.swift).
+    /// On a phone, and for a mobile site, a finger is what there is: the page
+    /// scrolls and pinches as in Safari, its zoom free.
     private func applyScrolling() {
+        if touchFirst {
+            view.scrollView.isScrollEnabled = true
+            zoom?.release()
+            return
+        }
         view.scrollView.isScrollEnabled = Scrolling.isNative(url: view.url, mimeType: mimeType)
         view.scrollView.pinchGestureRecognizer?.isEnabled = false
         zoom?.hold()
+    }
+
+    /// Loads the page again as its desktop or its mobile site, the user
+    /// agent set first, so the reload goes with it.
+    func reload(as wanted: SiteMode) {
+        mode = wanted
+        prepare(for: view.url)
+        view.reload()
+    }
+
+    /// Touch is the way in: an iPhone (no trackpad reaches it), or a mobile site.
+    var touchFirst: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone || mode == .mobile
+    }
+
+    /// The mode for a page at `url` in this page's window, as it is now.
+    private func chooseMode(for url: URL?) -> SiteMode {
+        var size = view.window?.bounds.size ?? host?.presenter?.view.window?.bounds.size ?? view.bounds.size
+        if size.width < 1 || size.height < 1 {
+            // Not on screen yet: the size of the window it will be shown in, near enough.
+            let windows = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            size = windows.first?.bounds.size ?? size
+        }
+        return SiteMode.choose(host: url?.host, width: Double(size.width), height: Double(size.height),
+                               overrides: Session.shared.preferences.siteModes)
     }
 
     // MARK: Calls into the page
@@ -442,7 +484,27 @@ extension Page: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  preferences: WKWebpagePreferences,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        preferences.preferredContentMode = .desktop
+        if navigationAction.targetFrame?.isMainFrame == true {
+            let chosen = chooseMode(for: navigationAction.request.url)
+            // The user agent goes with the request as it was made: a page
+            // that changes mode is asked for again, with the new one. Only a
+            // plain load; a form sent or a step back isn't sent twice.
+            if chosen != mode, let url = navigationAction.request.url, !HandsOff.covers(url),
+               ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+               (navigationAction.request.httpMethod ?? "GET").uppercased() == "GET",
+               ![.backForward, .formSubmitted, .formResubmitted, .reload].contains(navigationAction.navigationType) {
+                mode = chosen
+                prepare(for: url)
+                decisionHandler(.cancel, preferences)
+                // Without the old request's user agent, so WebKit puts in the new one.
+                var request = navigationAction.request
+                request.setValue(nil, forHTTPHeaderField: "User-Agent")
+                webView.load(request)
+                return
+            }
+            mode = chosen
+        }
+        preferences.preferredContentMode = mode == .desktop ? .desktop : .mobile
         if navigationAction.shouldPerformDownload {
             decisionHandler(.download, preferences)
             return

@@ -130,4 +130,31 @@ final class PolicyTests: XCTestCase {
         let page = try XCTUnwrap(swift.first { $0.0 == "Page.swift" }?.1)
         XCTAssertTrue(page.contains("HandsOff.covers"))
     }
+
+    /// What Apple's browser entitlement asks of the app
+    /// (developer.apple.com/documentation/xcode/preparing-your-app-to-be-the-default-browser).
+    func testTheAppMeetsTheBrowserEntitlementsTerms() throws {
+        let plist = try String(contentsOf: root.appendingPathComponent("App/Info.plist"), encoding: .utf8)
+        for scheme in ["<string>http</string>", "<string>https</string>"] {
+            XCTAssertTrue(plist.contains(scheme), "Info.plist must name \(scheme) as a URL scheme")
+        }
+        // Keys a browser with the entitlement is rejected for.
+        for banned in ["NSPhotoLibraryUsageDescription", "NSLocationAlwaysUsageDescription",
+                       "NSLocationAlwaysAndWhenInUseUsageDescription", "NSHomeKitUsageDescription",
+                       "NSBluetoothAlwaysUsageDescription", "NSHealthShareUsageDescription",
+                       "NSHealthUpdateUsageDescription"] {
+            XCTAssertFalse(plist.contains(banned), "Info.plist has \(banned), which a browser may not use")
+        }
+        let swift = try sources(in: "App", ending: ".swift")
+        for (name, text) in swift {
+            XCTAssertFalse(text.contains("UIWebView"), "\(name) uses UIWebView")
+        }
+        let entitlements = try String(contentsOf: root.appendingPathComponent("Config/Safience.entitlements"), encoding: .utf8)
+        XCTAssertTrue(entitlements.contains("<key>com.apple.developer.web-browser</key>"))
+        // A browser may not claim Universal Links for its own domains.
+        XCTAssertFalse(entitlements.contains("com.apple.developer.associated-domains"))
+        let signing = try String(contentsOf: root.appendingPathComponent("Config/Signing.xcconfig"), encoding: .utf8)
+        XCTAssertTrue(signing.contains("\nCODE_SIGN_ENTITLEMENTS = Config/Safience.entitlements"),
+                      "the app is signed with the browser entitlement unless Local.xcconfig turns it off")
+    }
 }

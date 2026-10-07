@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The app's entitlements, used unless Config/Local.xcconfig turns them off
+  (Config/Signing.xcconfig says how).
+
+  com.apple.developer.web-browser: Apple's browser entitlement, granted to
+  the team that publishes Safience. iPadOS and iOS offer Safience as the
+  default browser, and WebKit lets pages use passkeys for any site, service
+  workers and full script access on every domain.
+
+  com.apple.developer.ubiquity-kvstore-identifier: iCloud's key-value store,
+  where Settings › iCloud keeps spaces and their bookmarks (Sync.swift).
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.web-browser</key>
+	<true/>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
+</dict>
+</plist>
