@@ -1,3 +1,4 @@
+import ImageIO
 import UIKit
 import WebKit
 
@@ -78,6 +79,24 @@ enum Snapshots {
 
     static func picture(for tab: UUID) -> UIImage? {
         UIImage(contentsOfFile: file(tab, "jpg").path)
+    }
+
+    /// The tab's picture at most `pixels` on its longer side, read off the
+    /// main thread without decoding the whole of it; on the main thread.
+    static func thumbnail(for tab: UUID, pixels: Int, _ done: @escaping (UIImage?) -> Void) {
+        let url = file(tab, "jpg")
+        queue.async {
+            var image: UIImage?
+            if let source = CGImageSourceCreateWithURL(url as CFURL, nil) {
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: pixels,
+                ]
+                image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary).map { UIImage(cgImage: $0) }
+            }
+            DispatchQueue.main.async { done(image) }
+        }
     }
 
     /// The interaction state is opaque, but it is data underneath; anything

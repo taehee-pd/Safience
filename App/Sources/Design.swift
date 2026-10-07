@@ -69,6 +69,37 @@ enum Metrics {
     static let target: CGFloat = 40
 }
 
+/// How big the address and what is in it are drawn: for a pointer, beside
+/// the tabs, or for a thumb, on the phone bar, where the address has a row
+/// of its own and a touch needs the 44 points Apple asks for.
+enum BarScale {
+    case pointer
+    case thumb
+
+    /// The address's height.
+    var control: CGFloat { self == .thumb ? 44 : Metrics.control }
+    /// The area that answers: the drawn height, never under 40.
+    var target: CGFloat { max(control, Metrics.target) }
+    var text: CGFloat { self == .thumb ? 16 : 13 }
+    var icon: CGFloat { self == .thumb ? 18 : 16 }
+    /// The star's, reload's and clear's width.
+    var button: CGFloat { self == .thumb ? 40 : 30 }
+    /// From the capsule's end to the icon's slot: a thumb-sized capsule's
+    /// end curves further in.
+    var lead: CGFloat { self == .thumb ? 8 : TabFace.lead }
+}
+
+private struct BarScaleKey: EnvironmentKey {
+    static let defaultValue = BarScale.pointer
+}
+
+extension EnvironmentValues {
+    var barScale: BarScale {
+        get { self[BarScaleKey.self] }
+        set { self[BarScaleKey.self] = newValue }
+    }
+}
+
 // MARK: A space's colour
 
 extension SpaceColor {

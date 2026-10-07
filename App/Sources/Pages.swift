@@ -14,6 +14,16 @@ import WebKit
 final class Pages {
     private(set) var live: [UUID: Page] = [:]
     private var pictures: [UUID: UIImage] = [:]
+    /// Small pictures of tabs taken as they left the screen, for the tab
+    /// overview; the system empties it when memory runs short.
+    private let previews: NSCache<NSUUID, UIImage> = {
+        let cache = NSCache<NSUUID, UIImage>()
+        cache.countLimit = 24
+        return cache
+    }()
+    /// How wide the tab overview's pictures are, in points: a card in two
+    /// columns on a large iPhone.
+    static let previewWidth: CGFloat = 200
     private var states: [UUID: Any] = [:]
     /// Tabs being frozen right now, so they aren't frozen twice.
     private var freezing: Set<UUID> = []
@@ -50,6 +60,37 @@ final class Pages {
         return saved
     }
 
+    /// The tab as the tab overview shows it, `width` points wide: the page
+    /// as it is now when it is on screen, the picture it was frozen with
+    /// otherwise. Pictures on disk are read small and not kept, so a space
+    /// with many tabs never holds them all at full size.
+    func preview(for tab: UUID, width: CGFloat, _ done: @escaping (UIImage?) -> Void) {
+        let fallback = { [weak self] in
+            if let kept = self?.previews.object(forKey: tab as NSUUID) {
+                done(kept)
+            } else if let held = self?.pictures[tab] {
+                // A frozen tab's picture is the whole screen's; a card needs a fraction of it.
+                let pixels = CGSize(width: width * 3, height: width * 3 * held.size.height / max(held.size.width, 1))
+                done(held.preparingThumbnail(of: pixels) ?? held)
+            } else {
+                Snapshots.thumbnail(for: tab, pixels: Int(width * 3 * 1.6), done)
+            }
+        }
+        guard let page = live[tab] else { return fallback() }
+        page.preview(width: width) { image in
+            if let image { done(image) } else { fallback() }
+        }
+    }
+
+    /// A picture of the page as it leaves the screen, so the tab overview
+    /// shows it as it was rather than as it was when last frozen.
+    func keepPreview(of page: Page) {
+        let tab = page.tab
+        page.preview(width: Self.previewWidth) { [weak self] image in
+            if let image { self?.previews.setObject(image, forKey: tab as NSUUID) }
+        }
+    }
+
     func isLive(_ tab: UUID) -> Bool {
         live[tab] != nil
     }
@@ -63,6 +104,7 @@ final class Pages {
     func close(_ tab: UUID) {
         live.removeValue(forKey: tab)?.tearDown()
         pictures[tab] = nil
+        previews.removeObject(forKey: tab as NSUUID)
         states[tab] = nil
         Snapshots.remove(tab)
     }

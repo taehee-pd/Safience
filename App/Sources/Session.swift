@@ -65,7 +65,7 @@ final class Session: ObservableObject {
     func change<T>(_ edit: (inout Workspace) -> T) -> T {
         var copy = workspace
         let result = edit(&copy)
-        if Sync.shared.assigns { CloudSync.assignIDs(&copy) }
+        if Sync.shared.assigns { SyncPlan.assignIDs(&copy) }
         if copy != workspace {
             let old = workspace
             workspace = copy

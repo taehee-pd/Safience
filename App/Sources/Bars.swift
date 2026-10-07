@@ -37,6 +37,8 @@ enum BarAction {
     case swapSides(UUID)
     /// The space's tabs as a grid, from the phone bar.
     case showTabs
+    /// The iPhone's desktop view, in or out (DesktopPad).
+    case desktopView
 }
 
 /// The row along the top.
@@ -399,6 +401,7 @@ struct SpaceButton: View {
     @ObservedObject var session: Session
     @ObservedObject var window: WindowModel
     let act: (BarAction) -> Void
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         let space = session.workspace.space(window.spaceID)
@@ -426,23 +429,27 @@ struct SpaceButton: View {
                 }
             }
         } label: {
-            HStack(spacing: 5) {
+            // On the phone bar, among icons for a thumb: a little larger, and
+            // a long name gives way before the icons do.
+            let thumb = scale == .thumb
+            HStack(spacing: thumb ? 6 : 5) {
                 Image(systemName: space?.symbol ?? "square.grid.2x2")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(space?.name ?? "")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: thumb ? 14 : 12, weight: .semibold))
+                let name = Text(space?.name ?? "")
+                    .font(.system(size: thumb ? 15 : 13, weight: .semibold))
                     .lineLimit(1)
+                if thumb { name.frame(maxWidth: 100) } else { name }
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: thumb ? 9 : 8, weight: .bold))
                     .opacity(0.75)
                     // The chevron's weight sits low; up a point, it lines up with the text.
                     .offset(y: 0.5)
             }
             .foregroundStyle(color.ink)
-            .padding(.horizontal, 12)
-            .frame(height: Metrics.control)
+            .padding(.horizontal, thumb ? 14 : 12)
+            .frame(height: thumb ? 36 : Metrics.control)
             .liquidGlass(tint: color.color, in: Capsule(), otherwise: color.color)
-            .frame(height: Metrics.target)
+            .frame(height: thumb ? 44 : Metrics.target)
             .contentShape(Rectangle())
             .animation(.bar, value: color)
         }
@@ -759,14 +766,15 @@ private struct AddressSummary: View {
     /// tab you are on shows has it; never on a sign-in page (showsAddress).
     var titled = false
     let act: (BarAction) -> Void
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         HStack(spacing: 0) {
             // A page's title carries no warning, as the iPad's tab doesn't:
             // the address does, and every sign-in page shows its address.
             SecurityIcon(window: window, warns: !(titled && !window.title.isEmpty))
-                .frame(width: TabFace.slot, height: Metrics.control)
-                .padding(.leading, TabFace.lead)
+                .frame(width: TabFace.slot, height: scale.control)
+                .padding(.leading, scale.lead)
             Group {
                 if titled, window.url != nil, !window.title.isEmpty {
                     Text(window.title)
@@ -776,7 +784,7 @@ private struct AddressSummary: View {
                     AddressLine(url: window.url)
                 }
             }
-            .font(.system(size: 13))
+            .font(.system(size: scale.text))
             .lineLimit(1)
             .truncationMode(.middle)
             .padding(.leading, TabFace.gap)
@@ -798,21 +806,22 @@ private struct AddressSummary: View {
 private struct SecurityIcon: View {
     @ObservedObject var window: WindowModel
     var warns = true
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         if warns && window.insecure {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
+                .font(.system(size: scale.icon * 0.75))
                 .foregroundStyle(Palette.unsafe)
-                .frame(width: 16, height: 16)
+                .frame(width: scale.icon, height: scale.icon)
                 .accessibilityLabel("Not secure")
         } else if window.url != nil {
-            SiteIconView(url: window.url, size: 16)
+            SiteIconView(url: window.url, size: scale.icon)
         } else {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: scale.icon * 0.75, weight: .medium))
                 .foregroundStyle(Palette.muted)
-                .frame(width: 16, height: 16)
+                .frame(width: scale.icon, height: scale.icon)
         }
     }
 }
@@ -865,6 +874,7 @@ private struct SignInBadge: View {
 private struct BookmarkStar: View {
     @ObservedObject var window: WindowModel
     let act: (BarAction) -> Void
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         Button {
@@ -881,10 +891,10 @@ private struct BookmarkStar: View {
                         .iconSwap()
                 }
             }
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: scale.text, weight: .medium))
             // A star's centre of weight sits below its middle.
             .offset(y: -0.5)
-            .frame(width: 30, height: Metrics.control)
+            .frame(width: scale.button, height: scale.control)
             .contentShape(Rectangle())
             .animation(.bar, value: window.bookmarked)
         }
@@ -897,6 +907,7 @@ private struct BookmarkStar: View {
 private struct ReloadButton: View {
     @ObservedObject var window: WindowModel
     let act: (BarAction) -> Void
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         Button {
@@ -909,9 +920,9 @@ private struct ReloadButton: View {
                     Image(systemName: "arrow.clockwise").iconSwap()
                 }
             }
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: scale.text - 1, weight: .semibold))
             .foregroundStyle(Palette.ink)
-            .frame(width: 30, height: Metrics.control)
+            .frame(width: scale.button, height: scale.control)
             .contentShape(Rectangle())
             .animation(.bar, value: window.loading)
         }
@@ -931,22 +942,24 @@ struct AddressEditor: View {
     let act: (BarAction) -> Void
     @State private var text = ""
     @State private var focused = false
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         HStack(spacing: 0) {
             SecurityIcon(window: window)
-                .frame(width: TabFace.slot, height: Metrics.control)
-                .padding(.leading, TabFace.lead)
-            TypingField(text: $text, placeholder: "Address or search", focused: $focused, selectsAll: true) { typed in act(.go(typed)) }
+                .frame(width: TabFace.slot, height: scale.control)
+                .padding(.leading, scale.lead)
+            TypingField(text: $text, placeholder: "Address or search", fontSize: scale.text, focused: $focused,
+                        selectsAll: true) { typed in act(.go(typed)) }
                 .padding(.leading, TabFace.gap)
             if !text.isEmpty {
                 Button {
                     text = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 14))
+                        .font(.system(size: scale.text + 1))
                         .foregroundStyle(Palette.faint)
-                        .frame(width: 30, height: Metrics.control)
+                        .frame(width: scale.button, height: scale.control)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressScale())
@@ -1102,6 +1115,7 @@ struct AddressCapsule: View {
     /// This capsule is the one typed in; otherwise another field is.
     let editable: Bool
     let act: (BarAction) -> Void
+    @Environment(\.barScale) private var scale
 
     var body: some View {
         ZStack {
@@ -1122,9 +1136,9 @@ struct AddressCapsule: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: Metrics.control)
+        .frame(height: scale.control)
         .liquidGlass(reacting: false, in: Capsule(), otherwise: Palette.wash)
-        .frame(height: Metrics.target)
+        .frame(height: scale.target)
         .animation(.bar, value: window.editingAddress)
     }
 }

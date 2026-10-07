@@ -32,6 +32,7 @@
   #form input, #form textarea { margin: 4px; }
   #editor { display: inline-block; width: 120px; height: 24px; border: 1px solid #999; }
   #hidden { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; padding: 0; border: 0; }
+  #desk { left: 620px; top: 440px; width: 320px; height: 120px; }
   #report { position: absolute; left: 0; top: 600px; width: 900px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
   .pass { color: #15803d; } .fail { color: #b91c1c; }
 </style>
@@ -49,6 +50,11 @@
   <div id="editor" tabindex="0"></div>
   <input id="hidden">
   <input id="box" type="checkbox">
+</div>
+<div id="desk" class="box">
+  <button id="press">press</button>
+  <form id="send" action="javascript:void 0"><input id="field" value=""></form>
+  <div id="note" contenteditable="true" style="width: 200px; height: 24px; border: 1px solid #999"></div>
 </div>
 <div id="report"></div>
 
@@ -241,6 +247,99 @@
   c.focus();
   bridge.key({ key: 'ArrowDown', code: 'ArrowDown' });
   check('an arrow in a field leaves the page where it is', window.scrollY === 0);
+
+  // MARK: The iPhone's desktop view
+
+  reset();
+  const middle = (element) => {
+    const box = element.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2, width: innerWidth };
+  };
+  const press = document.getElementById('press');
+  const pressLog = [];
+  for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'pointerdown',
+    'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick', 'contextmenu', 'pointerout', 'pointerleave', 'mouseleave']) {
+    press.addEventListener(type, (e) => pressLog.push([type, e.detail, e.button, e.pointerType || ''].join(':')));
+  }
+  bridge.pointer(Object.assign({ type: 'move' }, middle(press)));
+  const moved = pressLog.map((l) => l.split(':')[0]);
+  check('the cursor coming over an element is over, enter and move, pointer before mouse',
+    moved.join() === 'pointerover,mouseover,pointerenter,mouseenter,pointermove,mousemove', moved.join());
+  check('as a mouse', pressLog[0].endsWith(':mouse'), pressLog[0]);
+  pressLog.length = 0;
+  outcome = bridge.pointer(Object.assign({ type: 'click', detail: 1 }, middle(press)));
+  const clicked = pressLog.filter((l) => !/move/.test(l)).map((l) => l.split(':').slice(0, 3).join(':'));
+  check('a tap is a click: down, up, then click', outcome === 'default' &&
+    clicked.join() === 'pointerdown:1:0,mousedown:1:0,pointerup:1:0,mouseup:1:0,click:1:0', clicked.join());
+  pressLog.length = 0;
+  bridge.pointer(Object.assign({ type: 'click', detail: 2 }, middle(press)));
+  check('the second of two is a double click', pressLog.some((l) => l.startsWith('click:2')) &&
+    pressLog.some((l) => l.startsWith('dblclick:2')), pressLog.join());
+  pressLog.length = 0;
+  bridge.pointer(Object.assign({ type: 'context' }, middle(press)));
+  check('two fingers are the right button, and a context menu', pressLog.some((l) => l.startsWith('contextmenu:1:2')) &&
+    pressLog.some((l) => l.startsWith('mousedown:1:2')) && !pressLog.some((l) => l.startsWith('click')), pressLog.join());
+  const stop = (e) => e.preventDefault();
+  press.addEventListener('pointerdown', stop);
+  pressLog.length = 0;
+  outcome = bridge.pointer(Object.assign({ type: 'click', detail: 1 }, middle(press)));
+  check('a cancelled pointerdown keeps the mouse events from the page, and still clicks', outcome === 'handled' &&
+    !pressLog.some((l) => /^mouse(down|up)/.test(l)) && pressLog.some((l) => l.startsWith('click')), pressLog.join());
+  press.removeEventListener('pointerdown', stop);
+  pressLog.length = 0;
+  bridge.pointer({ type: 'move', x: 5, y: 5, width: innerWidth });
+  check('moving off it is out and leave', pressLog.some((l) => l.startsWith('pointerout')) &&
+    pressLog.some((l) => l.startsWith('mouseleave')), pressLog.join());
+  let dragged = null;
+  const canvasBox = document.getElementById('canvas');
+  canvasBox.addEventListener('mousemove', (e) => { if (e.buttons === 1) dragged = e.clientX; });
+  bridge.pointer({ type: 'down', x: 50, y: 50, width: innerWidth });
+  bridge.pointer({ type: 'move', x: 150, y: 60, width: innerWidth, buttons: 1 });
+  bridge.pointer({ type: 'up', x: 150, y: 60, width: innerWidth });
+  check('a press held while the cursor moves is a drag', dragged === 150, dragged);
+
+  const field = document.getElementById('field');
+  field.blur();
+  bridge.pointer(Object.assign({ type: 'click', detail: 1 }, middle(field)));
+  check('a click in a field gives it the focus', document.activeElement === field);
+  field.value = '';
+  bridge.type({ text: 'h' });
+  bridge.type({ text: 'i' });
+  check('typing goes into the field', field.value === 'hi', field.value);
+  bridge.type({ text: '', back: 1 });
+  check('and Backspace takes a character away', field.value === 'h', field.value);
+  bridge.type({ text: '👍' });
+  check('an emoji, two units long, is one character typed', field.value === 'h👍', field.value);
+  field.value = '';
+  bridge.type({ text: 'ㅎ' });
+  bridge.type({ text: '하', back: 1 });
+  bridge.type({ text: '한', back: 1 });
+  check('a Korean syllable built by replacing the one before comes out whole', field.value === '한', field.value);
+  let sent = false;
+  document.getElementById('send').addEventListener('submit', (e) => { sent = true; e.preventDefault(); });
+  bridge.key({ key: 'Enter', code: 'Enter' });
+  check('Return sends the field\'s form', sent);
+  const note = document.getElementById('note');
+  bridge.pointer(Object.assign({ type: 'click', detail: 1 }, middle(note)));
+  bridge.type({ text: 'ok' });
+  check('typing goes into something content-editable', document.activeElement === note && note.textContent === 'ok',
+    note.textContent);
+
+  bridge.pointer({ type: 'click', x: 50, y: 50, width: innerWidth, detail: 1 });
+  check('a click on nothing focusable takes the focus away', document.activeElement === document.body,
+    document.activeElement && document.activeElement.id);
+  const keys = [];
+  const listen = (e) => keys.push([e.key, e.code, e.keyCode].join(':'));
+  window.addEventListener('keydown', listen, true);
+  outcome = bridge.type({ text: 'v' });
+  check('outside a field a character is a key, for the page\'s shortcuts', outcome === 'keys' && keys[0] === 'v:KeyV:86',
+    keys.join());
+  outcome = bridge.type({ text: 'x', back: 1 });
+  check('and a replacement there is nothing', outcome === 'ignored' && keys.length === 1, outcome + ' ' + keys.join());
+  window.removeEventListener('keydown', listen, true);
+  // Nothing typed is left behind for the tests of what freezing would lose.
+  field.value = '';
+  note.textContent = '';
 
   // MARK: Reports
 

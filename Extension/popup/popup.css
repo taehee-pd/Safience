@@ -1,0 +1,192 @@
+/* The popup, in Safience's own quiet greys, with the icon's blue for what
+   you act on. Light and dark follow the system. */
+:root {
+  color-scheme: light dark;
+  --ground: #ffffff;
+  --ink: #171717;
+  --muted: #737373;
+  --hairline: #e8e8e8;
+  --wash: #f0f0f0;
+  --accent: #0a84d6;
+  --accent-ink: #ffffff;
+  --warn: #b45309;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground: #1c1c1c;
+    --ink: #ededed;
+    --muted: #9a9a9a;
+    --hairline: #333333;
+    --wash: #2a2a2a;
+    --accent: #4ec9ff;
+    --accent-ink: #0b1b24;
+    --warn: #fbbf24;
+  }
+}
+
+* { box-sizing: border-box; }
+/* What the popup hides stays hidden, whatever display a rule gives it. */
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  width: 340px;
+  padding: 16px;
+  background: var(--ground);
+  color: var(--ink);
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { margin: 0 0 4px; font-size: 13px; font-weight: 650; }
+p { margin: 0 0 12px; text-wrap: pretty; }
+.muted { color: var(--muted); }
+code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--wash);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* The callback address, to copy whole. */
+code.block {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  word-break: break-all;
+  user-select: all;
+}
+ol { margin: 0; padding-left: 18px; }
+li { margin-bottom: 8px; }
+
+.top { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.top img { border-radius: 7px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.top p { margin: 0; font-size: 12px; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 0;
+  transition-property: scale, background-color, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+button:active:not(:disabled) { scale: 0.96; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.primary {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
+}
+.quiet {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--ink);
+  font-weight: 550;
+}
+.link {
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 550;
+}
+
+.choices { display: grid; gap: 6px; margin-bottom: 6px; }
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  background: var(--wash);
+  cursor: pointer;
+}
+.choice:has(input:checked) { box-shadow: inset 0 0 0 2px var(--accent); }
+.choice input[type="radio"] { accent-color: var(--accent); margin: 0; }
+.choice .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.choice.new { margin-bottom: 12px; }
+.choice.new input[type="text"] { flex: 1; min-width: 0; }
+
+input[type="text"] {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ground);
+  color: var(--ink);
+  font: inherit;
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+
+.space-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+.note {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--wash);
+}
+.note .link { display: block; margin-top: 6px; text-align: left; }
+
+.device { display: grid; gap: 4px; margin-bottom: 14px; }
+.device label { font-size: 12px; }
+
+.device-tabs { margin-bottom: 12px; }
+.device-tabs h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.device-tabs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--wash);
+  overflow: hidden;
+}
+.device-tabs li { margin: 0; }
+.device-tabs li + li { border-top: 1px solid var(--hairline); }
+.device-tabs button {
+  display: grid;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 12px;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+}
+.device-tabs button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.device-tabs .title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 550; }
+.device-tabs .host { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--muted); }
+
+.error { color: var(--warn); }
+footer {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:active:not(:disabled) { scale: 1; }
+}

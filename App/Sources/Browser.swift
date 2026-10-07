@@ -35,6 +35,9 @@ final class WindowModel: ObservableObject {
     @Published var phone = false
     /// The page on screen is its mobile site (SiteMode).
     @Published var mobileSite = false
+    /// The page is in the iPhone's desktop view (DesktopPad), or could be.
+    @Published var desktopView = false
+    @Published var canDesktopView = false
 
     init(spaceID: UUID) {
         self.spaceID = spaceID
@@ -78,7 +81,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var connected = true
 
     private let stack = UIStackView()
-    private let stage = UIView()
+    private let stage = Stage()
     private let picture = UIImageView()
     private let partnerPicture = UIImageView()
     private let divider = SplitDivider()
@@ -90,8 +93,26 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var phoneBar: UIHostingController<PhoneBar>?
     /// The bars' bottom: the safe area's, or the keyboard's while an address
     /// is typed on a phone, so the bar at the bottom rides above it.
+    /// The phone bar's height: shorter while an address is typed (PhoneBar.typingHeight).
+    private var phoneHeight: NSLayoutConstraint?
+    /// The cursor and the trackpad over a page in the iPhone's desktop view.
+    private var desktopPad: DesktopPad?
+    private weak var barSwipe: BarSwipe?
+    /// The phone's tabs, while they show or the bar is turning into them.
+    private var tabSheet: TabSheet?
+    /// What the tabs were left for, done once they have gone: a new tab's
+    /// typing waits for the bar to be back.
+    private var afterTabs: BarAction?
+    /// The stack's bottom: the safe area's on iPad; on a phone the screen's,
+    /// so the page runs on under the bar and the home indicator.
     private var safeBottom: NSLayoutConstraint?
-    private var keyboardBottom: NSLayoutConstraint?
+    private var screenBottom: NSLayoutConstraint?
+    /// The phone bar's bottom: the safe area's, or the keyboard's while an
+    /// address is typed.
+    private var barSafeBottom: NSLayoutConstraint?
+    private var barKeyboardBottom: NSLayoutConstraint?
+    /// Behind the phone bar: the page through it, blurred more the lower it is (BarBackdrop).
+    private let barBackdrop = BarBackdrop()
     private var addressBar: UIHostingController<AddressBar>?
     private var bannerBar: UIHostingController<BannerBar>?
     private var empty: UIHostingController<EmptySpace>?
@@ -165,7 +186,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         let safe = view.safeAreaLayoutGuide
         let bottom = stack.bottomAnchor.constraint(equalTo: safe.bottomAnchor)
         safeBottom = bottom
-        keyboardBottom = stack.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
+        screenBottom = stack.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: safe.topAnchor),
             stack.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
@@ -188,11 +209,37 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
         stage.clipsToBounds = true
         stage.backgroundColor = Palette.UI.ground
+        stage.laidOut = { [weak self] in self?.layoutPanes() }
         stack.addArrangedSubview(stage)
 
-        let phone = embed(PhoneBar(session: session, window: model) { [weak self] in self?.act($0) })
-        phone.view.heightAnchor.constraint(equalToConstant: PhoneBar.height).isActive = true
+        // Over the page rather than under it, as Safari's: the page runs on
+        // beneath, seen through the bar's blur.
+        let phone = embed(PhoneBar(session: session, window: model) { [weak self] in self?.act($0) }, inStack: false)
+        phone.view.translatesAutoresizingMaskIntoConstraints = false
+        barBackdrop.translatesAutoresizingMaskIntoConstraints = false
+        view.insertSubview(barBackdrop, belowSubview: phone.view)
+        let phoneHeight = phone.view.heightAnchor.constraint(equalToConstant: PhoneBar.height)
+        let barBottom = phone.view.bottomAnchor.constraint(equalTo: safe.bottomAnchor)
+        barSafeBottom = barBottom
+        barKeyboardBottom = phone.view.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
+        NSLayoutConstraint.activate([
+            phoneHeight, barBottom,
+            phone.view.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            phone.view.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            // A little above the bar, so the page fades into the blur rather than meeting an edge.
+            barBackdrop.topAnchor.constraint(equalTo: phone.view.topAnchor, constant: -24),
+            barBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            barBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            barBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+        self.phoneHeight = phoneHeight
         phoneBar = phone
+        // A swipe up on the bar shows the tabs. UIKit's, on the bar's view:
+        // SwiftUI's buttons keep a drag that starts on them to themselves.
+        let swipe = BarSwipe(target: self, action: #selector(swipedBar(_:)))
+        swipe.delegate = self
+        phone.view.addGestureRecognizer(swipe)
+        barSwipe = swipe
         // A touch on the page while an address is typed puts the typing
         // away, as in Safari; the touch itself stays the page's.
         let away = UITapGestureRecognizer(target: self, action: #selector(touchedPage))
@@ -257,7 +304,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         layoutPanes()
     }
 
-    private func embed<V: View>(_ root: V) -> UIHostingController<V> {
+    private func embed<V: View>(_ root: V, inStack: Bool = true) -> UIHostingController<V> {
         let host = UIHostingController(rootView: root)
         // The stack already keeps the bars inside the safe area. Left to
         // SwiftUI, the keyboard's arrival moved what they draw up out of
@@ -267,7 +314,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         // The window's own colour shows through: the site's (siteColor).
         host.view.backgroundColor = .clear
         addChild(host)
-        stack.addArrangedSubview(host.view)
+        if inStack { stack.addArrangedSubview(host.view) } else { view.addSubview(host.view) }
         host.didMove(toParent: self)
         return host
     }
@@ -300,15 +347,40 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         addressBar?.view.isHidden = phone || compact || !model.showsAddress
         // On a phone the bar at the bottom is the only way around: always there.
         phoneBar?.view.isHidden = !phone
-        let typing = phone && model.editingAddress
+        // The tabs grow out of the phone's bar; with the bar gone, they go too.
+        if !phone { tabSheet?.closeNow() }
         // The one going first, so the two are never on together.
-        if typing, safeBottom?.isActive == true {
+        if phone, safeBottom?.isActive == true {
             safeBottom?.isActive = false
-            keyboardBottom?.isActive = true
-        } else if !typing, keyboardBottom?.isActive == true {
-            keyboardBottom?.isActive = false
+            screenBottom?.isActive = true
+        } else if !phone, screenBottom?.isActive == true {
+            screenBottom?.isActive = false
             safeBottom?.isActive = true
         }
+        let typing = phone && model.editingAddress
+        // Only the address rides over the keyboard, as in Safari; the page
+        // takes the room the tools leave, at the speed the tools go.
+        let height = typing ? PhoneBar.typingHeight : PhoneBar.height
+        if let phoneHeight, phoneHeight.constant != height {
+            phoneHeight.constant = height
+            UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0,
+                           options: [.beginFromCurrentState, .allowUserInteraction]) { self.view.layoutIfNeeded() }
+        }
+        if typing, barSafeBottom?.isActive == true {
+            barSafeBottom?.isActive = false
+            barKeyboardBottom?.isActive = true
+        } else if !typing, barKeyboardBottom?.isActive == true {
+            barKeyboardBottom?.isActive = false
+            barSafeBottom?.isActive = true
+        }
+        // The desktop view is the phone's, and never on a hands-off page,
+        // where nothing may reach the page but the finger.
+        if let page, page.desktopView, !phone || page.isHandsOff { leaveDesktopView() }
+        let desktop = page?.desktopView ?? false
+        if model.desktopView != desktop { model.desktopView = desktop }
+        let canDesktop = phone && page?.view.url != nil && page?.isHandsOff == false
+        if model.canDesktopView != canDesktop { model.canDesktopView = canDesktop }
+        if desktop { showDesktopPad() } else if desktopPad != nil { hideDesktopPad() }
         bannerBar?.view.isHidden = model.banner == nil
         start?.view.isHidden = !(page != nil && model.url == nil)
         let bookmarked = url.flatMap { session.workspace.bookmark(for: $0, in: model.spaceID) } != nil
@@ -524,10 +596,34 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             divider.isHidden = true
             focusEdge.isHidden = true
         }
-        page?.view.frame = main
+        // Under the phone bar and the home indicator: the page goes on
+        // there, told it is covered so its end scrolls clear of the bar and
+        // its own bottom bars sit above it. The start page and the desktop
+        // view stop at the bar.
+        let covered = phoneCovered
+        var clear = main
+        clear.size.height = max(0, main.height - covered)
+        if let page, let pad = desktopPad, pad.page === page {
+            pad.layout(in: clear)
+            page.obscure(bottom: 0)
+        } else {
+            page?.view.transform = .identity
+            page?.view.frame = main
+            page?.obscure(bottom: covered)
+        }
         picture.frame = main
-        start?.view.frame = main
+        start?.view.frame = clear
+        barBackdrop.isHidden = !model.phone
     }
+
+    /// How much of the stage's bottom the phone bar covers, with the home
+    /// indicator under it: always the bar's resting height, so typing an
+    /// address doesn't move the page.
+    private var phoneCovered: CGFloat {
+        guard model.phone, phoneBar?.view.isHidden == false else { return 0 }
+        return view.safeAreaInsets.bottom + PhoneBar.height
+    }
+
 
     private func dragDivider(to x: CGFloat) {
         let width = stage.bounds.width - SplitDivider.width
@@ -592,6 +688,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private func detach() {
         detachPartner()
         guard let page else { return }
+        // While it still shows: the tab overview's picture of it.
+        if model.phone { Session.shared.pages.keepPreview(of: page) }
         if page.view.superview === stage { page.view.removeFromSuperview() }
         if page.host === self { page.host = nil }
         self.page = nil
@@ -635,7 +733,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     /// The keys back to the page: whenever the window becomes active, and
     /// after anything that took them (the palette, the address bar, a sheet).
     func focusPage() {
-        guard let page, presentedViewController == nil, !model.editingAddress else { return }
+        guard let page, presentedViewController == nil, tabSheet == nil, !model.editingAddress else { return }
         _ = page.view.becomeFirstResponder()
     }
 
@@ -715,6 +813,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     // MARK: Commands
 
     override var keyCommands: [UIKeyCommand]? {
+        if tabSheet != nil {
+            let escape = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(closeTabsKey))
+            escape.wantsPriorityOverSystemBehavior = true
+            return (super.keyCommands ?? []) + [escape]
+        }
         guard model.editingAddress else { return super.keyCommands }
         let escape = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(cancelAddress))
         escape.wantsPriorityOverSystemBehavior = true
@@ -735,6 +838,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         act(.cancelAddress)
     }
 
+    @objc private func closeTabsKey() {
+        closeTabs(then: nil)
+    }
+
     @objc private func touchedPage() {
         if model.editingAddress { act(.cancelAddress) }
     }
@@ -742,6 +849,33 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                            shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
         true
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let swipe = barSwipe, gestureRecognizer === swipe else { return true }
+        // Upward and more up than across; never while an address is typed,
+        // where drags are the text field's.
+        let velocity = swipe.velocity(in: swipe.view)
+        return !model.editingAddress && velocity.y < 0 && abs(velocity.y) > abs(velocity.x)
+    }
+
+    /// A swipe up on the bar draws the tabs up out of it, under the finger
+    /// (TabSheet). Measured against the window's view: the bar moves with
+    /// the finger, so against the bar a drag would seem to go nowhere.
+    @objc private func swipedBar(_ swipe: UIPanGestureRecognizer) {
+        switch swipe.state {
+        case .began:
+            guard presentedViewController == nil, let sheet = makeTabSheet() else { return }
+            sheet.beginDrag()
+        case .changed:
+            tabSheet?.drag(up: -swipe.translation(in: view).y)
+        case .ended:
+            tabSheet?.release(up: -swipe.velocity(in: view).y)
+        case .cancelled, .failed:
+            tabSheet?.release(up: 0)
+        default:
+            break
+        }
     }
 
     func perform(_ command: Command) {
@@ -919,6 +1053,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .removeBookmark(let id): session.change { $0.removeBookmark(id, in: model.spaceID) }
         case .importBookmarks: chooseBookmarksFile()
         case .showTabs: showTabs()
+        case .desktopView: toggleDesktopView()
         case .splitWith(let other): split(with: other)
         case .splitWithNewTab: splitWithNewTab()
         case .separate(let tab): session.change { $0.separate(tab) }
@@ -952,19 +1087,107 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         page.reload(as: wanted)
     }
 
-    /// Shows the space's tabs as a grid, from the phone bar's Tabs button.
+    // MARK: The iPhone's desktop view
+
+    /// In: the page laid out at an iPad's size as its desktop site, the
+    /// cursor over it (DesktopPad). Out: the page as the window's size has it.
+    private func toggleDesktopView() {
+        guard let page else { return }
+        if page.desktopView {
+            leaveDesktopView()
+            return
+        }
+        guard model.phone, page.view.url != nil, !page.isHandsOff else { return }
+        page.desktopView = true
+        if page.mode != .desktop { page.reload(as: .desktop) }
+        showDesktopPad()
+        refreshChrome()
+    }
+
+    private func leaveDesktopView() {
+        guard let page, page.desktopView else { return }
+        page.desktopView = false
+        hideDesktopPad()
+        let size = view.window?.bounds.size ?? view.bounds.size
+        let natural = SiteMode.choose(host: page.view.url?.host, width: Double(size.width), height: Double(size.height),
+                                      overrides: Session.shared.preferences.siteModes)
+        if natural != page.mode { page.reload(as: natural) }
+        refreshChrome()
+    }
+
+    /// The pad for the page on screen when it is in the desktop view; none otherwise.
+    private func showDesktopPad() {
+        guard let page, page.desktopView else { return hideDesktopPad() }
+        if desktopPad?.page === page { return }
+        hideDesktopPad()
+        let pad = DesktopPad(page: page, size: stage.bounds.size)
+        stage.addSubview(pad)
+        desktopPad = pad
+        layoutPanes()
+    }
+
+    private func hideDesktopPad() {
+        guard let pad = desktopPad else { return }
+        desktopPad = nil
+        pad.leave()
+        layoutPanes()
+    }
+
+    /// Shows the space's tabs as a grid, from the phone bar's Tabs button:
+    /// the bar turns into them, as a swipe up on it does.
     private func showTabs() {
         guard presentedViewController == nil else { return }
+        makeTabSheet()?.open()
+    }
+
+    /// The sheet of tabs over the page, under the bar it grows out of; the
+    /// one there already when the bar is caught on its way.
+    private func makeTabSheet() -> TabSheet? {
+        if let tabSheet { return tabSheet }
+        guard model.phone, let bar = phoneBar?.view, !bar.isHidden else { return nil }
         let overview = UIHostingController(rootView: TabOverview(session: Session.shared, window: model, act: { [weak self] action in
             self?.act(action)
         }, done: { [weak self] action in
-            self?.dismiss(animated: true) {
-                if let action { self?.act(action) } else { self?.focusPage() }
-            }
+            self?.closeTabs(then: action)
         }))
-        overview.modalPresentationStyle = .pageSheet
-        overview.presentationController?.delegate = self
-        present(overview, animated: true)
+        // The sheet sets where it ends; left to SwiftUI, the safe area changing
+        // as the sheet moves would lay the tabs out again every frame.
+        overview.safeAreaRegions = []
+        let sheet = TabSheet(content: overview, bar: bar)
+        sheet.closed = { [weak self] in self?.tabSheetClosed() }
+        addChild(sheet)
+        sheet.view.frame = view.bounds
+        sheet.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.insertSubview(sheet.view, belowSubview: bar)
+        sheet.didMove(toParent: self)
+        tabSheet = sheet
+        return sheet
+    }
+
+    /// Done with the tabs. A tab goes on screen as the sheet goes, so the
+    /// bar sinks back onto it; anything else waits until the bar is back.
+    private func closeTabs(then action: BarAction?) {
+        if let action, case .select = action { act(action) } else { afterTabs = action }
+        tabSheet?.close()
+    }
+
+    private func tabSheetClosed() {
+        guard let sheet = tabSheet else { return }
+        sheet.willMove(toParent: nil)
+        sheet.view.removeFromSuperview()
+        sheet.removeFromParent()
+        tabSheet = nil
+        if let bar = phoneBar?.view {
+            bar.transform = .identity
+            bar.alpha = 1
+            bar.isUserInteractionEnabled = true
+        }
+        if let action = afterTabs {
+            afterTabs = nil
+            act(action)
+        } else {
+            focusPage()
+        }
     }
 
     /// The page on screen, through the system's share sheet. The web view
@@ -1105,5 +1328,29 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         focusPage()
+    }
+}
+
+/// The phone bar's swipe up. SwiftUI's buttons would otherwise prevent it
+/// whenever it starts on one of them, which on the bar is nearly always.
+private final class BarSwipe: UIPanGestureRecognizer {
+    override func canBePrevented(by preventing: UIGestureRecognizer) -> Bool {
+        false
+    }
+
+    override func shouldRequireFailure(of other: UIGestureRecognizer) -> Bool {
+        false
+    }
+}
+
+/// Where the pages are. It lays them out itself when its size changes: the
+/// window's own layout comes before the stack has given it its new size,
+/// and a page sized then kept the height it had over the keyboard.
+private final class Stage: UIView {
+    var laidOut: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        laidOut?()
     }
 }

@@ -11,6 +11,10 @@ public struct TabRecord: Codable, Identifiable, Equatable, Sendable {
     /// For a pinned tab, the address it was pinned with, which closing it
     /// takes it back to; nil for every other tab.
     public var pinned: URL?
+    /// For a pinned tab that came from iCloud or joined one there, the id
+    /// the other devices know it by; nil otherwise, when its own id is
+    /// that id (SyncPlan).
+    public var cloudID: UUID?
 
     public init(id: UUID = UUID(), url: URL?, title: String = "", shown: Date = .distantPast, pinned: URL? = nil) {
         self.id = id

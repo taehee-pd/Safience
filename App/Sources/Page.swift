@@ -45,6 +45,20 @@ final class Page: NSObject {
     private(set) var committed: URL?
     /// Desktop or mobile site, chosen for each page as it loads (SiteMode).
     private(set) var mode: SiteMode = .desktop
+    /// In the iPhone's desktop view (DesktopPad): laid out at an iPad's size,
+    /// always the desktop site, and reached only through the cursor, so
+    /// touches on the page itself are off.
+    var desktopView = false {
+        didSet {
+            guard desktopView != oldValue else { return }
+            view.isUserInteractionEnabled = !desktopView
+            applyScrolling()
+        }
+    }
+    /// The cursor's moves, one at a time: while one is on its way to the
+    /// page, only the latest of those after it is kept.
+    private var moving = false
+    private var nextMove: [String: Any]?
     private(set) var mimeType: String?
     private(set) var passwordField = false
     /// The focus is in a field someone types in (bridge.js decides).
@@ -276,13 +290,15 @@ final class Page: NSObject {
         view.reload()
     }
 
-    /// Touch is the way in: an iPhone (no trackpad reaches it), or a mobile site.
+    /// Touch is the way in: an iPhone (no trackpad reaches it), or a mobile
+    /// site. Not in the desktop view, where the cursor is.
     var touchFirst: Bool {
-        UIDevice.current.userInterfaceIdiom == .phone || mode == .mobile
+        (UIDevice.current.userInterfaceIdiom == .phone && !desktopView) || mode == .mobile
     }
 
     /// The mode for a page at `url` in this page's window, as it is now.
     private func chooseMode(for url: URL?) -> SiteMode {
+        if desktopView { return .desktop }
         var size = view.window?.bounds.size ?? host?.presenter?.view.window?.bounds.size ?? view.bounds.size
         if size.width < 1 || size.height < 1 {
             // Not on screen yet: the size of the window it will be shown in, near enough.
@@ -356,6 +372,64 @@ final class Page: NSObject {
         call("return window.__safience ? window.__safience.key(m) : 'absent';", ["m": message])
     }
 
+    // MARK: The iPhone's desktop view
+
+    /// The desktop view's cursor at `point`, in the page view's points (the
+    /// desktop's): "move", "down", "up", "click" (`detail` 2 for the second
+    /// of a double click) or "context". A move waits for the one before.
+    func pointer(_ type: String, at point: CGPoint, button: Int = 0, buttons: Int = 0, detail: Int = 0) {
+        let message: [String: Any] = [
+            "type": type, "x": Double(point.x), "y": Double(point.y), "width": Double(view.bounds.width),
+            "button": button, "buttons": buttons, "detail": detail,
+        ]
+        guard type == "move" else {
+            // A press or a click comes after the moves before it.
+            if let next = nextMove { nextMove = nil; send(move: next) }
+            call("return window.__safience ? window.__safience.pointer(m) : 'absent';", ["m": message])
+            return
+        }
+        if moving { nextMove = message } else { send(move: message) }
+    }
+
+    private func send(move message: [String: Any]) {
+        moving = true
+        call("return window.__safience ? window.__safience.pointer(m) : 'absent';", ["m": message]) { [weak self] _ in
+            guard let self else { return }
+            self.moving = false
+            if let next = self.nextMove {
+                self.nextMove = nil
+                self.send(move: next)
+            }
+        }
+    }
+
+    /// What the phone's keyboard did in the desktop view: `back` characters
+    /// taken away, then `text` (bridge.js type()).
+    func type(_ text: String, back: Int) {
+        call("return window.__safience ? window.__safience.type(m) : 'absent';", ["m": ["text": text, "back": back]])
+    }
+
+    /// A key from the keys over the phone's keyboard: Return, Escape, Tab,
+    /// Backspace or an arrow.
+    func press(_ key: String) {
+        call("return window.__safience ? window.__safience.key(m) : 'absent';", ["m": ["key": key, "code": key]])
+    }
+
+    /// How much of the page's bottom the phone bar covers: the page lays out
+    /// above it, its own bottom bars sitting clear of it, and scrolls its
+    /// end clear of it, while what is under the bar shows through its blur.
+    func obscure(bottom: CGFloat) {
+        let scroll = view.scrollView
+        if #available(iOS 26.0, *) {
+            if view.obscuredContentInsets.bottom != bottom {
+                view.obscuredContentInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottom, right: 0)
+            }
+        } else if scroll.contentInset.bottom != bottom {
+            scroll.contentInset.bottom = bottom
+            scroll.verticalScrollIndicatorInsets.bottom = bottom
+        }
+    }
+
     /// Whether freezing would lose something typed: nil when the page can't
     /// be asked, which counts as yes.
     func holdsTyping(_ done: @escaping (Bool?) -> Void) {
@@ -372,6 +446,19 @@ final class Page: NSObject {
         }
         let configuration = WKSnapshotConfiguration()
         configuration.afterScreenUpdates = false
+        view.takeSnapshot(with: configuration) { image, _ in done(image) }
+    }
+
+    /// A small picture of the page as it shows, `width` points wide, for a
+    /// card in the tab overview. Nil off screen, where WebKit draws nothing.
+    func preview(width: CGFloat, _ done: @escaping (UIImage?) -> Void) {
+        guard view.window != nil, view.bounds.width > 0, view.bounds.height > 0 else {
+            done(nil)
+            return
+        }
+        let configuration = WKSnapshotConfiguration()
+        configuration.afterScreenUpdates = false
+        configuration.snapshotWidth = NSNumber(value: Double(width))
         view.takeSnapshot(with: configuration) { image, _ in done(image) }
     }
 

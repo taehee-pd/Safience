@@ -7,13 +7,15 @@ A WebKit browser for iPad and iPhone, made for Figma and web apps used with a tr
 - **The page gets the trackpad.** A pinch zooms Figma's canvas around the pointer, not the whole page. ⌘ with two fingers zooms too, and two fingers pan, gliding on after a flick as on a Mac.
 - **The page gets the keys.** ⌘Z, ⌘F, ⌘D and every other ⌘ shortcut belong to the page: the system menus that would take them are gone. The browser's own shortcuts are all ⌃⌥, which pages leave alone.
 - **Safari on a Mac, to every site.** Desktop pages and Mac Safari's user agent, so web apps serve their full desktop version.
-- **iPhone and iPhone Duo too.** On a phone-width window (an iPhone either way up, the Duo folded, a narrow iPad window) the bars move to the bottom, where a thumb reaches: back and forward, the address, the tabs, the space, a new tab and the page's menu, with the tabs as a grid. Such a window gets mobile sites, with Safari's iPhone user agent, touch scrolling and pinch zoom; a window at least 600 by 500 points (an iPad, the Duo unfolded) gets desktop sites. The page's menu (⌃⌥⇧M) asks a site for the other version, and remembers.
+- **iPhone and iPhone Duo too.** On a phone-width window (an iPhone either way up, the Duo folded, a narrow iPad window) the bar moves to the bottom, where a thumb reaches: the address with the page's menu beside it, and under it back, forward, the space, a new tab and the tabs; a swipe up on the bar shows the tabs as pictures of their pages. Such a window gets mobile sites, with Safari's iPhone user agent, touch scrolling and pinch zoom; a window at least 600 by 500 points (an iPad, the Duo unfolded) gets desktop sites. Request Desktop or Mobile Site in the command palette (⌃⌥⇧M) asks a site for the other version, and remembers.
+- **Desktop view on iPhone**, for a web app now and then: the page's menu lays the page out at an iPad Pro 13-inch's size and turns the screen into a trackpad, as Jump Desktop's trackpad mode does. One finger moves a cursor and the view follows it; a tap clicks, touch and hold drags, two fingers tap for the right button and move to scroll, a pinch zooms the view. A minimap at the top right shows the whole page, in colour where it shows and black and white elsewhere; a tap goes there and a drag moves it to another corner. The keyboard button types into what was clicked. The clicks are script events, which a few sites ignore, and Google's sign-in stays on plain touch.
 - **Spaces, each signed in on its own.** A space has its own tabs, its own cookies and its own bookmarks, and a colour and an icon that fill its button, so you can see which space a window is in: a client's Figma and your own, both signed in. Reorder them in Settings › Spaces.
 - **One row, as Safari's compact layout.** The tab you are on shows where it is; click it and it becomes the address field, growing over the other tabs the way Safari's does, and shrinking back into the tab after. The other tabs sit beside it, flat, with only the one on screen in Liquid Glass. The bars take on the colour along the top of the page. Settings can put the address bar under the tabs instead.
 - **Pinned tabs, as in Dia and Arc.** A pinned tab is an icon at the front of the row that keeps its page: closing it unloads it and takes it back to the address it was pinned with.
 - **Split view, as in Dia.** Two tabs side by side in one window, shown as one tab in the row: a click in a pane gives it the keys and the bars, the divider drags, and both pages stay live. Open one from a tab's menu (Open in Split View), the + button's menu (New Tab in Split View) or ⌃⌥\\.
 - **A new tab shows your bookmarks** as a grid of site icons, folders and all, imported from Chrome, Firefox or Safari (its export ZIP included).
-- **Spaces and bookmarks in iCloud**, if you turn it on (Settings › iCloud): each space's name, colour, icon and bookmarks show on your other iPhones and iPads. Tabs and sign-ins stay on each device.
+- **Spaces, bookmarks and tabs in iCloud**, if you turn it on (Settings › iCloud): each space's name, colour, icon, bookmarks and pinned tabs show on your other iPhones and iPads, and your open tabs show on them to pick up from. CloudKit, in your own iCloud. Sign-ins, cookies and site data stay on each device.
+- **Chrome too**, with the Safience Sync extension (`Extension/`): a Chrome profile pairs with a space, and its bookmarks bar, pinned tabs and open tabs sync with it, through the same iCloud records, with no server in between.
 - **Pages' own cursors.** Figma's arrow and its tools' cursors show, which WebKit on iPad never shows.
 - **A command palette.** ⌃⌥K finds any tab in any space, any space, any command, or opens what you type.
 - **Windows for Stage Manager.** Each window shows a space and a tab, and comes back as it was.
@@ -31,7 +33,7 @@ Needs Xcode 16 or later and an iPad on iPadOS 17 or later (iPadOS 26 recommended
 
 ## With Apple's browser entitlement
 
-Apple granted Safience its `com.apple.developer.web-browser` entitlement, and the app is signed with it (`Config/Safience.entitlements`, switched on in `Config/Signing.xcconfig`, which also holds iCloud's key-value store for Settings › iCloud). With it:
+Apple granted Safience its `com.apple.developer.web-browser` entitlement, and the app is signed with it (`Config/Safience.entitlements`, switched on in `Config/Signing.xcconfig`, which also holds the iCloud container and push for Settings › iCloud). With it:
 
 - iPadOS offers Safience as the default browser (Settings › Apps › Default Apps › Browser App). Settings in the app says whether it is, and goes there.
 - WebKit lets pages use passkeys on any site, runs service workers, and gives full script access on every domain.
@@ -81,7 +83,7 @@ The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
 | Wheel bridge (optional) | Two-finger pan as `WheelEvent`, with momentum. In `auto` mode `bridge.js` stands aside while WebKit's own wheel events arrive | `Pointer.scrolled`, `bridge.js` |
 | No callouts or previews | `allowsLinkPreview = false`, `-webkit-touch-callout: none`, no system context menu | `Page.setUp`, `base.css`, `contextMenuConfigurationForElement` |
 | No swipe back | `allowsBackForwardNavigationGestures = false` | `Page.setUp` |
-| Default menus removed | Every top-level menu but the app menu removed, the app menu emptied, in `buildMenu(with:)`. Covers iPadOS 26's menu bar, whatever menus it adds | `Menus.swift` |
+| Default menus removed | Every top-level menu but the app menu and the Window menu removed in `buildMenu(with:)`. The Window menu, which iPadOS 26 shows in any case, keeps its items without their ⌘ keys and takes the window's commands; the app menu has Settings… and iPadOS's item for the Settings app | `Menus.swift` |
 | ⌘F for the page | `isFindInteractionEnabled = false` | `Page.setUp` |
 | Tab and arrows | Registered with `wantsPriorityOverSystemBehavior` when Settings or a site's adapter says so, and handed to the page as keydown and keyup | `PageView.keyCommands`, `bridge.js key()` |
 | Focus back to the page | On `sceneDidBecomeActive` and `UIWindow.didBecomeKeyNotification`, and after the palette, the address bar or a sheet | `SceneDelegate`, `Browser.focusPage` |
@@ -92,7 +94,8 @@ The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
 | Passkeys | WebKit's own, with the `com.apple.developer.web-browser` entitlement (above) | `Config/Safience.entitlements` |
 | Phone-width windows | `horizontalSizeClass == .compact` puts the bars at the bottom (`PhoneBar`), the tabs in a grid (`TabOverview`), and the bar above the keyboard while an address is typed | `PhoneBar.swift`, `Browser.refreshChrome` |
 | Desktop or mobile site | By the window's size, or the site's own choice; a page that changes mode is asked for again with the matching user agent | `SiteMode.swift`, `Page` navigation policy |
-| iCloud sync | `NSUbiquitousKeyValueStore`, one compressed value per space under its iCloud id; joined by name when turned on, iCloud's version taken up after | `CloudSync.swift`, `Sync.swift` |
+| iCloud sync | CloudKit's private database through `CKSyncEngine`: a record per space, bookmark and pinned tab, one per device and space for its open tabs; joined by name when turned on, a mirror of iCloud's records kept to find what changed; the key-value store of earlier builds read once | `SyncModel.swift`, `Sync.swift` |
+| Chrome extension | Manifest V3; CloudKit Web Services with Apple's sign-in; the same records and rules as the app | `Extension/` |
 | Default browser | `http` and `https` in `Info.plist`, the entitlement, links opened in a new tab; Settings shows `UIApplication.isDefault(.webBrowser)` and opens Default Apps | `DefaultBrowser.swift`, `AppDelegate.swift` |
 | Add to Home Screen | The web view in the share sheet's items | `Browser.sharePage` |
 | Cookie store per space | `WKWebsiteDataStore(forIdentifier: space.id)`; removing a space erases its store | `Stores.swift` |

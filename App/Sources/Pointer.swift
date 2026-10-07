@@ -51,6 +51,9 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     /// by bridge.js's id, the view that draws the one showing, and the
     /// interaction that hides the system pointer while it shows.
     private(set) var pageCursor: PageCursor = .system
+    /// The page asked for another cursor: the iPhone's desktop view draws
+    /// its own cursor, and draws this one.
+    var changed: (() -> Void)?
     private var pictures: [Int: CursorPicture] = [:]
     /// The pictures' ids, oldest first: past 128, the oldest goes. The page
     /// names by id only its last 65 (bridge.js showCursor), so those stay.
@@ -180,6 +183,18 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         }
         pageCursor = asked
         updateCursor()
+        changed?()
+    }
+
+    /// The page's own cursor as a picture with its hotspot, in points; nil
+    /// for the system's pointer, and `hidden` for `cursor: none`.
+    var picture: (image: UIImage, size: CGSize, hotspot: CGPoint)? {
+        guard case .image(let image) = pageCursor, let picture = pictures[image.id] else { return nil }
+        return (picture.image, picture.size, picture.hotspot)
+    }
+
+    var hidden: Bool {
+        pageCursor == .hidden
     }
 
     /// Over the page, the page's cursor: its picture drawn at the pointer,

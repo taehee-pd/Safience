@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Safience Sync",
+  "description": "Your Chrome profile's bookmarks, pinned tabs and open tabs, with a space in Safience on your iPhone and iPad, through your iCloud.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuGsa6+pC6k+4+Ujer5EiN1pmkIsZC3JT/EBeFEkKXJk3TiSXHO8beBFNvjfbccrXVRyvC5c1YptBYl5DDDWFsXtGtwLytaYevloQNlz/hufYNuTFkOjDnugMvbifWxtfIT4gHJBvWHdwmfgVlWwJzPDXWrEw9aDN62MojGr/OgiXEYFTbItzNYsitmskZnA4mG7QuUK+QgJ9D+lH2hXYzKkMJkDjHGX8k6aiMJmzyCNYynPJOyFfeMz49Mz8FtcrP20rVTQrpSl4BsQqbwHL/UfYs3wIBYlIdm3PKYOlLkVR+t4rFpedfMGhmNkSE+9KMrtwUyuEoBiQDpk3I7sZYQIDAQAB",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Safience Sync",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "bookmarks",
+    "tabs",
+    "tabGroups",
+    "storage",
+    "alarms",
+    "identity"
+  ],
+  "host_permissions": [
+    "https://api.apple-cloudkit.com/*"
+  ]
+}
