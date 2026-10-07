@@ -94,12 +94,12 @@ final class PaletteModel: ObservableObject {
                 keywords: ["space"]
             ))
         }
-        for command in Command.allCases where command != .palette {
+        for command in Command.allCases where command != .palette && Device.offers(command) {
             list.append(PaletteEntry(
                 id: "command-\(command.rawValue)",
                 kind: .command(command),
                 title: command.title,
-                detail: Shortcuts.chord(for: command)?.label ?? "",
+                detail: Device.keys(for: command) ?? "",
                 keywords: command.keywords
             ))
         }

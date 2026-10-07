@@ -35,11 +35,16 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     private var damping: CGFloat = 1
     private var dragFrom: CGFloat = 0
     private var dragging = false
+    /// The finger last moved it, rather than a button.
+    private var wasDragged = false
     /// Whether letting go where the finger is would open it: a tick as that changes.
     private var wouldOpen = false
     private var landed = false
-    private let tick = UIImpactFeedbackGenerator(style: .light)
-    private let thud = UIImpactFeedbackGenerator(style: .soft)
+    /// Firm enough to feel through a case: a medium tap where letting go
+    /// changes what happens, a rigid knock as the sheet lands open.
+    private let tick = UIImpactFeedbackGenerator(style: .medium)
+    private let thud = UIImpactFeedbackGenerator(style: .rigid)
+    private let sink = UIImpactFeedbackGenerator(style: .light)
 
     /// The sheet's top corners, as a large sheet's are.
     private static let radius: CGFloat = 32
@@ -71,7 +76,8 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
         sheet.layer.cornerRadius = Self.radius
         sheet.layer.cornerCurve = .continuous
         sheet.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
-        ground.backgroundColor = Palette.UI.ground
+        // The overview's own tray, so nothing changes colour as the tabs come in.
+        ground.backgroundColor = Palette.UI.tray
         sheet.addSubview(ground)
         addChild(content)
         sheet.addSubview(content.view)
@@ -116,11 +122,13 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     func beginDrag() {
         stop()
         dragging = true
+        wasDragged = true
         dragFrom = progress
         wouldOpen = progress > 0.5
         content.view.isUserInteractionEnabled = false
         tick.prepare()
         thud.prepare()
+        sink.prepare()
     }
 
     /// `up`: how far the finger has gone up since it took hold, in points.
@@ -132,7 +140,7 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
         let opens = progress > (dragFrom > 0.5 ? 1 - Self.commit : Self.commit)
         if opens != wouldOpen {
             wouldOpen = opens
-            tick.impactOccurred(intensity: opens ? 0.8 : 0.5)
+            tick.impactOccurred(intensity: opens ? 1 : 0.7)
         }
         apply()
     }
@@ -167,7 +175,7 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
                 self.progress = end
                 self.apply()
             } completion: { _ in
-                if end == 1, !self.landed { self.thud.impactOccurred(intensity: 0.7) }
+                if end == 1, !self.landed { self.thud.impactOccurred(intensity: 1) }
                 self.arrived()
             }
             return
@@ -198,7 +206,7 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
         // The soft knock of the sheet arriving: the moment it gets there.
         if target == 1, !landed, progress >= 0.99 {
             landed = true
-            thud.impactOccurred(intensity: 0.7)
+            thud.impactOccurred(intensity: 1)
         }
         if abs(progress - target) < 0.0005, abs(velocity) < 0.005 {
             progress = target
@@ -216,6 +224,9 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func arrived() {
+        // Back in the bar after a drag or a throw: a lighter knock than opening's.
+        if target == 0, wasDragged { sink.impactOccurred(intensity: 0.8) }
+        wasDragged = false
         if target == 1 {
             content.view.isUserInteractionEnabled = true
             // Known before a swipe down on the tabs, so the two gestures can share it.

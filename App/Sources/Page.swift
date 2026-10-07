@@ -48,9 +48,15 @@ final class Page: NSObject {
     /// In the iPhone's desktop view (DesktopPad): laid out at an iPad's size,
     /// always the desktop site, and reached only through the cursor, so
     /// touches on the page itself are off.
+    /// What the iPhone's desktop view shows of the page, in the page view's
+    /// points, for the tab overview's picture of it: what was being looked
+    /// at, not the whole desktop squeezed into a card.
+    var desktopShown: CGRect?
+
     var desktopView = false {
         didSet {
             guard desktopView != oldValue else { return }
+            if !desktopView { desktopShown = nil }
             view.isUserInteractionEnabled = !desktopView
             applyScrolling()
         }
@@ -459,6 +465,7 @@ final class Page: NSObject {
         let configuration = WKSnapshotConfiguration()
         configuration.afterScreenUpdates = false
         configuration.snapshotWidth = NSNumber(value: Double(width))
+        if desktopView, let shown = desktopShown, shown.width > 0, shown.height > 0 { configuration.rect = shown }
         view.takeSnapshot(with: configuration) { image, _ in done(image) }
     }
 

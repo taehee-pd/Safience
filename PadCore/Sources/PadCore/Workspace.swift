@@ -286,6 +286,53 @@ public struct Workspace: Codable, Equatable, Sendable {
         return nil
     }
 
+    /// How a space's tabs can be put in order, as Safari's Arrange Tabs By.
+    public enum Arrangement: Sendable {
+        case title
+        case website
+    }
+
+    /// The space's tabs in order of their names or their sites. The pinned
+    /// ones stay first as they were, and a split's two tabs stay together,
+    /// in order of the left one. Tabs that tie keep their order.
+    public mutating func arrangeTabs(in space: UUID, by arrangement: Arrangement) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return }
+        let pinned = spaces[s].tabs.filter(\.isPinned)
+        let ordinary = spaces[s].tabs.filter { !$0.isPinned }
+        var units: [[TabRecord]] = []
+        var index = 0
+        while index < ordinary.count {
+            let tab = ordinary[index]
+            if index + 1 < ordinary.count,
+               spaces[s].splits.contains(where: { $0.left == tab.id && $0.right == ordinary[index + 1].id }) {
+                units.append([tab, ordinary[index + 1]])
+                index += 2
+            } else {
+                units.append([tab])
+                index += 1
+            }
+        }
+        func key(_ tab: TabRecord) -> String {
+            switch arrangement {
+            case .title:
+                return tab.label
+            case .website:
+                let host = tab.url?.host()?.lowercased() ?? ""
+                let site = Destination.registrable(host.hasPrefix("www.") ? String(host.dropFirst(4)) : host)
+                // A tab gone nowhere yet goes last.
+                return site.isEmpty ? "\u{10FFFF}" : site + " " + tab.label
+            }
+        }
+        let sorted = units.enumerated().sorted { a, b in
+            switch key(a.element[0]).localizedStandardCompare(key(b.element[0])) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return a.offset < b.offset
+            }
+        }
+        spaces[s].tabs = pinned + sorted.flatMap(\.element)
+    }
+
     /// The last closed tab back where it was, selected; into the first space
     /// when its own is gone. Returns its id.
     public mutating func reopen(now: Date = Date()) -> UUID? {

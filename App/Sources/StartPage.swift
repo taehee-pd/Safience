@@ -176,7 +176,7 @@ struct StartPage: View {
             Text("No bookmarks in \(space?.name ?? "this space") yet")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Palette.ink)
-            Text("Bring them over from Chrome or Safari, or star the page you’re on (\(Shortcuts.chord(for: .bookmark)?.label ?? "")).")
+            Text("Bring them over from Chrome or Safari, or star the page you’re on\(Device.keys(for: .bookmark).map { " (\($0))" } ?? "").")
                 .font(.system(size: 13))
                 .foregroundStyle(Palette.muted)
                 .multilineTextAlignment(.center)

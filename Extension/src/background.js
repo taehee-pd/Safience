@@ -151,8 +151,17 @@ async function pull(state) {
   }
   state.syncToken = result.syncToken;
   if (!state.paired) return;
-  if (await isWriter(state)) await applyBookmarks(state, deleted);
+  // Chrome takes iCloud's bookmarks only when iCloud's changed: a sync set off by an
+  // edit made here would otherwise write the older copy back over the edit (the old
+  // title or place, or the bookmark again) before push() could send it.
+  if (bookmarksDiffer(before, state.mirror, state.paired.space) && await isWriter(state)) await applyBookmarks(state, deleted);
   await applyPinned(state, before);
+}
+
+function bookmarksDiffer(a, b, space) {
+  const of = (mirror) => JSON.stringify(Object.keys(mirror.bookmarks).sort()
+    .filter((name) => mirror.bookmarks[name].space === space).map((name) => [name, mirror.bookmarks[name]]));
+  return of(a) !== of(b);
 }
 
 // MARK: Bookmarks
@@ -239,6 +248,11 @@ async function reconcile(list, parentId, reverse, state) {
     const after = previous ? await chromeNode(previous) : null;
     const target = after && after.parentId === parentId ? after.index + 1 : 0;
     let existing = reverse[node.id] ? await chromeNode(reverse[node.id]) : null;
+    if (reverse[node.id] && !existing) {
+      // Its bookmark was removed in Chrome and not sent yet: the next push deletes
+      // it from iCloud, rather than this making it again.
+      continue;
+    }
     if (existing && !!existing.url !== !!node.url) {
       // A folder became a link or the other way: made again.
       try { await chrome.bookmarks.removeTree(existing.id); } catch (_) {}

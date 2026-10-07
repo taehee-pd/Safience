@@ -38,11 +38,14 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var siteModes: [String: SiteMode] = [:]
     /// Spaces and their bookmarks kept in iCloud (CloudSync.swift); off until turned on.
     public var iCloudSync = false
+    /// How far the iPhone's desktop view cursor goes for a finger's move,
+    /// times the usual (DesktopView.cursorSpeeds).
+    public var cursorSpeed = 1.0
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync
+        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync, cursorSpeed
     }
 
     public init(from decoder: Decoder) throws {
@@ -58,6 +61,8 @@ public struct Preferences: Codable, Equatable, Sendable {
         pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
         siteModes = (try? c.decodeIfPresent([String: SiteMode].self, forKey: .siteModes)) ?? [:]
         iCloudSync = (try? c.decodeIfPresent(Bool.self, forKey: .iCloudSync)) ?? false
+        let speed = (try? c.decodeIfPresent(Double.self, forKey: .cursorSpeed)) ?? 1
+        cursorSpeed = min(max(speed, DesktopView.cursorSpeeds.lowerBound), DesktopView.cursorSpeeds.upperBound)
     }
 
     /// An adapter's bridges with these settings laid over them.

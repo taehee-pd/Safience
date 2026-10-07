@@ -114,7 +114,9 @@ final class TabStripView: UIView {
             tabs[id] = nil
             UIView.animate(springDuration: 0.3, bounce: 0, animations: { view.alpha = 0 }) { _ in view.removeFromSuperview() }
         }
-        let signature = (row.pinned + row.others).map(\.id.uuidString).joined()
+        // Pinned state is part of the signature: pinning the first ordinary tab, or unpinning
+        // the last pinned one, keeps the order and changes the tab's width.
+        let signature = (row.pinned + row.others).map { $0.id.uuidString + ($0.isPinned ? "*" : "") }.joined()
             + "\(model.tabID?.uuidString ?? "")\(row.openPinned)\(compact)\(row.splits.map { "\($0.left)\($0.right)" }.joined())"
         if signature != shown {
             animatesLayout = !shown.isEmpty

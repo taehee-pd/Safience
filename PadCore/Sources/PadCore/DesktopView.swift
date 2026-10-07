@@ -65,8 +65,10 @@ public struct DesktopView: Equatable, Sendable {
     /// The finger moved `dx`, `dy` view points at `speed` view points a
     /// second: the cursor moves as far on screen, further the faster, and
     /// the view follows it when it nears the edge.
-    public mutating func moveCursor(dx: Double, dy: Double, speed: Double) {
-        let gain = Self.gain(speed: speed)
+    ///
+    /// `scale` is Settings' cursor speed, the whole curve times it.
+    public mutating func moveCursor(dx: Double, dy: Double, speed: Double, scale: Double = 1) {
+        let gain = Self.gain(speed: speed) * min(max(scale, Self.cursorSpeeds.lowerBound), Self.cursorSpeeds.upperBound)
         cursorX = min(Self.width, max(0, cursorX + dx * gain / zoom))
         cursorY = min(Self.height, max(0, cursorY + dy * gain / zoom))
         follow()
@@ -74,6 +76,9 @@ public struct DesktopView: Equatable, Sendable {
 
     /// One to one when slow, for aiming; up to a little over twice when
     /// fast, to cross the desktop in a swipe or two, as a trackpad's pointer does.
+    /// How slow and how fast Settings can make the cursor, times the usual.
+    public static let cursorSpeeds = 0.5...2.5
+
     public static func gain(speed: Double) -> Double {
         1 + min(max(speed - 150, 0) / 1000, 1.2)
     }

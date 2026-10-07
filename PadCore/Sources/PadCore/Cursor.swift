@@ -12,6 +12,10 @@ public enum PageCursor: Equatable, Sendable {
     case system
     /// `cursor: none`: no pointer at all, as on a Mac.
     case hidden
+    /// One of CSS's own cursors by name (pointer, text, ew-resize…): the
+    /// system's pointer on iPad, which WebKit chooses; drawn by the app in
+    /// the iPhone's desktop view, which has a cursor of its own.
+    case keyword(String)
     /// The page's own picture.
     case image(CursorImage)
 
@@ -23,7 +27,12 @@ public enum PageCursor: Equatable, Sendable {
     /// system's pointer, never a missing one.
     public init(message: [String: Any]) {
         if let keyword = message["keyword"] as? String {
-            self = keyword.lowercased() == "none" ? .hidden : .system
+            let name = keyword.trimmingCharacters(in: .whitespaces).lowercased()
+            switch name {
+            case "none": self = .hidden
+            case "", "auto", "default": self = .system
+            default: self = .keyword(name)
+            }
             return
         }
         guard let id = Self.number(message["id"]).map({ Int($0) }) else {

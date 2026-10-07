@@ -18,7 +18,7 @@ for (const f of frames) {
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))));
   await page.waitForTimeout(500);
   const r = await page.evaluate(() => { const b = document.querySelector('.screen').getBoundingClientRect(); return [b.width, b.height, b.top, b.bottom]; });
-  const [sw, sh] = (p.sr ?? '2064/2752').split('/').map(Number);
+  const [, , sw, sh] = (p.hole ?? '118,124,2064,2752').split(',').map(Number);
   console.log(f.name, 'screen', r[0].toFixed(1) + ' x ' + r[1].toFixed(1), 'ratio', (r[0] / r[1]).toFixed(4), '(screen: ' + (sw / sh).toFixed(4) + ')',
     'shown', Math.round(100 * Math.min(1, (h - r[2]) / r[1])) + '%', 'below', Math.round(h - r[3]) + 'px');
   const file = folder(out) + f.name + '.png';

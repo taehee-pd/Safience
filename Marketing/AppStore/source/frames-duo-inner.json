@@ -1,11 +1,59 @@
 {
- "w": 2007, "h": 2853, "out": "iPhone-Duo-inner",
- "params": {"sw": "1790", "sr": "2007/2853", "rad": "0.035", "bezel": "28", "top": "620", "ct": "205", "cs": "86", "cp": "120"},
+ "w": 2007,
+ "h": 2853,
+ "out": "iPhone-Duo-inner",
+ "params": {
+  "sw": "1540",
+  "top": "440",
+  "ct": "205",
+  "cs": "86",
+  "cp": "120",
+  "bezel": "duo-inner-white.png",
+  "bw": "2247",
+  "bh": "3093",
+  "hole": "120,120,2007,2853",
+  "corner": "182"
+ },
  "frames": [
-  {"name": "01-hero", "params": {"s": "Unfold it for the desktop version<br>of your web apps.", "img": "raw-duo/inner-1-hero.png", "ring": "1215,420,1360"}},
-  {"name": "02-split", "params": {"s": "A design and its notes in one window.<br>Drag the divider for room.", "img": "raw-duo/inner-2-split.png", "ring": "-505,600,1360"}},
-  {"name": "03-spaces", "params": {"s": "Every space keeps its own sign-ins,<br>colour and bookmarks.", "img": "raw-duo/inner-3-client.png", "ring": "1195,540,1410"}},
-  {"name": "04-palette", "params": {"s": "Tabs, spaces and commands<br>in one search.", "img": "raw-duo/inner-4-palette.png", "ring": "-465,460,1310"}},
-  {"name": "05-bookmarks", "params": {"s": "Bookmarks for every space,<br>synced through iCloud.", "img": "raw-duo/inner-5-start.png", "ring": "1195,1000,1360"}}
+  {
+   "name": "01-hero",
+   "params": {
+    "s": "Unfold it for the desktop version<br>of your web apps.",
+    "img": "raw-duo/inner-1-hero.png",
+    "ring": "1215,420,1360"
+   }
+  },
+  {
+   "name": "02-split",
+   "params": {
+    "s": "A design and its notes in one window.<br>Drag the divider for room.",
+    "img": "raw-duo/inner-2-split.png",
+    "ring": "-505,600,1360"
+   }
+  },
+  {
+   "name": "03-spaces",
+   "params": {
+    "s": "Every space keeps its own sign-ins,<br>colour and bookmarks.",
+    "img": "raw-duo/inner-3-client.png",
+    "ring": "1195,540,1410"
+   }
+  },
+  {
+   "name": "04-palette",
+   "params": {
+    "s": "Tabs, spaces and commands<br>in one search.",
+    "img": "raw-duo/inner-4-palette.png",
+    "ring": "-465,460,1310"
+   }
+  },
+  {
+   "name": "05-bookmarks",
+   "params": {
+    "s": "Bookmarks for every space,<br>synced through iCloud.",
+    "img": "raw-duo/inner-5-start.png",
+    "ring": "1195,1000,1360"
+   }
+  }
  ]
 }

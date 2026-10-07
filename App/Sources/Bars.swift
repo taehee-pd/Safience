@@ -7,6 +7,9 @@ import UIKit
 enum BarAction {
     case select(UUID)
     case close(UUID)
+    /// Several at once: Close Other Tabs, Close All Tabs.
+    case closeTabs([UUID])
+    case arrangeTabs(Workspace.Arrangement)
     case command(Command)
     case switchSpace(UUID)
     case spaceInNewWindow(UUID)
@@ -123,7 +126,10 @@ struct SpaceButton: View {
             Section {
                 Button("New Space…", systemImage: "plus") { act(.command(.newSpace)) }
                 Button("Space Settings…", systemImage: "slider.horizontal.3") { act(.spaceSettings(window.spaceID)) }
-                Button("Open in New Window", systemImage: "macwindow.badge.plus") { act(.spaceInNewWindow(window.spaceID)) }
+                // An iPhone has one window: nowhere to open another.
+                if UIApplication.shared.supportsMultipleScenes {
+                    Button("Open in New Window", systemImage: "macwindow.badge.plus") { act(.spaceInNewWindow(window.spaceID)) }
+                }
                 if session.workspace.spaces.count > 1 {
                     Button("Remove Space…", systemImage: "trash", role: .destructive) { act(.removeSpace(window.spaceID)) }
                 }

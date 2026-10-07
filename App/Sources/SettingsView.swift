@@ -12,6 +12,10 @@ struct SettingsView: View {
     let done: () -> Void
     @State private var importing = false
     @State private var imported: (title: String, message: String)?
+    /// An iPhone: one bar at the bottom whatever the layout, no trackpad,
+    /// rarely a keyboard. (An iPad in a narrow window keeps every setting:
+    /// it widens again.)
+    private let phone = UIDevice.current.userInterfaceIdiom == .phone
 
     var body: some View {
         NavigationStack {
@@ -20,6 +24,32 @@ struct SettingsView: View {
 
                 CloudSection(session: session)
 
+                if phone {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Cursor speed")
+                            HStack(spacing: 10) {
+                                Image(systemName: "tortoise.fill").foregroundStyle(.secondary)
+                                Slider(value: $session.preferences.cursorSpeed, in: DesktopView.cursorSpeeds)
+                                    .accessibilityLabel("Cursor speed")
+                                Image(systemName: "hare.fill").foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    } header: {
+                        Text("Desktop View")
+                    } footer: {
+                        Text("How far the cursor goes as your finger moves, in Desktop View (the page's menu). It goes further the faster you move, whatever the speed.")
+                    }
+                    Section {
+                        Picker("The address bar shows", selection: $session.preferences.address) {
+                            Text("The page's address").tag(AddressMode.always)
+                            Text("The page's title").tag(AddressMode.automatic)
+                        }
+                    } footer: {
+                        Text("Sign-in pages always show the address, so you can see which site is asking for your password.")
+                    }
+                } else {
                 Section {
                     Picker("Tabs", selection: $session.preferences.layout) {
                         Text("Compact").tag(TabLayout.compact)
@@ -42,6 +72,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Compact puts the tabs and the address in one row, as Safari's compact layout does: a click on the tab you are on types a new address. Separate puts the address bar under the tabs. Sign-in pages always show the address, so you can see which site is asking for your password. With the tab bar hidden, ⌃⌥K finds every tab.")
                 }
+                }
 
                 Section {
                     NavigationLink {
@@ -59,7 +90,7 @@ struct SettingsView: View {
                         importing = true
                     }
                 } footer: {
-                    Text("Each space has its own name, colour and icon, its own sign-ins and its own bookmarks, which a new tab shows. Import from Chrome (Bookmark Manager › Export Bookmarks), from Safari on a Mac (File › Export › Bookmarks), or the ZIP Safari on this iPad saves from Settings › Apps › Safari › Export.")
+                    Text("Each space has its own name, colour and icon, its own sign-ins and its own bookmarks, which a new tab shows. Import from Chrome (Bookmark Manager › Export Bookmarks), from Safari on a Mac (File › Export › Bookmarks), or the ZIP Safari on this \(phone ? "iPhone" : "iPad") saves from Settings › Apps › Safari › Export.")
                 }
 
                 Section {
@@ -69,9 +100,10 @@ struct SettingsView: View {
                 } header: {
                     Text("Memory")
                 } footer: {
-                    Text("One heavy tab, such as a Figma file, stays open even when you switch away; another heavy tab freezes it. Other tabs off screen beyond this number freeze too: they keep a picture and load again when you open them. iPadOS limits how much memory each page may use, and no setting can raise that.")
+                    Text("One heavy tab, such as a Figma file, stays open even when you switch away; another heavy tab freezes it. Other tabs off screen beyond this number freeze too: they keep a picture and load again when you open them. \(phone ? "iOS" : "iPadOS") limits how much memory each page may use, and no setting can raise that.")
                 }
 
+                if !phone {
                 Section {
                     Picker("Two-finger scroll", selection: $session.preferences.wheel) {
                         Text("As each site needs").tag(WheelMode?.none)
@@ -89,6 +121,7 @@ struct SettingsView: View {
                     Text("Trackpad and keyboard")
                 } footer: {
                     Text("Pinch and ⌘ with two fingers zoom the page's own canvas, as on a Mac. Turn on “Send to the page first” if the system keeps Tab or the arrow keys from a page. A page's own cursor, such as Figma's tools, takes the pointer's place; turn it off to keep the iPad's pointer.")
+                }
                 }
 
                 Section("Search") {
@@ -118,6 +151,7 @@ struct SettingsView: View {
                     Text("A small panel over the page: which site adapter is on, what the bridges send, the user agent the page sees, and which tabs are live. ⌃⌥D shows and hides it.")
                 }
 
+                if !phone {
                 Section("Shortcuts") {
                     ForEach(Command.allCases, id: \.self) { command in
                         HStack {
@@ -141,6 +175,7 @@ struct SettingsView: View {
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

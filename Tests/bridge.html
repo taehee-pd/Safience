@@ -35,6 +35,9 @@
   #desk { left: 620px; top: 440px; width: 320px; height: 120px; }
   #report { position: absolute; left: 0; top: 600px; width: 900px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
   .pass { color: #15803d; } .fail { color: #b91c1c; }
+  #press:hover { color: rgb(1, 2, 3); }
+  @media (hover: none) { #press:hover { color: rgb(9, 9, 9); } }
+  @media (hover: hover) and (pointer: fine) { #press:hover { background-color: rgb(4, 5, 6); } }
 </style>
 
 <div id="canvas" class="box"></div>
@@ -261,7 +264,13 @@
     'mousedown', 'pointerup', 'mouseup', 'click', 'dblclick', 'contextmenu', 'pointerout', 'pointerleave', 'mouseleave']) {
     press.addEventListener(type, (e) => pressLog.push([type, e.detail, e.button, e.pointerType || ''].join(':')));
   }
+  const plain = getComputedStyle(press).color;
   bridge.pointer(Object.assign({ type: 'move' }, middle(press)));
+  const hoverStyle = getComputedStyle(press);
+  check('the cursor coming over an element gives it its :hover styles', hoverStyle.color === 'rgb(1, 2, 3)' &&
+    plain !== 'rgb(1, 2, 3)', hoverStyle.color);
+  check('and the ones for a pointer that hovers, not the ones for none', hoverStyle.backgroundColor === 'rgb(4, 5, 6)',
+    hoverStyle.backgroundColor);
   const moved = pressLog.map((l) => l.split(':')[0]);
   check('the cursor coming over an element is over, enter and move, pointer before mouse',
     moved.join() === 'pointerover,mouseover,pointerenter,mouseenter,pointermove,mousemove', moved.join());
@@ -290,6 +299,8 @@
   bridge.pointer({ type: 'move', x: 5, y: 5, width: innerWidth });
   check('moving off it is out and leave', pressLog.some((l) => l.startsWith('pointerout')) &&
     pressLog.some((l) => l.startsWith('mouseleave')), pressLog.join());
+  check('and its :hover styles go', getComputedStyle(press).color !== 'rgb(1, 2, 3)' &&
+    !press.hasAttribute('data-safience-hover'), getComputedStyle(press).color);
   let dragged = null;
   const canvasBox = document.getElementById('canvas');
   canvasBox.addEventListener('mousemove', (e) => { if (e.buttons === 1) dragged = e.clientX; });

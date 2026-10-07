@@ -99,4 +99,17 @@ final class DesktopViewTests: XCTestCase {
         XCTAssertEqual(clicks.click(at: 2, x: 104, y: 101), 1, "too late")
         XCTAssertEqual(clicks.click(at: 2.2, x: 200, y: 101), 1, "too far")
     }
+
+    func testCursorSpeedScalesTheWholeCurveWithinItsRange() {
+        var slow = DesktopView(viewWidth: 400, viewHeight: 800)
+        var usual = slow
+        var fast = slow
+        let start = usual.cursorX
+        slow.moveCursor(dx: 10, dy: 0, speed: 100, scale: 0.5)
+        usual.moveCursor(dx: 10, dy: 0, speed: 100)
+        fast.moveCursor(dx: 10, dy: 0, speed: 100, scale: 9)
+        XCTAssertEqual(slow.cursorX - start, (usual.cursorX - start) / 2, accuracy: 0.001)
+        XCTAssertEqual(fast.cursorX - start, (usual.cursorX - start) * DesktopView.cursorSpeeds.upperBound, accuracy: 0.001,
+                       "past the fastest is the fastest")
+    }
 }

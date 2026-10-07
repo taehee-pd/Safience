@@ -13,6 +13,11 @@ enum Palette {
     static let hairline = Color(uiColor: UI.hairline)
     static let wash = Color(uiColor: UI.wash)
     static let hover = Color(uiColor: UI.hover)
+    /// The tab overview's tray, and the cards on it: a light grey under
+    /// white cards, as Safari's tabs are shown, so the glass of the dock
+    /// and the buttons floating on it has something to show against.
+    static let tray = Color(uiColor: UI.tray)
+    static let card = Color(uiColor: UI.card)
     /// See-through dark, for what lies on the bars: they take the page's
     /// colour, and a grey of its own would sit on it as a patch, where a
     /// dark that lets the colour through reads as a deeper shade of it. A
@@ -32,6 +37,8 @@ enum Palette {
         static let hairline = pair(0.91, 0.20)
         static let wash = pair(0.937, 0.175)
         static let hover = pair(0.965, 0.15)
+        static let tray = pair(0.93, 0.06)
+        static let card = pair(1.0, 0.16)
         static let shade = dark(0.06, 0.24)
         static let hoverShade = dark(0.04, 0.14)
         static let safe = tint(light: (0.08, 0.50, 0.24), dark: (0.29, 0.87, 0.50))

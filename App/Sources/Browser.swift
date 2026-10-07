@@ -427,9 +427,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         addChild(hud)
         hud.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(hud.view)
+        // On a phone, above the bar at the bottom rather than under it.
+        let bottom = model.phone ? phoneBar.map { hud.view.bottomAnchor.constraint(equalTo: $0.view.topAnchor, constant: -12) } : nil
         NSLayoutConstraint.activate([
             hud.view.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-            hud.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            bottom ?? hud.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
         ])
         hud.didMove(toParent: self)
         diagnostics = hud
@@ -598,21 +600,28 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         }
         // Under the phone bar and the home indicator: the page goes on
         // there, told it is covered so its end scrolls clear of the bar and
-        // its own bottom bars sit above it. The start page and the desktop
-        // view stop at the bar.
+        // its own bottom bars sit above it. The desktop view's page too, the
+        // cursor and the view kept above the bar; past the desktop's own
+        // edge, the page's own colour rather than the window's, so the bar
+        // sits on the page.
         let covered = phoneCovered
-        var clear = main
-        clear.size.height = max(0, main.height - covered)
         if let page, let pad = desktopPad, pad.page === page {
-            pad.layout(in: clear)
+            pad.layout(in: main, covered: covered)
             page.obscure(bottom: 0)
+            stage.backgroundColor = page.view.underPageBackgroundColor
         } else {
             page?.view.transform = .identity
             page?.view.frame = main
             page?.obscure(bottom: covered)
+            stage.backgroundColor = Palette.UI.ground
         }
         picture.frame = main
-        start?.view.frame = clear
+        // The start page runs on under the bar too, its own ground behind
+        // the bar's blur rather than whatever the window has there; its
+        // tiles keep clear of the bar, as a page's end does.
+        start?.view.frame = main
+        let bar = covered > 0 ? PhoneBar.height : 0
+        if start?.additionalSafeAreaInsets.bottom != bar { start?.additionalSafeAreaInsets.bottom = bar }
         barBackdrop.isHidden = !model.phone
     }
 
@@ -748,6 +757,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         }
         guard page === self.page else { return }
         let view = page.view
+        // The page's colour behind the desktop view, as it loads and changes.
+        if desktopPad?.page === page { stage.backgroundColor = view.underPageBackgroundColor }
         model.url = view.url ?? Session.shared.workspace.tab(page.tab)?.url
         model.title = view.title ?? ""
         model.loading = view.isLoading
@@ -1004,6 +1015,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         switch action {
         case .select(let tab): show(tab: tab, inSpace: session.workspace.spaceID(of: tab) ?? model.spaceID)
         case .close(let tab): session.closeTab(tab)
+        case .closeTabs(let tabs): session.closeTabs(tabs)
+        case .arrangeTabs(let arrangement): session.change { $0.arrangeTabs(in: model.spaceID, by: arrangement) }
         case .command(let command): perform(command)
         case .switchSpace(let space): showSpace(space)
         case .spaceInNewWindow(let space): session.openWindow(space: space, tab: nil)
@@ -1148,14 +1161,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private func makeTabSheet() -> TabSheet? {
         if let tabSheet { return tabSheet }
         guard model.phone, let bar = phoneBar?.view, !bar.isHidden else { return nil }
-        let overview = UIHostingController(rootView: TabOverview(session: Session.shared, window: model, act: { [weak self] action in
+        let overview = TabOverviewController(session: Session.shared, window: model, act: { [weak self] action in
             self?.act(action)
         }, done: { [weak self] action in
             self?.closeTabs(then: action)
-        }))
-        // The sheet sets where it ends; left to SwiftUI, the safe area changing
-        // as the sheet moves would lay the tabs out again every frame.
-        overview.safeAreaRegions = []
+        })
         let sheet = TabSheet(content: overview, bar: bar)
         sheet.closed = { [weak self] in self?.tabSheetClosed() }
         addChild(sheet)

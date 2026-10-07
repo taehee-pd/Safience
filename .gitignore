@@ -15,3 +15,6 @@ Config/Local.xcconfig
 
 # Playwright, if installed next to the bridge tests.
 node_modules/
+
+# Apple's product bezels (Apple Design Resources): Apple's licence forbids passing them on. bezels.sh fetches them.
+Marketing/AppStore/source/bezels/

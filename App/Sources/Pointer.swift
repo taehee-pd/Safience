@@ -197,6 +197,13 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         pageCursor == .hidden
     }
 
+    /// One of CSS's own cursors the page names (pointer, text…), for the
+    /// iPhone's desktop view to draw; nil for the default arrow or a picture.
+    var keyword: String? {
+        guard case .keyword(let name) = pageCursor else { return nil }
+        return name
+    }
+
     /// Over the page, the page's cursor: its picture drawn at the pointer,
     /// the system pointer hidden under it. Anywhere else, or for a keyword,
     /// the system pointer as WebKit chooses it.
@@ -206,7 +213,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         var hide = false
         if point != nil {
             switch pageCursor {
-            case .system:
+            case .system, .keyword:
                 break
             case .hidden:
                 hide = true
@@ -264,6 +271,8 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         switch pageCursor {
         case .system:
             return "the system's"
+        case .keyword(let name):
+            return "the system's (\(name))"
         case .hidden:
             return "none, the pointer hidden"
         case .image(let image):

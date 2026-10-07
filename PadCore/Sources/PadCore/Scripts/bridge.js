@@ -441,8 +441,100 @@
     return new Mouse(type, init);
   }
 
+  // :hover, for the cursor the app moves. A page's hover styles answer
+  // only the engine's own pointer, which a phone hasn't got, so each of
+  // its :hover rules is copied once with :hover as an attribute, which the
+  // elements under the cursor get. The copies sit in a style element of
+  // the bridge's own, after the page's; media queries asking for a pointer
+  // that hovers are answered yes there, as a Mac answers them. A style
+  // sheet from another origin can't be read, so its hover styles stay
+  // off; a shadow root's aren't copied.
+  const hoverMark = 'data-safience-hover';
+  const hoverCopies = new WeakMap();
+  let hovered = [];
+
+  function hoverMedia(prelude) {
+    return prelude
+      .replace(/\(\s*(any-)?hover\s*:\s*hover\s*\)/gi, '(min-width: 0px)')
+      .replace(/\(\s*(any-)?pointer\s*:\s*fine\s*\)/gi, '(min-width: 0px)')
+      .replace(/\(\s*(any-)?hover\s*:\s*none\s*\)/gi, '(max-width: 0px)')
+      .replace(/\(\s*(any-)?pointer\s*:\s*coarse\s*\)/gi, '(max-width: 0px)');
+  }
+
+  function copyHoverRules(rules, out) {
+    for (const rule of Array.from(rules)) {
+      if (rule.styleSheet) {
+        try { copyHoverRules(rule.styleSheet.cssRules, out); } catch (_) {}
+        continue;
+      }
+      const inner = rule.cssRules;
+      const nested = [];
+      if (inner && inner.length) copyHoverRules(inner, nested);
+      if (rule.selectorText !== undefined) {
+        if (rule.selectorText.includes(':hover')) {
+          out.push(rule.selectorText.replace(/:hover\b/g, '[' + hoverMark + ']') + '{' + rule.style.cssText + '}');
+        }
+        if (nested.length) out.push(rule.selectorText + '{' + nested.join('') + '}');
+      } else if (nested.length) {
+        const text = rule.cssText;
+        out.push(hoverMedia(text.slice(0, text.indexOf('{'))) + '{' + nested.join('') + '}');
+      }
+    }
+  }
+
+  // The copies for a document, made again for a sheet only when its
+  // number of rules changed: the page added some, as script-made styles do.
+  function copyHover(doc) {
+    let state = hoverCopies.get(doc);
+    if (!state) {
+      state = { style: null, counts: new Map(), texts: new Map() };
+      hoverCopies.set(doc, state);
+    }
+    const sheets = Array.from(doc.styleSheets).concat(Array.from(doc.adoptedStyleSheets || []));
+    let changed = false;
+    for (const sheet of sheets) {
+      if (state.style && sheet.ownerNode === state.style) continue;
+      let rules;
+      try { rules = sheet.cssRules; } catch (_) { continue; }
+      if (!rules || state.counts.get(sheet) === rules.length) continue;
+      state.counts.set(sheet, rules.length);
+      const out = [];
+      try { copyHoverRules(rules, out); } catch (_) {}
+      state.texts.set(sheet, out.join('\n'));
+      changed = true;
+    }
+    for (const sheet of Array.from(state.texts.keys())) {
+      if (!sheets.includes(sheet)) {
+        state.texts.delete(sheet);
+        state.counts.delete(sheet);
+        changed = true;
+      }
+    }
+    const text = Array.from(state.texts.values()).filter(Boolean).join('\n');
+    if (!text) return;
+    if (!state.style) {
+      state.style = doc.createElement('style');
+      state.style.setAttribute('data-safience', 'hover');
+    }
+    if (changed || state.style.textContent !== text) state.style.textContent = text;
+    if (!state.style.isConnected) (doc.head || doc.documentElement).appendChild(state.style);
+  }
+
+  function markHover(lineup) {
+    for (const element of hovered) {
+      if (!lineup.includes(element)) element.removeAttribute(hoverMark);
+    }
+    const docs = new Set();
+    for (const element of lineup) {
+      if (!element.hasAttribute(hoverMark)) element.setAttribute(hoverMark, '');
+      docs.add(element.ownerDocument);
+    }
+    hovered = lineup;
+    for (const doc of docs) copyHover(doc);
+  }
+
   // Over, out, enter and leave as the cursor goes from one element to the
-  // next, so hover menus open and close.
+  // next, so hover menus open and close; and the hover styles with them.
   function crossTo(element, hit, point, m) {
     if (element === over) return;
     const view = hit.view;
@@ -464,6 +556,7 @@
       entered.dispatchEvent(mouseEvent(entered.ownerDocument.defaultView, 'mouse', 'mouseenter', hit, point, m, before[0]));
     }
     over = element;
+    markHover(after);
   }
 
   // What a press gives the focus to, as a browser does: the field or the

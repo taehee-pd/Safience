@@ -129,11 +129,16 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
 
     /// The pad over `frame` of the stage, the page view placed under it as
     /// the desktop view says.
-    func layout(in frame: CGRect) {
+    /// `covered`: the bottom the phone bar covers. The page goes on under
+    /// it, as every page does there; the cursor, the view and the buttons
+    /// keep above it.
+    func layout(in frame: CGRect, covered bar: CGFloat) {
         if self.frame != frame { self.frame = frame }
         if desktop.viewWidth != Double(frame.width) || desktop.viewHeight != Double(frame.height) {
             desktop.resize(viewWidth: Double(frame.width), viewHeight: Double(frame.height))
         }
+        barCovered = bar
+        updateCover()
         apply()
         if !minimapDragging { minimap.frame = minimapFrame(at: minimapCorner) }
         layoutKeyboardButton()
@@ -222,7 +227,10 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
                               y: frame.minY + (size.height / 2 - CGFloat(desktop.originY)) * zoom)
         let point = desktop.viewPoint(x: desktop.cursorX, y: desktop.cursorY)
         cursor.place(at: CGPoint(x: point.x, y: point.y))
-        minimap.show(desktop.shown, cursorX: desktop.cursorX / DesktopView.width, cursorY: desktop.cursorY / DesktopView.height)
+        let shown = desktop.shown
+        minimap.show(shown, cursorX: desktop.cursorX / DesktopView.width, cursorY: desktop.cursorY / DesktopView.height)
+        page?.desktopShown = CGRect(x: shown.x * DesktopView.width, y: shown.y * DesktopView.height,
+                                    width: shown.width * DesktopView.width, height: shown.height * DesktopView.height)
         CATransaction.commit()
     }
 
@@ -259,7 +267,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         case .changed:
             let velocity = pan.velocity(in: self)
             desktop.moveCursor(dx: Double(moved.x - lastMove.x), dy: Double(moved.y - lastMove.y),
-                               speed: Double(hypot(velocity.x, velocity.y)))
+                               speed: Double(hypot(velocity.x, velocity.y)), scale: Session.shared.preferences.cursorSpeed)
             lastMove = moved
             apply()
             cursorMoved()
@@ -301,7 +309,8 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
             page?.pointer("down", at: cursorPoint, buttons: 1, detail: 1)
         case .changed:
             // One to one while dragging: a drag aims at where it lets go.
-            desktop.moveCursor(dx: Double(at.x - lastHold.x), dy: Double(at.y - lastHold.y), speed: 0)
+            desktop.moveCursor(dx: Double(at.x - lastHold.x), dy: Double(at.y - lastHold.y), speed: 0,
+                               scale: Session.shared.preferences.cursorSpeed)
             lastHold = at
             apply()
             cursorMoved(buttons: 1)
@@ -396,13 +405,16 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     // MARK: The cursor's picture
 
     /// The page's own cursor when it has one (Figma's arrow, its tools'),
-    /// the arrow otherwise; none for `cursor: none`.
+    /// the one CSS names when it names one (a hand over a link, the beam
+    /// over text, arrows to resize), the arrow otherwise; none for `cursor: none`.
     private func updateCursorPicture() {
         let pointer = page?.pointer
         if pointer?.hidden == true {
             cursor.show(.hidden)
         } else if let picture = pointer?.picture {
             cursor.show(.picture(picture.image, size: picture.size, hotspot: picture.hotspot))
+        } else if let name = pointer?.keyword, let drawn = KeywordCursor.picture(for: name) {
+            cursor.show(.picture(drawn.image, size: drawn.size, hotspot: drawn.hotspot))
         } else {
             cursor.show(.arrow)
         }
@@ -435,6 +447,14 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         keyboardButton.accessibilityLabel = up ? "Hide Keyboard" : "Keyboard"
     }
 
+    /// What covers the bottom of the view: the bar, or the keyboard over it.
+    private var barCovered: CGFloat = 0
+    private var keyboardCovered: CGFloat = 0
+
+    private func updateCover() {
+        desktop.cover(bottom: Double(max(barCovered, keyboardCovered)))
+    }
+
     /// The keyboard covers the bottom of the view: the cursor stays above
     /// it, and so does the keyboard button, at the keyboard's own pace.
     @objc private func keyboardChanged(_ note: Notification) {
@@ -442,7 +462,8 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         let keyboard = convert(window.convert(end, from: nil), from: window)
         let covered = max(0, bounds.maxY - keyboard.minY)
         // Only the keyboard this view brought up; the address's is the bar's.
-        desktop.cover(bottom: typing.isFirstResponder || covered == 0 ? Double(covered) : 0)
+        keyboardCovered = typing.isFirstResponder || covered == 0 ? covered : 0
+        updateCover()
         let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
         UIView.animate(withDuration: duration, delay: 0, options: [.beginFromCurrentState]) {
             self.layoutKeyboardButton()
@@ -463,6 +484,128 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         style.baseForegroundColor = .label
         style.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
         return style
+    }
+}
+
+// MARK: CSS's own cursors
+
+/// The cursors CSS names, drawn as a Mac draws them, black with a white
+/// edge so they show on anything: the system's symbols for most, the text
+/// beam and the crosshair drawn line by line, each once. The names WebKit
+/// has no picture for here (copy, alias, context-menu) are the arrow.
+@MainActor
+enum KeywordCursor {
+    struct Drawn {
+        let image: UIImage
+        let size: CGSize
+        let hotspot: CGPoint
+    }
+
+    private static var drawn: [String: Drawn] = [:]
+    private static let edge: CGFloat = 1.5
+
+    static func picture(for name: String) -> Drawn? {
+        if let known = drawn[name] { return known }
+        guard let made = make(name) else { return nil }
+        drawn[name] = made
+        return made
+    }
+
+    private static func make(_ name: String) -> Drawn? {
+        switch name {
+        case "pointer": return symbol("hand.point.up.left.fill", size: 21, hotspot: CGPoint(x: 0.19, y: 0.1))
+        case "text": return beam(vertical: false)
+        case "vertical-text": return beam(vertical: true)
+        case "crosshair": return cross(thin: true)
+        case "cell": return cross(thin: false)
+        case "move", "all-scroll": return symbol("arrow.up.and.down.and.arrow.left.and.right", size: 20)
+        case "grab", "grabbing": return symbol("hand.raised.fill", size: name == "grab" ? 20 : 18)
+        case "not-allowed", "no-drop": return symbol("nosign", size: 18)
+        case "wait", "progress": return symbol("hourglass", size: 18)
+        case "help": return symbol("questionmark.circle.fill", size: 18)
+        case "zoom-in": return symbol("plus.magnifyingglass", size: 19, hotspot: CGPoint(x: 0.4, y: 0.4))
+        case "zoom-out": return symbol("minus.magnifyingglass", size: 19, hotspot: CGPoint(x: 0.4, y: 0.4))
+        case "ew-resize", "e-resize", "w-resize", "col-resize": return symbol("arrow.left.and.right", size: 19)
+        case "ns-resize", "n-resize", "s-resize", "row-resize": return symbol("arrow.up.and.down", size: 19)
+        case "nwse-resize", "nw-resize", "se-resize": return symbol("arrow.up.left.and.arrow.down.right", size: 17)
+        case "nesw-resize", "ne-resize", "sw-resize": return symbol("arrow.down.left.and.arrow.up.right", size: 17)
+        default: return nil
+        }
+    }
+
+    /// A symbol, white round its edge and black inside; the hotspot as a
+    /// share of the symbol's size, its middle unless said.
+    private static func symbol(_ name: String, size: CGFloat, hotspot: CGPoint = CGPoint(x: 0.5, y: 0.5)) -> Drawn? {
+        let shape = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
+        guard let glyph = UIImage(systemName: name, withConfiguration: shape) else { return nil }
+        let pad = edge + 1
+        let box = CGSize(width: glyph.size.width + pad * 2, height: glyph.size.height + pad * 2)
+        let white = glyph.withTintColor(.white, renderingMode: .alwaysOriginal)
+        let black = glyph.withTintColor(.black, renderingMode: .alwaysOriginal)
+        let image = UIGraphicsImageRenderer(size: box).image { _ in
+            for dx in [-edge, 0, edge] {
+                for dy in [-edge, 0, edge] where dx != 0 || dy != 0 {
+                    white.draw(at: CGPoint(x: pad + dx, y: pad + dy))
+                }
+            }
+            black.draw(at: CGPoint(x: pad, y: pad))
+        }
+        return Drawn(image: image, size: box,
+                     hotspot: CGPoint(x: pad + glyph.size.width * hotspot.x, y: pad + glyph.size.height * hotspot.y))
+    }
+
+    /// The text beam: a stem with a short bar at each end, its middle the hotspot.
+    private static func beam(vertical: Bool) -> Drawn {
+        let long: CGFloat = 18
+        let bar: CGFloat = 7
+        let box = CGSize(width: vertical ? long + 6 : bar + 6, height: vertical ? bar + 6 : long + 6)
+        let image = UIGraphicsImageRenderer(size: box).image { context in
+            let path = UIBezierPath()
+            let mid = CGPoint(x: box.width / 2, y: box.height / 2)
+            if vertical {
+                path.move(to: CGPoint(x: mid.x - long / 2, y: mid.y))
+                path.addLine(to: CGPoint(x: mid.x + long / 2, y: mid.y))
+                for x in [mid.x - long / 2, mid.x + long / 2] {
+                    path.move(to: CGPoint(x: x, y: mid.y - bar / 2))
+                    path.addLine(to: CGPoint(x: x, y: mid.y + bar / 2))
+                }
+            } else {
+                path.move(to: CGPoint(x: mid.x, y: mid.y - long / 2))
+                path.addLine(to: CGPoint(x: mid.x, y: mid.y + long / 2))
+                for y in [mid.y - long / 2, mid.y + long / 2] {
+                    path.move(to: CGPoint(x: mid.x - bar / 2, y: y))
+                    path.addLine(to: CGPoint(x: mid.x + bar / 2, y: y))
+                }
+            }
+            stroke(path, in: context.cgContext)
+        }
+        return Drawn(image: image, size: box, hotspot: CGPoint(x: box.width / 2, y: box.height / 2))
+    }
+
+    /// A cross: thin for the crosshair, thick for a cell.
+    private static func cross(thin: Bool) -> Drawn {
+        let arm: CGFloat = thin ? 9 : 7
+        let box = CGSize(width: arm * 2 + 6, height: arm * 2 + 6)
+        let image = UIGraphicsImageRenderer(size: box).image { context in
+            let path = UIBezierPath()
+            let mid = CGPoint(x: box.width / 2, y: box.height / 2)
+            path.move(to: CGPoint(x: mid.x - arm, y: mid.y))
+            path.addLine(to: CGPoint(x: mid.x + arm, y: mid.y))
+            path.move(to: CGPoint(x: mid.x, y: mid.y - arm))
+            path.addLine(to: CGPoint(x: mid.x, y: mid.y + arm))
+            stroke(path, in: context.cgContext, width: thin ? 1.5 : 3)
+        }
+        return Drawn(image: image, size: box, hotspot: CGPoint(x: box.width / 2, y: box.height / 2))
+    }
+
+    private static func stroke(_ path: UIBezierPath, in context: CGContext, width: CGFloat = 1.5) {
+        path.lineCapStyle = .square
+        UIColor.white.setStroke()
+        path.lineWidth = width + edge * 2
+        path.stroke()
+        UIColor.black.setStroke()
+        path.lineWidth = width
+        path.stroke()
     }
 }
 

@@ -3,7 +3,8 @@ import sys
 from PIL import Image
 im = Image.open(sys.argv[1]).convert("RGB"); mode = sys.argv[2]
 def count(box, test, step=8):
-    x0, y0, x1, y1 = box; n = 0
+    # Boxes are the iPad Pro 13-inch's (2064 by 2752); the iPad Air 13-inch's capture is 2048 by 2732.
+    x0, y0, x1, y1 = box[0], box[1], min(box[2], im.width), min(box[3], im.height); n = 0
     for x in range(x0, x1, step):
         for y in range(y0, y1, step):
             if test(im.getpixel((x, y))): n += 1

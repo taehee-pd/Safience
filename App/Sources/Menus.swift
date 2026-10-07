@@ -13,6 +13,35 @@ import UIKit
 /// every browser keeps for itself, ⌘T and the like (Chord.Base). Two of iPadOS's stay,
 /// without their ⌘ keys: the Window menu, which iPadOS shows in any case,
 /// and the app menu's item that opens Safience's page in the Settings app.
+/// What this device can do. An iPhone has one window, one pane, no tab
+/// bar, and no keyboard shortcuts: UIKit builds the menus that carry them
+/// on iPad and Mac only. Every list of commands asks here, so nothing is
+/// offered that does nothing.
+@MainActor
+enum Device {
+    static var phone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone
+    }
+
+    /// The keys a command has, to show beside it: none where none work.
+    static func keys(for command: Command) -> String? {
+        phone ? nil : Shortcuts.chord(for: command)?.label
+    }
+
+    static func offers(_ command: Command) -> Bool {
+        switch command {
+        case .newWindow, .closeWindow: return UIApplication.shared.supportsMultipleScenes
+        case .tabBar, .focusPage, .splitTab, .siteMode: return !phone
+        default: return true
+        }
+    }
+
+    /// "iPhone" or "iPad", for what the app says about this device.
+    static var name: String {
+        phone ? "iPhone" : "iPad"
+    }
+}
+
 @MainActor
 enum Menus {
     static func build(_ builder: UIMenuBuilder) {
