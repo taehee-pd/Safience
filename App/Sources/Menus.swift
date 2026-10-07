@@ -9,7 +9,8 @@ import UIKit
 /// shortcut answers before the page hears the key, so Figma's ⌘Z, a page's
 /// own ⌘F, a document's ⌘B would never reach the page. They are all taken
 /// out, whichever of them this iPadOS has, and the browser's own commands
-/// go in their place on ⌃⌥, which pages leave alone. Two of iPadOS's stay,
+/// go in their place on ⌃⌥, which pages leave alone, but for the few keys
+/// every browser keeps for itself, ⌘T and the like (Chord.Base). Two of iPadOS's stay,
 /// without their ⌘ keys: the Window menu, which iPadOS shows in any case,
 /// and the app menu's item that opens Safience's page in the Settings app.
 @MainActor
@@ -110,7 +111,14 @@ enum Menus {
     }
 
     private static func flags(_ chord: Chord) -> UIKeyModifierFlags {
-        chord.shift ? [.control, .alternate, .shift] : [.control, .alternate]
+        var flags: UIKeyModifierFlags
+        switch chord.base {
+        case .controlOption: flags = [.control, .alternate]
+        case .command: flags = .command
+        case .control: flags = .control
+        }
+        if chord.shift { flags.insert(.shift) }
+        return flags
     }
 
     private static func input(_ key: Key) -> String {

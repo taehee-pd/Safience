@@ -12,6 +12,11 @@ struct StartPage: View {
     /// The folders opened, outermost first.
     @State private var path: [UUID] = []
     @State private var shown = false
+    @State private var askingFolder = false
+    @State private var folderName = ""
+    /// The bookmark or folder being renamed, and the name typed for it.
+    @State private var renaming: Bookmark?
+    @State private var newName = ""
 
     var body: some View {
         let space = session.workspace.space(window.spaceID)
@@ -28,13 +33,16 @@ struct StartPage: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 96, maximum: 112), spacing: 12, alignment: .top)],
                               alignment: .leading, spacing: 18) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            BookmarkTile(item: item, act: act) {
+                            BookmarkTile(item: item, targets: targets(for: item, in: space?.bookmarks ?? []), act: act, open: {
                                 if item.isFolder {
                                     withAnimation(.bar) { path.append(item.id) }
                                 } else if let url = item.url {
                                     act(.open(url))
                                 }
-                            }
+                            }, rename: {
+                                newName = item.title
+                                renaming = item
+                            })
                             // In, one after another: the eye reads them in order.
                             .opacity(shown ? 1 : 0)
                             .offset(y: shown ? 0 : 8)
@@ -54,6 +62,41 @@ struct StartPage: View {
         .onAppear { shown = true }
         .onDisappear { shown = false }
         .onChange(of: window.spaceID) { _, _ in path = [] }
+        .alert("New Folder", isPresented: $askingFolder) {
+            TextField("Name", text: $folderName)
+            Button("Create") { act(.newFolder(folderName, in: path.last)) }
+            Button("Cancel", role: .cancel) {}
+        }
+        .alert("Rename", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } }),
+               presenting: renaming) { item in
+            TextField("Name", text: $newName)
+            Button("Rename") { act(.renameBookmark(item.id, newName)) }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Where a bookmark or a folder can be moved to: the top level, from
+    /// inside a folder, and every folder but the one it is in, itself and
+    /// its own, each named by its path.
+    private func targets(for item: Bookmark, in bookmarks: [Bookmark]) -> [MoveTarget] {
+        var banned: Set<UUID> = [item.id]
+        func ban(_ items: [Bookmark]) {
+            for inside in items {
+                banned.insert(inside.id)
+                ban(inside.children ?? [])
+            }
+        }
+        ban(item.children ?? [])
+        func folders(in items: [Bookmark], prefix: String) -> [MoveTarget] {
+            items.filter(\.isFolder).flatMap { folder -> [MoveTarget] in
+                guard !banned.contains(folder.id) else { return [] }
+                let label = prefix.isEmpty ? folder.label : "\(prefix) › \(folder.label)"
+                let own = folder.id == path.last ? [] : [MoveTarget(folder: folder.id, label: label)]
+                return own + folders(in: folder.children ?? [], prefix: label)
+            }
+        }
+        let top = path.last == nil ? [] : [MoveTarget(folder: nil, label: "Bookmarks")]
+        return top + folders(in: bookmarks, prefix: "")
     }
 
     /// The opened folders as they are now; a folder that has gone ends the path.
@@ -92,6 +135,7 @@ struct StartPage: View {
                         .foregroundStyle(Palette.ink)
                         .frame(width: Metrics.target, height: Metrics.target)
                         .contentShape(Rectangle())
+                        .contentShape(.hoverEffect, Circle().inset(by: Metrics.ring))
                 }
                 .buttonStyle(PressScale())
                 .hoverEffect(.highlight)
@@ -103,6 +147,21 @@ struct StartPage: View {
                     .truncationMode(.head)
             }
             Spacer(minLength: 0)
+            Button {
+                folderName = ""
+                askingFolder = true
+            } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Palette.ink)
+                    .frame(width: Metrics.target, height: Metrics.target)
+                    .contentShape(Rectangle())
+                    .contentShape(.hoverEffect, Circle().inset(by: Metrics.ring))
+            }
+            .buttonStyle(PressScale())
+            .hoverEffect(.highlight)
+            .help("New Folder")
+            .accessibilityLabel("New Folder")
         }
         // The same height in a folder, where the back button is, as at the
         // top, where it isn't: the tiles don't jump when a folder opens.
@@ -131,10 +190,22 @@ struct StartPage: View {
 
 /// A bookmark or a folder as a tile: the site's icon, or a folder, on a
 /// rounded square whose corner follows the icon's by the padding between.
+/// A folder a bookmark can be moved to, or the top level for nil.
+private struct MoveTarget: Identifiable {
+    let folder: UUID?
+    let label: String
+
+    var id: String {
+        folder?.uuidString ?? "top"
+    }
+}
+
 private struct BookmarkTile: View {
     let item: Bookmark
+    let targets: [MoveTarget]
     let act: (BarAction) -> Void
     let open: () -> Void
+    let rename: () -> Void
     @State private var hovering = false
 
     private let tile: CGFloat = 72
@@ -175,6 +246,16 @@ private struct BookmarkTile: View {
             if let url = item.url {
                 Button("Open in New Tab", systemImage: "plus.square.on.square") { act(.openInNewTab(url)) }
                 Button("Copy Address", systemImage: "doc.on.doc") { UIPasteboard.general.url = url }
+            }
+            Button("Rename…", systemImage: "pencil") { rename() }
+            if !targets.isEmpty {
+                Menu("Move to…", systemImage: "folder") {
+                    ForEach(targets) { target in
+                        Button(target.label, systemImage: target.folder == nil ? "star.square.on.square" : "folder") {
+                            act(.moveBookmark(item.id, into: target.folder))
+                        }
+                    }
+                }
             }
             Button(item.isFolder ? "Delete Folder" : "Delete Bookmark", systemImage: "trash", role: .destructive) {
                 act(.removeBookmark(item.id))

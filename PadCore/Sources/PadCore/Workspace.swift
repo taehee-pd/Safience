@@ -546,6 +546,40 @@ public struct Workspace: Codable, Equatable, Sendable {
         Bookmarks.remove(id, from: &spaces[s].bookmarks)
     }
 
+    /// A new folder at the end of `parent` (nil: the top level), named as
+    /// given, or "New Folder". Returns its id; nil when the space or the
+    /// parent is not there.
+    @discardableResult
+    public mutating func addFolder(named name: String, in parent: UUID?, of space: UUID) -> UUID? {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folder = Bookmark(folder: trimmed.isEmpty ? "New Folder" : trimmed, children: [])
+        return Bookmarks.insert(folder, into: parent, of: &spaces[s].bookmarks) ? folder.id : nil
+    }
+
+    /// A bookmark's or a folder's name; an empty name leaves it as it was.
+    public mutating func renameBookmark(_ id: UUID, to name: String, in space: UUID) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        Bookmarks.update(id, in: &spaces[s].bookmarks) { $0.title = trimmed }
+    }
+
+    /// Moves a bookmark or a folder to the end of `folder` (nil: the top
+    /// level). A folder never goes into itself or into one of its own.
+    public mutating func moveBookmark(_ id: UUID, into folder: UUID?, in space: UUID) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }),
+              let item = Bookmarks.find(id, in: spaces[s].bookmarks) else { return }
+        if let folder {
+            guard folder != id, Bookmarks.find(folder, in: item.children ?? []) == nil,
+                  Bookmarks.find(folder, in: spaces[s].bookmarks)?.isFolder == true else { return }
+        }
+        var items = spaces[s].bookmarks
+        Bookmarks.remove(id, from: &items)
+        guard Bookmarks.insert(item, into: folder, of: &items) else { return }
+        spaces[s].bookmarks = items
+    }
+
     /// An import's bookmarks into the space, merged with what it has.
     /// Returns how many links it added.
     @discardableResult

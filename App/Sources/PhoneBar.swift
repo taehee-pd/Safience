@@ -143,11 +143,7 @@ private struct PageMenu: View {
     var body: some View {
         let tab = window.tabID.flatMap { session.workspace.tab($0) }
         Menu {
-            if window.url != nil {
-                Button("Share Page…", systemImage: "square.and.arrow.up") { act(.command(.share)) }
-                Button(window.bookmarked ? "Remove Bookmark" : "Bookmark This Page",
-                       systemImage: window.bookmarked ? "star.slash" : "star") { act(.toggleBookmark) }
-            }
+            PageItems(window: window, act: act)
             if window.canDesktopView || window.desktopView {
                 // The page at an iPad's size, with a cursor the finger moves as on a trackpad.
                 Button(window.desktopView ? "Leave Desktop View" : "Desktop View",
@@ -160,10 +156,7 @@ private struct PageMenu: View {
                     Button("Pin Tab", systemImage: "pin") { act(.pin(tab.id)) }
                 }
             }
-            Section {
-                Button("Command Palette", systemImage: "command") { act(.command(.palette)) }
-                Button("Settings", systemImage: "gearshape") { act(.command(.settings)) }
-            }
+            Section { AppItems(act: act) }
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 17, weight: .semibold))

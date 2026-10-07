@@ -67,6 +67,8 @@ enum Metrics {
     /// a click, which is never smaller than 40 points a side.
     static let control: CGFloat = 32
     static let target: CGFloat = 40
+    /// The ring between the two, where a click answers but nothing is drawn.
+    static let ring: CGFloat = (target - control) / 2
 }
 
 /// How big the address and what is in it are drawn: for a pointer, beside
@@ -313,20 +315,5 @@ struct SiteIconView: View {
         let palette: [SpaceColor] = [.blue, .purple, .pink, .red, .orange, .green, .teal, .indigo]
         let sum = host.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
         return palette[sum % palette.count].color
-    }
-}
-
-/// Glass shapes near each other, drawn as one material that flows between
-/// them, as the system's own bars do; just the content before iPadOS 26.
-struct GlassGroup<Content: View>: View {
-    var spacing: CGFloat = 6
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) { content }
-        } else {
-            content
-        }
     }
 }

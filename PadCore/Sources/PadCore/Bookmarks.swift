@@ -74,6 +74,42 @@ public enum Bookmarks {
         return nil
     }
 
+    /// The bookmark or folder with `id`, at any depth.
+    public static func find(_ id: UUID, in items: [Bookmark]) -> Bookmark? {
+        for item in items {
+            if item.id == id { return item }
+            if let found = find(id, in: item.children ?? []) { return found }
+        }
+        return nil
+    }
+
+    /// Changes the bookmark or folder with `id` in place, at any depth.
+    /// False when there was none.
+    @discardableResult
+    public static func update(_ id: UUID, in items: inout [Bookmark], _ change: (inout Bookmark) -> Void) -> Bool {
+        for index in items.indices {
+            if items[index].id == id {
+                change(&items[index])
+                return true
+            }
+            guard var inside = items[index].children, update(id, in: &inside, change) else { continue }
+            items[index].children = inside
+            return true
+        }
+        return false
+    }
+
+    /// Puts `item` at the end of the folder `folder`, or of the top level
+    /// for nil. False when there is no such folder.
+    @discardableResult
+    public static func insert(_ item: Bookmark, into folder: UUID?, of items: inout [Bookmark]) -> Bool {
+        guard let folder else {
+            items.append(item)
+            return true
+        }
+        return update(folder, in: &items) { $0.children = ($0.children ?? []) + [item] } && find(folder, in: items)?.isFolder == true
+    }
+
     /// Takes a bookmark or a folder away, at any depth. False when there was none.
     @discardableResult
     public static func remove(_ id: UUID, from items: inout [Bookmark]) -> Bool {

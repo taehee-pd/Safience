@@ -67,7 +67,7 @@ enum Banner: Equatable {
 /// The page gets everything it can: the window's whole width, the trackpad
 /// (Pointer), the keys (PageView, Menus), the focus whenever the window
 /// becomes active. The browser's own shortcuts are ⌃⌥ ones (Menus), out of
-/// the way of any page's.
+/// the way of any page's, but for the keys every browser keeps (⌘T and the like).
 @MainActor
 final class Browser: UIViewController, PageHost, UIAdaptivePresentationControllerDelegate, UIDocumentPickerDelegate,
     UIGestureRecognizerDelegate {
@@ -1051,6 +1051,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             show(tab: tab, inSpace: model.spaceID)
         case .toggleBookmark: toggleBookmark()
         case .removeBookmark(let id): session.change { $0.removeBookmark(id, in: model.spaceID) }
+        case .newFolder(let name, let parent): session.change { _ = $0.addFolder(named: name, in: parent, of: model.spaceID) }
+        case .renameBookmark(let id, let name): session.change { $0.renameBookmark(id, to: name, in: model.spaceID) }
+        case .moveBookmark(let id, let folder): session.change { $0.moveBookmark(id, into: folder, in: model.spaceID) }
         case .importBookmarks: chooseBookmarksFile()
         case .showTabs: showTabs()
         case .desktopView: toggleDesktopView()

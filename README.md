@@ -5,7 +5,7 @@ A WebKit browser for iPad and iPhone, made for Figma and web apps used with a tr
 ## What it does
 
 - **The page gets the trackpad.** A pinch zooms Figma's canvas around the pointer, not the whole page. ⌘ with two fingers zooms too, and two fingers pan, gliding on after a flick as on a Mac.
-- **The page gets the keys.** ⌘Z, ⌘F, ⌘D and every other ⌘ shortcut belong to the page: the system menus that would take them are gone. The browser's own shortcuts are all ⌃⌥, which pages leave alone.
+- **The page gets the keys.** ⌘Z, ⌘F, ⌘D and every other ⌘ shortcut belong to the page: the system menus that would take them are gone. The browser's own shortcuts are ⌃⌥, which pages leave alone, but for ⌘T, ⌘W, ⌘N and the other keys every browser keeps for itself.
 - **Safari on a Mac, to every site.** Desktop pages and Mac Safari's user agent, so web apps serve their full desktop version.
 - **iPhone and iPhone Duo too.** On a phone-width window (an iPhone either way up, the Duo folded, a narrow iPad window) the bar moves to the bottom, where a thumb reaches: the address with the page's menu beside it, and under it back, forward, the space, a new tab and the tabs; a swipe up on the bar shows the tabs as pictures of their pages. Such a window gets mobile sites, with Safari's iPhone user agent, touch scrolling and pinch zoom; a window at least 600 by 500 points (an iPad, the Duo unfolded) gets desktop sites. Request Desktop or Mobile Site in the command palette (⌃⌥⇧M) asks a site for the other version, and remembers.
 - **Desktop view on iPhone**, for a web app now and then: the page's menu lays the page out at an iPad Pro 13-inch's size and turns the screen into a trackpad, as Jump Desktop's trackpad mode does. One finger moves a cursor and the view follows it; a tap clicks, touch and hold drags, two fingers tap for the right button and move to scroll, a pinch zooms the view. A minimap at the top right shows the whole page, in colour where it shows and black and white elsewhere; a tap goes there and a drag moves it to another corner. The keyboard button types into what was clicked. The clicks are script events, which a few sites ignore, and Google's sign-in stays on plain touch.
@@ -118,14 +118,14 @@ Two places where the app does a little more than the list, because the list's ru
 
 ## Shortcuts
 
-Every shortcut of the browser's own is ⌃⌥, so ⌘, ⌥ and ⇧ stay the page's. They are listed in Settings and in the menu bar on iPadOS 26.
+The browser's own shortcuts are ⌃⌥, so ⌘, ⌥ and ⇧ stay the page's, but for the keys every browser keeps for itself and no page can count on: ⌘T, ⌘W, ⇧⌘T, ⌘N, ⇧⌘W and ⌃⇥ (the commands Chrome reserves from pages). They are listed in Settings and in the menu bar on iPadOS 26.
 
 | | |
 |---|---|
 | ⌃⌥K command palette | ⌃⌥L address |
-| ⌃⌥T new tab · ⌃⌥W close · ⌃⌥⇧T reopen | ⌃⌥← ⌃⌥→ previous, next tab · ⌃⌥1 to ⌃⌥9 a tab by place |
+| ⌘T new tab · ⌘W close · ⇧⌘T reopen | ⌃⇧⇥ ⌃⇥ previous, next tab · ⌃⌥1 to ⌃⌥9 a tab by place |
 | ⌃⌥[ ⌃⌥] back, forward · ⌃⌥R reload · ⌃⌥. stop | ⌃⌥↑ ⌃⌥↓ previous, next space · ⌃⌥⇧N new space |
-| ⌃⌥N new window · ⌃⌥⇧W close window | ⌃⌥B tab bar · ⌃⌥D diagnostics · ⌃⌥P keys back to the page · ⌃⌥, settings |
+| ⌘N new window · ⇧⌘W close window | ⌃⌥B tab bar · ⌃⌥D diagnostics · ⌃⌥P keys back to the page · ⌃⌥, settings |
 
 With VoiceOver on, ⌃⌥ is VoiceOver's key; use the palette.
 

@@ -8,7 +8,10 @@ import UIKit
 @MainActor
 final class PaletteModel: ObservableObject {
     @Published var query = "" {
-        didSet { selection = 0 }
+        // Only when it changed: Return writes the field's text back as it
+        // sends it (TypingField), and that put the first row back in place of
+        // the one chosen with the arrows.
+        didSet { if query != oldValue { selection = 0 } }
     }
     @Published var selection = 0
     private let window: WindowModel

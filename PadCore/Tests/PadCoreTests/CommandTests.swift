@@ -2,20 +2,32 @@ import XCTest
 @testable import PadCore
 
 final class ShortcutTests: XCTestCase {
-    func testEveryChordIsControlOptionAndNamesOneCommand() {
+    /// ⌃⌥ for every command but the few on keys every browser keeps for itself.
+    func testEveryChordIsControlOptionButTheBrowsersOwnAndNamesOneCommand() {
         XCTAssertTrue(Shortcuts.isUnambiguous)
         for command in Command.allCases {
             let chord = Shortcuts.chord(for: command)
             XCTAssertNotNil(chord, command.rawValue)
-            XCTAssertTrue(chord?.label.hasPrefix("⌃⌥") ?? false)
+            XCTAssertEqual(chord?.base == .controlOption, !Shortcuts.reserved.contains(command), command.rawValue)
         }
     }
 
     func testLabels() {
         XCTAssertEqual(Shortcuts.chord(for: .palette)?.label, "⌃⌥K")
-        XCTAssertEqual(Shortcuts.chord(for: .reopenTab)?.label, "⌃⌥⇧T")
-        XCTAssertEqual(Shortcuts.chord(for: .nextTab)?.label, "⌃⌥→")
+        XCTAssertEqual(Shortcuts.chord(for: .newSpace)?.label, "⌃⌥⇧N")
+        XCTAssertEqual(Shortcuts.chord(for: .nextSpace)?.label, "⌃⌥↓")
         XCTAssertEqual(Shortcuts.tabNumbers.first?.label, "⌃⌥1")
+    }
+
+    /// The browser's own keys, as Chrome and Safari have them, in Apple's order.
+    func testBrowsersOwnKeys() {
+        XCTAssertEqual(Shortcuts.chord(for: .newTab)?.label, "⌘T")
+        XCTAssertEqual(Shortcuts.chord(for: .reopenTab)?.label, "⇧⌘T")
+        XCTAssertEqual(Shortcuts.chord(for: .closeTab)?.label, "⌘W")
+        XCTAssertEqual(Shortcuts.chord(for: .newWindow)?.label, "⌘N")
+        XCTAssertEqual(Shortcuts.chord(for: .closeWindow)?.label, "⇧⌘W")
+        XCTAssertEqual(Shortcuts.chord(for: .nextTab)?.label, "⌃⇥")
+        XCTAssertEqual(Shortcuts.chord(for: .previousTab)?.label, "⌃⇧⇥")
     }
 
     func testEveryCommandHasATitle() {
