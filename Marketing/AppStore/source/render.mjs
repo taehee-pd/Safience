@@ -23,6 +23,9 @@ for (const f of frames) {
     'shown', Math.round(100 * Math.min(1, (h - r[2]) / r[1])) + '%', 'below', Math.round(h - r[3]) + 'px');
   const file = folder(out) + f.name + '.png';
   await page.screenshot({ path: file });
+  // Opaque: App Store Connect rejects a screenshot with any transparency, and a pixel on
+  // the device's edge can come out of the compositor a shade short of it.
+  execFileSync('python3', ['-c', "import sys; from PIL import Image; Image.open(sys.argv[1]).convert('RGB').save(sys.argv[1])", file]);
   // Smaller iPhones: the same picture scaled, as Apple's sizes are within a pixel of one shape.
   for (const a of also) execFileSync('sips', ['-z', String(a.h), String(a.w), file, '--out', folder(a.out) + f.name + '.png'], { stdio: 'ignore' });
 }
