@@ -1,0 +1,9 @@
+{
+ "w": 1398, "h": 2034, "out": "iPhone-Duo-outer",
+ "params": {"sw": "1060", "sr": "1398/2034", "rad": "0.10", "bezel": "22", "top": "360", "ct": "120", "cs": "72", "cp": "90"},
+ "frames": [
+  {"name": "01-folded", "params": {"s": "Folded, the bar sits<br>under your thumb.", "img": "raw-duo/outer-6-notes.png", "ring": "820,260,900"}},
+  {"name": "02-spaces", "params": {"s": "Every space keeps its own<br>sign-ins, colour and bookmarks.", "img": "raw-duo/outer-3-client.png", "ring": "-360,330,900"}},
+  {"name": "03-bookmarks", "params": {"s": "Bookmarks for every space,<br>synced through iCloud.", "img": "raw-duo/outer-5-start.png", "ring": "820,560,900"}}
+ ]
+}

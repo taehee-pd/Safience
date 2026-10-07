@@ -755,18 +755,31 @@ private struct TabSurface: ViewModifier {
 /// The address as it reads when nobody is typing; a tap types a new one.
 private struct AddressSummary: View {
     @ObservedObject var window: WindowModel
+    /// What the page is called rather than where it is, as Settings › The
+    /// tab you are on shows has it; never on a sign-in page (showsAddress).
+    var titled = false
     let act: (BarAction) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
-            SecurityIcon(window: window)
+            // A page's title carries no warning, as the iPad's tab doesn't:
+            // the address does, and every sign-in page shows its address.
+            SecurityIcon(window: window, warns: !(titled && !window.title.isEmpty))
                 .frame(width: TabFace.slot, height: Metrics.control)
                 .padding(.leading, TabFace.lead)
-            AddressLine(url: window.url)
-                .font(.system(size: 13))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.leading, TabFace.gap)
+            Group {
+                if titled, window.url != nil, !window.title.isEmpty {
+                    Text(window.title)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Palette.ink)
+                } else {
+                    AddressLine(url: window.url)
+                }
+            }
+            .font(.system(size: 13))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.leading, TabFace.gap)
             Spacer(minLength: 0)
         }
         .frame(maxHeight: .infinity)
@@ -784,9 +797,10 @@ private struct AddressSummary: View {
 /// over a connection anyone on the way can read.
 private struct SecurityIcon: View {
     @ObservedObject var window: WindowModel
+    var warns = true
 
     var body: some View {
-        if window.insecure {
+        if warns && window.insecure {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.unsafe)
@@ -1097,7 +1111,8 @@ struct AddressCapsule: View {
                     .transition(.opacity)
             } else {
                 HStack(spacing: 2) {
-                    AddressSummary(window: window, act: act)
+                    // On a phone, the bar's address follows the setting the iPad's tab does.
+                    AddressSummary(window: window, titled: window.phone && !window.showsAddress, act: act)
                     if window.signIn { SignInBadge() }
                     if window.url != nil { BookmarkStar(window: window, act: act) }
                     ReloadButton(window: window, act: act)
