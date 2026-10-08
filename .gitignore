@@ -21,3 +21,4 @@ Marketing/AppStore/source/bezels/
 
 # App Store Connect API keys never belong here; the one in use lives in ~/.appstoreconnect/private_keys.
 *.p8
+__pycache__/
