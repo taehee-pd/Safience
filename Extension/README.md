@@ -11,6 +11,8 @@ A Chrome extension that pairs a Chrome profile with a space in Safience, through
 
 It runs in Chrome, Edge, Brave, Vivaldi, Opera and other Chromium browsers. Chrome runs one copy per profile, and each pairs with a space of its own.
 
+In Dia and Arc, pinned tabs don't sync. Those browsers keep their pinned tabs in a tab model of their own, outside Chromium's tab strip, so an extension sees none of them pinned (`chrome.tabs` reports `pinned: false`) and can't pin one there. Bookmarks and open tabs sync as in any other Chromium browser.
+
 ## How it works
 
 The app and the extension read and write the same records in the user's private CloudKit database, container `iCloud.net.taehee.safience`, zone `Sync`:
