@@ -32,6 +32,7 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Changed
 
+- Diagnostics' cursor line also says where the cursor's place comes from (a press, the hover recognizer, or off the page), how long ago the hover recognizer last spoke, and its state: a page cursor that stops moving can then be told from a page that stopped answering.
 - The iPhone's desktop view and the new tab's start page run on under the bar as other pages do, so the bar's blur is over the page rather than a grey strip: the desktop view's cursor and view, and the start page's tiles, keep above the bar, and past the desktop's edge is the page's own colour.
 - A desktop-view tab's picture in the tab overview is the part of the page that showed; a picture wider than a card fills its height and is cut at the side, never stretched.
 - On iPhone, nothing is offered that does nothing there: Show or Hide Tab Bar, Split or Separate Tabs, Give Keys Back to the Page and Request Desktop or Mobile Site leave the palette, the palette shows no keyboard shortcuts (none work on iPhone), what the app says names the iPhone rather than the iPad, and the diagnostics panel sits above the bar.

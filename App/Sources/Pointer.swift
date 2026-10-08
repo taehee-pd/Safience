@@ -266,20 +266,37 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         .hidden()
     }
 
-    /// For Diagnostics.
+    /// For Diagnostics: the cursor, and where its place comes from (a press,
+    /// the hover recognizer, or nowhere) with how long ago the hover
+    /// recognizer last spoke, which tells a frozen picture apart from a
+    /// frozen page.
     var cursorSummary: String {
+        let shape: String
         switch pageCursor {
         case .system:
-            return "the system's"
+            shape = "the system's"
         case .keyword(let name):
-            return "the system's (\(name))"
+            shape = "the system's (\(name))"
         case .hidden:
-            return "none, the pointer hidden"
+            shape = "none, the pointer hidden"
         case .image(let image):
-            guard let picture = pictures[image.id] else { return "the system's (picture missing)" }
-            let size = "\(Int(picture.size.width))×\(Int(picture.size.height)) at \(Int(picture.hotspot.x)),\(Int(picture.hotspot.y))"
-            return "the page's, \(size)\(hiding ? "" : ", pointer elsewhere")"
+            if let picture = pictures[image.id] {
+                let size = "\(Int(picture.size.width))×\(Int(picture.size.height)) at \(Int(picture.hotspot.x)),\(Int(picture.hotspot.y))"
+                shape = "the page's, \(size)\(hiding ? "" : ", pointer elsewhere")"
+            } else {
+                shape = "the system's (picture missing)"
+            }
         }
+        let place: String
+        if let pressed {
+            place = "pressed at \(Int(pressed.x)),\(Int(pressed.y))"
+        } else if let cursor {
+            place = "hover at \(Int(cursor.x)),\(Int(cursor.y))"
+        } else {
+            place = "off the page"
+        }
+        let ago = lastHover == 0 ? "never" : String(format: "%.1f s ago", CACurrentMediaTime() - lastHover)
+        return "\(shape); \(place), hover \(ago), \(hover.state.rawValue)"
     }
 
     private func place(of recognizer: UIGestureRecognizer) -> CGPoint {
