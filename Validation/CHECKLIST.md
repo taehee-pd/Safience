@@ -126,6 +126,8 @@ On a build signed with it (README › With Apple's browser entitlement).
 - [ ] The star adds and takes away the page; a bookmark's menu opens it in a new tab or deletes it; ⌃⌥K finds bookmarks by name.
 - [ ] Space Settings changes the name, colour and icon at once in the bar; Settings › Spaces › Edit reorders, and ⌃⌥↑ ⌃⌥↓ follow the new order.
 
+- [ ] Settings › App icon: choosing Diazo changes the Home Screen icon after the system's notice; choosing Redline puts the app's own back.
+
 ## 8. iPhone, iPhone Duo, iCloud
 
 - [ ] On an iPhone, the bars are at the bottom: back and forward, the address, the tabs (with their count), the space, + and the menu. Tapping the address types a new one, the address selected, with the bar above the keyboard; Return goes.

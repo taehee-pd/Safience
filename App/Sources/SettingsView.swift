@@ -24,6 +24,8 @@ struct SettingsView: View {
 
                 CloudSection(session: session)
 
+                AppIconSection()
+
                 if phone {
                     Section {
                         VStack(alignment: .leading, spacing: 6) {
@@ -240,5 +242,77 @@ private struct BlockingSection: View {
         text += "A site's menu can allow them on that site. Sign-in pages are never touched."
         if session.preferences.blocksContent { text += " \(blocker.summary)." }
         return text
+    }
+}
+
+/// The Home Screen icon: Redline, the app's own, or one of the alternates the
+/// asset catalog compiles in (ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in
+/// the project). The system keeps the choice, so nothing here stores it; each
+/// preview is that icon rendered in light and dark, so it matches the screen.
+private struct AppIconSection: View {
+    private struct Choice: Identifiable {
+        /// The alternate's name, as the project lists it; nil is the app's own icon.
+        let name: String?
+        let title: String
+        var id: String { title }
+    }
+
+    private static let choices = [Choice(name: nil, title: "Redline")]
+        + ["Diazo", "Engineer", "Signal", "Lilac", "Oxide", "Citrus", "Midnight"].map { Choice(name: $0, title: $0) }
+
+    @State private var current = UIApplication.shared.alternateIconName
+    @State private var failure: String?
+
+    var body: some View {
+        if UIApplication.shared.supportsAlternateIcons {
+            Section {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 12)], spacing: 16) {
+                    ForEach(Self.choices) { choice in
+                        let chosen = choice.name == current
+                        Button { choose(choice) } label: {
+                            VStack(spacing: 6) {
+                                Image("IconPreview\(choice.title)")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 60, height: 60)
+                                    .padding(4)
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .strokeBorder(chosen ? Color.accentColor : .clear, lineWidth: 2.5)
+                                    }
+                                Text(choice.title)
+                                    .font(.caption)
+                                    .foregroundStyle(chosen ? .primary : .secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(choice.title)
+                        .accessibilityAddTraits(chosen ? .isSelected : [])
+                    }
+                }
+                .padding(.vertical, 6)
+            } header: {
+                Text("App icon")
+            } footer: {
+                Text(failure ?? "Redline is Safience's own. The others are the same drawing on other papers and inks. The system says once that the icon changed.")
+            }
+        }
+    }
+
+    private func choose(_ choice: Choice) {
+        guard choice.name != current else { return }
+        // The ring moves at the tap; the system's own notice comes after.
+        let previous = current
+        current = choice.name
+        Task { @MainActor in
+            do {
+                try await UIApplication.shared.setAlternateIconName(choice.name)
+                failure = nil
+            } catch {
+                // The system refused (it does while the app is not in front, or when it is busy): say so, put the ring back.
+                current = previous
+                failure = "The icon couldn't change: \(error.localizedDescription)"
+            }
+        }
     }
 }

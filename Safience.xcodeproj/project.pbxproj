@@ -34,6 +34,13 @@
 		99D1C135FEB8AB5A736201C8 /* Bars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310BD6F1447DB8F94292DAF8 /* Bars.swift */; };
 		A85CD2814BD93FDD51B9A59D /* PadCore in Frameworks */ = {isa = PBXBuildFile; productRef = B6824DF218F1DEC5DB41FC8E /* PadCore */; };
 		A8F9425B2A6CE470488C51A6 /* Safience.icon in Resources */ = {isa = PBXBuildFile; fileRef = A5830B26128EEF110ED7570D /* Safience.icon */; };
+		B5C8922C33794CC657059443 /* Citrus.icon in Resources */ = {isa = PBXBuildFile; fileRef = C0DEEE4D0C7053CBD14CF9E4 /* Citrus.icon */; };
+		50087614163573C3C756F051 /* Diazo.icon in Resources */ = {isa = PBXBuildFile; fileRef = 82A928993A24581193F901A6 /* Diazo.icon */; };
+		D2B1608D087F437653625702 /* Engineer.icon in Resources */ = {isa = PBXBuildFile; fileRef = 816815E15D2BE89B0FFDCB57 /* Engineer.icon */; };
+		C19595755649522D37246B2D /* Lilac.icon in Resources */ = {isa = PBXBuildFile; fileRef = 015399B1A2DBFA9DF9416DB3 /* Lilac.icon */; };
+		61442635DED363F7F2B9DEC2 /* Midnight.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1312E2EB6A684DD5C32C458D /* Midnight.icon */; };
+		042D04A5238ACC6F1270A1F2 /* Oxide.icon in Resources */ = {isa = PBXBuildFile; fileRef = F50657FFB790AD7893F2C6B7 /* Oxide.icon */; };
+		179C9833EC51F70B6CD65782 /* Signal.icon in Resources */ = {isa = PBXBuildFile; fileRef = 70B7A161FFFE4EA078927997 /* Signal.icon */; };
 		B29000F2CB7FBA70A95528B3 /* DefaultBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A692F505F9CB22A005F6972A /* DefaultBrowser.swift */; };
 		B6BC6731F7D0A7A4D6A10A75 /* Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C853B222D6041EF25DDE463 /* Spaces.swift */; };
 		CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB06E275F05C5DC35F5F409 /* Dialogs.swift */; };
@@ -72,6 +79,13 @@
 		9A825AD3F237E75FE4112E0F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A5830B26128EEF110ED7570D /* Safience.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Safience.icon; sourceTree = "<group>"; };
+		C0DEEE4D0C7053CBD14CF9E4 /* Citrus.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Citrus.icon; sourceTree = "<group>"; };
+		82A928993A24581193F901A6 /* Diazo.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Diazo.icon; sourceTree = "<group>"; };
+		816815E15D2BE89B0FFDCB57 /* Engineer.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Engineer.icon; sourceTree = "<group>"; };
+		015399B1A2DBFA9DF9416DB3 /* Lilac.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Lilac.icon; sourceTree = "<group>"; };
+		1312E2EB6A684DD5C32C458D /* Midnight.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Midnight.icon; sourceTree = "<group>"; };
+		F50657FFB790AD7893F2C6B7 /* Oxide.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Oxide.icon; sourceTree = "<group>"; };
+		70B7A161FFFE4EA078927997 /* Signal.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Signal.icon; sourceTree = "<group>"; };
 		A692F505F9CB22A005F6972A /* DefaultBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultBrowser.swift; sourceTree = "<group>"; };
 		AA24A05C238565C89C5709DE /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		B0CA17A85BD10AD3C830C4F9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -176,6 +190,13 @@
 				2983A3132591D10150B7EDE6 /* Info.plist */,
 				9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */,
 				A5830B26128EEF110ED7570D /* Safience.icon */,
+				C0DEEE4D0C7053CBD14CF9E4 /* Citrus.icon */,
+				82A928993A24581193F901A6 /* Diazo.icon */,
+				816815E15D2BE89B0FFDCB57 /* Engineer.icon */,
+				015399B1A2DBFA9DF9416DB3 /* Lilac.icon */,
+				1312E2EB6A684DD5C32C458D /* Midnight.icon */,
+				F50657FFB790AD7893F2C6B7 /* Oxide.icon */,
+				70B7A161FFFE4EA078927997 /* Signal.icon */,
 				858BA53CA1824B50F80E165E /* Sources */,
 			);
 			path = App;
@@ -249,6 +270,13 @@
 				1449E23068B46A41BE868E4C /* Assets.xcassets in Resources */,
 				7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */,
 				A8F9425B2A6CE470488C51A6 /* Safience.icon in Resources */,
+				B5C8922C33794CC657059443 /* Citrus.icon in Resources */,
+				50087614163573C3C756F051 /* Diazo.icon in Resources */,
+				D2B1608D087F437653625702 /* Engineer.icon in Resources */,
+				C19595755649522D37246B2D /* Lilac.icon in Resources */,
+				61442635DED363F7F2B9DEC2 /* Midnight.icon in Resources */,
+				042D04A5238ACC6F1270A1F2 /* Oxide.icon in Resources */,
+				179C9833EC51F70B6CD65782 /* Signal.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,6 +329,7 @@
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Safience;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "Citrus Diazo Engineer Lilac Midnight Oxide Signal";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;
@@ -446,6 +475,7 @@
 			baseConfigurationReference = B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Safience;
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "Citrus Diazo Engineer Lilac Midnight Oxide Signal";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				ENABLE_PREVIEWS = NO;
