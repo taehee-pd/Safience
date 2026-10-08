@@ -15,8 +15,9 @@ let package = Package(
         .target(
             name: "PadCore",
             // The scripts and the stylesheet that go into pages, as files of
-            // their own so Tests/bridge.html can load the very same ones.
-            resources: [.copy("Scripts")]
+            // their own so Tests/bridge.html can load the very same ones; and
+            // the filter lists the app ships with (ContentBlocking.swift).
+            resources: [.copy("Scripts"), .copy("Filters")]
         ),
         .testTarget(
             name: "PadCoreTests",

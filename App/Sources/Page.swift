@@ -13,6 +13,9 @@ protocol PageHost: AnyObject {
     /// for the new page to keep its tie to the one that opened it.
     func page(_ page: Page, open configuration: WKWebViewConfiguration, for action: WKNavigationAction,
               features: WKWindowFeatures) -> WKWebView?
+    /// A ⌘-click's address, for a tab of its own (NewTabClick); false where
+    /// there are no tabs, and the page goes there itself.
+    func page(_ page: Page, openInNewTab url: URL, inFront: Bool) -> Bool
     func pageDidClose(_ page: Page)
     /// Somewhere to show an alert, a sign-in prompt or a save sheet.
     var presenter: UIViewController? { get }
@@ -42,6 +45,14 @@ final class Page: NSObject {
     /// The scripts installed for the next document: an adapter's id and its
     /// settings, "hands-off", or nil before the first page.
     private var installed: String?
+    /// The content blocker's lists on this page, by identifier: none on a
+    /// hands-off page, or where Settings or the site's switch turns it off.
+    private var blocking: [String] = []
+    /// The app itself is loading the page (an address typed, a reload): no
+    /// click of the page's asked for it, whatever the pointer last did. True
+    /// from the start: a page WebKit opens for a link loads it in place,
+    /// though that load carries the ⌘ of the click that opened it.
+    private var ownLoad = true
     private(set) var committed: URL?
     /// Desktop or mobile site, chosen for each page as it loads (SiteMode).
     private(set) var mode: SiteMode = .desktop
@@ -184,6 +195,8 @@ final class Page: NSObject {
         pointer = nil
         zoom = nil
         controller.removeAllUserScripts()
+        controller.removeAllContentRuleLists()
+        blocking = []
         controller.removeScriptMessageHandler(forName: Page.handlerName, contentWorld: Page.world)
         view.stopLoading()
         view.navigationDelegate = nil
@@ -198,6 +211,7 @@ final class Page: NSObject {
     func load(_ url: URL) {
         failure = nil
         exhausted = false
+        ownLoad = true
         view.load(URLRequest(url: url))
     }
 
@@ -207,6 +221,7 @@ final class Page: NSObject {
         failure = nil
         exhausted = false
         if byHand { crashes.reset() }
+        ownLoad = true
         if view.url == nil, let url = committed ?? Session.shared.workspace.tab(tab)?.url {
             view.load(URLRequest(url: url))
         } else {
@@ -241,6 +256,7 @@ final class Page: NSObject {
     /// decisions, so the document starts with the right ones.
     private func prepare(for url: URL?) {
         let handsOff = HandsOff.covers(url)
+        applyBlocking(for: url)
         adapter = Adapters.adapter(for: url)
         bridges = Session.shared.preferences.bridges(for: adapter)
         if handsOff {
@@ -264,6 +280,57 @@ final class Page: NSObject {
             controller.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart,
                                                   forMainFrameOnly: true, in: .page))
         }
+    }
+
+    /// Whether a navigation is a ⌘-click (or ⌘⇧, or a middle click) to open
+    /// in a new tab (NewTabClick). WebKit says which keys and button made it
+    /// from iPadOS 18.4; the pointer's own last press, a second ago at most,
+    /// says it before then, and for a button whose script goes somewhere,
+    /// which WebKit gives no keys for.
+    func newTabChoice(for action: WKNavigationAction) -> NewTabClick.Choice {
+        var flags: UIKeyModifierFlags = []
+        var middle = false
+        if #available(iOS 18.4, *) {
+            flags = action.modifierFlags
+            middle = action.buttonNumber.contains(.button(3))
+        }
+        if let press = pointer?.recentPress(within: 1) {
+            flags.formUnion(press.flags)
+            middle = middle || press.middle
+        }
+        let kind: NewTabClick.Kind
+        switch action.navigationType {
+        case .linkActivated: kind = .link
+        case .formSubmitted: kind = .form
+        case .other: kind = .script
+        default: kind = .history
+        }
+        return NewTabClick.choice(kind: kind, command: flags.contains(.command), shift: flags.contains(.shift),
+                                  middleButton: middle, method: action.request.httpMethod,
+                                  scheme: action.request.url?.scheme, mainFrame: action.targetFrame?.isMainFrame ?? true)
+    }
+
+    /// The content blocker's lists for a document at `url` (ContentBlocker):
+    /// WebKit blocks with them from the next load, nothing in the page. Never
+    /// on a hands-off host, where nothing of the app's may touch the page.
+    private func applyBlocking(for url: URL?) {
+        let on = !HandsOff.covers(url) && Session.shared.preferences.blocksContent(onHost: url?.host)
+        let lists = on ? ContentBlocker.shared.lists : []
+        let identifiers = lists.compactMap(\.identifier)
+        guard identifiers != blocking else { return }
+        controller.removeAllContentRuleLists()
+        for list in lists { controller.add(list) }
+        blocking = identifiers
+    }
+
+    /// Whether the page on screen has ads and trackers blocked, for its menus and Diagnostics.
+    var blocksContent: Bool {
+        !blocking.isEmpty
+    }
+
+    /// The content blocker has new lists: this page's next load has them.
+    func blockingChanged() {
+        applyBlocking(for: committed ?? view.url)
     }
 
     /// After Settings changed: the bridges at once, the scripts from the next page.
@@ -578,6 +645,18 @@ extension Page: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  preferences: WKWebpagePreferences,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
+        // ⌘-click: where it goes opens in a tab of its own, and this page stays.
+        var own = false
+        if navigationAction.targetFrame?.isMainFrame == true {
+            own = ownLoad
+            ownLoad = false
+        }
+        let click = own ? .here : newTabChoice(for: navigationAction)
+        if click != .here, let url = navigationAction.request.url,
+           host?.page(self, openInNewTab: url, inFront: click == .inFront) == true {
+            decisionHandler(.cancel, preferences)
+            return
+        }
         if navigationAction.targetFrame?.isMainFrame == true {
             let chosen = chooseMode(for: navigationAction.request.url)
             // The user agent goes with the request as it was made: a page
@@ -593,6 +672,7 @@ extension Page: WKNavigationDelegate {
                 // Without the old request's user agent, so WebKit puts in the new one.
                 var request = navigationAction.request
                 request.setValue(nil, forHTTPHeaderField: "User-Agent")
+                ownLoad = true
                 webView.load(request)
                 return
             }

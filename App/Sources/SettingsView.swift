@@ -132,6 +132,8 @@ struct SettingsView: View {
                     }
                 }
 
+                BlockingSection(session: session)
+
                 Section {
                     ForEach(Adapters.all + [Adapters.standard]) { adapter in
                         VStack(alignment: .leading, spacing: 2) {
@@ -208,5 +210,35 @@ struct SettingsView: View {
         if !bridges.keys.isEmpty { parts.append("keys: " + bridges.keys.map(\.rawValue).sorted().joined(separator: ", ")) }
         if !adapter.heavyPaths.isEmpty { parts.append("files are heavy") }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// Ads and trackers (ContentBlocker): on or off, the sites it is off for,
+/// and whose lists they are, as their licence asks.
+private struct BlockingSection: View {
+    @ObservedObject var session: Session
+    @ObservedObject private var blocker = ContentBlocker.shared
+
+    var body: some View {
+        Section {
+            Toggle("Block ads and trackers", isOn: $session.preferences.blocksContent)
+            if session.preferences.blocksContent && !session.preferences.unblockedSites.isEmpty {
+                let count = session.preferences.unblockedSites.count
+                Button("Block on All Sites Again (\(count) allowed)") {
+                    session.preferences.unblockedSites = []
+                }
+            }
+        } header: {
+            Text("Ads and trackers")
+        } footer: {
+            Text(footer)
+        }
+    }
+
+    private var footer: String {
+        var text = "Blocked by WebKit itself before they load, with \(ContentBlocking.credit). "
+        text += "A site's menu can allow them on that site. Sign-in pages are never touched."
+        if session.preferences.blocksContent { text += " \(blocker.summary)." }
+        return text
     }
 }

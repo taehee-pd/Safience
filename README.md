@@ -49,6 +49,7 @@ A team without the entitlement (a fork, a personal team) can't sign with it. It 
 | What | Where | Who can read it |
 |---|---|---|
 | Spaces, tabs and each space's bookmarks | `workspace.json` in the app's Application Support folder | You |
+| Ad-blocking lists | EasyList and EasyPrivacy as they shipped or as last downloaded, in `Filters/` in the app's Application Support folder, and WebKit's compiled rule lists | You |
 | Sites' icons | The app's Caches folder, one per site: the icon a page names, fetched by the app without cookies, or carried in a Chrome bookmarks file | You. iPadOS may clear it |
 | Pictures of frozen tabs, and what it takes to reopen them | The app's Caches folder; never for a sign-in page | You. iPadOS may clear it |
 | Cookies, sign-ins, site data | One WebKit store per space | The sites that set them |
@@ -86,6 +87,7 @@ The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
 | Default menus removed | Every top-level menu but the app menu and the Window menu removed in `buildMenu(with:)`. The Window menu, which iPadOS 26 shows in any case, keeps its items without their ⌘ keys and takes the window's commands; the app menu has Settings… and iPadOS's item for the Settings app | `Menus.swift` |
 | ⌘F for the page | `isFindInteractionEnabled = false` | `Page.setUp` |
 | Tab and arrows | Registered with `wantsPriorityOverSystemBehavior` and handed to the page as keydown and keyup: Tab on every site, since iPadOS 26's focus system keeps it from a page, the arrows when Settings or a site's adapter says so | `PageView.keyCommands`, `bridge.js key()` |
+| ⌘-click to a new tab | The keys and button of the click from `WKNavigationAction.modifierFlags` and `buttonNumber` (iPadOS 18.4 and later), or the pointer's own press a second before; a click that asks for a new tab is cancelled and its address opened in one after the tab on screen | `NewTabClick`, `Page.newTabChoice`, `Browser.page(_:openInNewTab:inFront:)` |
 | Focus back to the page | On `sceneDidBecomeActive` and `UIWindow.didBecomeKeyNotification`, and after the palette, the address bar or a sheet | `SceneDelegate`, `Browser.focusPage` |
 | Browser shortcuts on rare keys | Every one is ⌃⌥ (below) | `Shortcuts` in `Commands.swift` |
 | Address bar on sign-in pages | Shown on sign-in hosts, sign-in paths, OAuth requests and pages with a password field, whatever Settings says | `SignIn.swift`, `AddressVisibility` |
@@ -95,6 +97,7 @@ The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
 | Phone-width windows | `horizontalSizeClass == .compact` puts the bars at the bottom (`PhoneBar`), the tabs in a grid (`TabOverview`), and the bar above the keyboard while an address is typed | `PhoneBar.swift`, `Browser.refreshChrome` |
 | Desktop or mobile site | By the window's size, or the site's own choice; a page that changes mode is asked for again with the matching user agent | `SiteMode.swift`, `Page` navigation policy |
 | iCloud sync | CloudKit's private database through `CKSyncEngine`: a record per space, bookmark and pinned tab, one per device and space for its open tabs; joined by name when turned on, a mirror of iCloud's records kept to find what changed; the key-value store of earlier builds read once | `SyncModel.swift`, `Sync.swift` |
+| Ads and trackers | EasyList and EasyPrivacy turned into WebKit's content-blocker rules on the device and compiled into `WKContentRuleList`s, which `Page` attaches before each document, never on a hands-off host; the lists refresh from easylist.to when they expire. What WebKit's rules can't say exactly (alternatives in patterns, "on this site but not that", procedural selectors, scriptlets, `$redirect`, `$csp`) is left out, and the converter's tests compile the shipped lists with WebKit | `ContentBlocking.swift`, `ContentBlocker.swift`, `Page.applyBlocking` |
 | Chrome extension | Manifest V3; CloudKit Web Services with Apple's sign-in; the same records and rules as the app | `Extension/` |
 | Default browser | `http` and `https` in `Info.plist`, the entitlement, links opened in a new tab; Settings shows `UIApplication.isDefault(.webBrowser)` and opens Default Apps | `DefaultBrowser.swift`, `AppDelegate.swift` |
 | Add to Home Screen | The web view in the share sheet's items | `Browser.sharePage` |

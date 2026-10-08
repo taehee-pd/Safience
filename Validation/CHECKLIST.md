@@ -16,6 +16,7 @@ The panel's lines:
 | 6 | The wheel bridge mode, keys sent to the page, keys relayed, whether the focus is in a text field |
 | 7 | Live and frozen tabs, and how many times this page's process ended |
 | 8 | The cursor: the page's own picture (its size and hotspot), none, or the system's pointer |
+| 9 | Ad blocking: on or off for this page, and the lists' rule count and dates |
 
 ## 1. Figma zooms on a synthetic ctrl+wheel (Mac Safari)
 
@@ -47,6 +48,7 @@ Open a design file in Safience, with a Magic Keyboard or a trackpad.
 - [ ] While dragging a layer, the cursor follows the pointer without jumping; after letting go, it doesn't blink to the iPad's pointer.
 - [ ] With Settings › Show pages' own cursors off, the iPad's pointer is back everywhere.
 - [ ] A secondary click (two-finger click) shows Figma's menu, and only Figma's.
+- [ ] ⌘-click on a layer selects it and opens no tab.
 - [ ] ⌘Z and ⇧⌘Z undo and redo in Figma. ⌘C, ⌘V copy and paste layers. ⌘F opens Figma's own find. ⌘D duplicates.
 - [ ] Arrow keys nudge a selected layer; ⇧ and an arrow nudge by 10. Tab selects the next layer. If either doesn't reach Figma, turn on Settings › Tab and arrow keys › Send to the page first, and check again; note which setting works.
 - [ ] Two fingers swiping sideways never goes back a page.
@@ -133,3 +135,22 @@ On a build signed with it (README › With Apple's browser entitlement).
 - [ ] On an iPhone Duo: folded, the bars are at the bottom and sites are mobile; unfolded, the iPad's row comes back and sites load as desktop on the next page. Folding mid-typing leaves the address as it was.
 - [ ] Settings › iCloud › Sync Spaces and Bookmarks on two devices with the same account: a space of the same name joins with both devices' bookmarks; a bookmark added on one shows on the other within a minute; a space removed on one goes on the other; tabs and sign-ins don't move.
 - [ ] Signed out of iCloud, Settings says to sign in.
+
+## 9. ⌘-click
+
+On any site with links (a news site, GitHub), with the trackpad:
+
+- [ ] ⌘-click on a link opens it in a new tab after the one on screen, which stays as it was. Two more ⌘-clicks put their tabs after the first, in order.
+- [ ] ⌘⇧-click on a link opens it and goes to it.
+- [ ] With a mouse, the middle button opens the link behind.
+- [ ] A link that opens a new window by itself (Slack's, Notion's) opens behind with ⌘ and in front without it.
+- [ ] ⌘-click on a search button (Google's, Wikipedia's) opens the results in a new tab; ⌘-click on a form that sends something (a comment's Post) sends it once, in place.
+- [ ] A plain click on a link still goes there in place.
+
+## 10. Ads and trackers
+
+- [ ] A news site with ads (a newspaper's home page) shows no ad slots, and loads no Google Tag Manager or Analytics (Web Inspector's Network tab, or line 9 of Diagnostics says "on here").
+- [ ] Menu › Allow Ads on This Site loads it again with its ads; Block Ads on This Site takes them away again; the choice stays for the site after a relaunch.
+- [ ] accounts.google.com: line 9 says "off here", and line 1 "hands-off, nothing injected".
+- [ ] Settings › Ads and trackers off: ads come back on every site from the next page; on again, they go.
+- [ ] After four days with the app opened, Settings shows lists dated within the last week.

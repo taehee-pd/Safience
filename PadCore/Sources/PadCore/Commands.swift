@@ -30,6 +30,7 @@ public enum Command: String, CaseIterable, Sendable {
     case siteMode
     case spaceSettings
     case importBookmarks
+    case contentBlocking
 
     public var title: String {
         switch self {
@@ -60,6 +61,7 @@ public enum Command: String, CaseIterable, Sendable {
         case .siteMode: return "Request Desktop or Mobile Site"
         case .spaceSettings: return "Space Settings"
         case .importBookmarks: return "Import Bookmarks"
+        case .contentBlocking: return "Block or Allow Ads on This Site"
         }
     }
 
@@ -90,6 +92,7 @@ public enum Command: String, CaseIterable, Sendable {
         case .siteMode: return ["desktop site", "mobile site", "user agent", "phone"]
         case .spaceSettings: return ["profile", "colour", "color", "icon", "rename"]
         case .importBookmarks: return ["chrome", "safari", "html", "favorites"]
+        case .contentBlocking: return ["ad blocker", "adblock", "trackers", "content blocker", "easylist", "turn off", "allow ads"]
         }
     }
 }
@@ -175,6 +178,7 @@ public enum Shortcuts {
         .siteMode: Chord(.character("m"), shift: true),
         .spaceSettings: Chord(.character("s"), shift: true),
         .importBookmarks: Chord(.character("i"), shift: true),
+        .contentBlocking: Chord(.character("a"), shift: true),
     ]
 
     public static func chord(for command: Command) -> Chord? {

@@ -188,6 +188,10 @@ struct PageItems: View {
             Button(window.bookmarked ? "Remove Bookmark" : "Bookmark This Page",
                    systemImage: window.bookmarked ? "star.slash" : "star") { act(.toggleBookmark) }
         }
+        if let blocking = window.blocking {
+            Button(blocking ? "Allow Ads on This Site" : "Block Ads on This Site",
+                   systemImage: blocking ? "shield.slash" : "shield") { act(.command(.contentBlocking)) }
+        }
     }
 }
 

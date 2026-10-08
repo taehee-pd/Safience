@@ -21,6 +21,22 @@ final class PreferencesTests: XCTestCase {
         XCTAssertFalse(preferences.tabBar)
     }
 
+    func testAdsAreBlockedUnlessTurnedOffForASite() throws {
+        var preferences = try JSONDecoder().decode(Preferences.self, from: Data(#"{"address":"automatic"}"#.utf8))
+        XCTAssertTrue(preferences.blocksContent, "settings saved before blocking came keep it on")
+        XCTAssertTrue(preferences.blocksContent(onHost: "www.news.test"))
+        preferences.setBlocksContent(false, onHost: "www.news.test")
+        XCTAssertEqual(preferences.unblockedSites, ["news.test"])
+        XCTAssertFalse(preferences.blocksContent(onHost: "news.test"), "www. or not, the same site")
+        XCTAssertTrue(preferences.blocksContent(onHost: "other.test"))
+        let saved = try JSONDecoder().decode(Preferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertEqual(saved.unblockedSites, ["news.test"])
+        preferences.setBlocksContent(true, onHost: "news.test")
+        XCTAssertEqual(preferences.unblockedSites, [])
+        preferences.blocksContent = false
+        XCTAssertFalse(preferences.blocksContent(onHost: "other.test"))
+    }
+
     func testTheTabBarIsCompactByDefault() throws {
         XCTAssertEqual(Preferences().layout, .compact)
         XCTAssertEqual(try JSONDecoder().decode(Preferences.self, from: Data(#"{"address":"automatic"}"#.utf8)).layout, .compact)

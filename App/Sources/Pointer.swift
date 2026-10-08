@@ -29,6 +29,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     private let pinch: UIPinchGestureRecognizer
     private let scroll: UIPanGestureRecognizer
     private let press: PressWatcher
+    private let keys: PressKeys
 
     /// Where the cursor last was over the page, in the page view's points.
     private(set) var cursor: CGPoint?
@@ -65,6 +66,11 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     /// recognizer doesn't follow; and when the hover recognizer last did.
     private var pressed: CGPoint?
     private var lastHover: CFTimeInterval = 0
+    /// The last press on the page: when, the keys held, and whether it was a
+    /// mouse's middle button. What a click asks for (NewTabClick) where
+    /// WebKit doesn't say: before iPadOS 18.4, and for a button whose own
+    /// script goes somewhere.
+    private var lastPress: (time: CFTimeInterval, flags: UIKeyModifierFlags, middle: Bool)?
 
     init(page: Page) {
         self.page = page
@@ -72,6 +78,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         pinch = UIPinchGestureRecognizer()
         scroll = UIPanGestureRecognizer()
         press = PressWatcher()
+        keys = PressKeys()
         super.init()
         hover.addTarget(self, action: #selector(hovered(_:)))
         pinch.addTarget(self, action: #selector(pinched(_:)))
@@ -79,6 +86,9 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         let pointer = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         press.allowedTouchTypes = pointer
         press.moved = { [weak self] point in self?.pressMoved(point) }
+        keys.began = { [weak self] flags, buttons in
+            self?.lastPress = (CACurrentMediaTime(), flags, buttons.contains(.button(3)))
+        }
         pinch.allowedTouchTypes = pointer
         // Scroll events, from a trackpad or a mouse wheel. Fingers on the
         // glass never reach it; a click-drag with the pointer does, and is
@@ -86,7 +96,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         // doesn't. Either stays the page's.
         scroll.allowedScrollTypesMask = .all
         scroll.allowedTouchTypes = pointer
-        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press, keys] as [UIGestureRecognizer] {
             recognizer.delegate = self
             recognizer.cancelsTouchesInView = false
             recognizer.delaysTouchesBegan = false
@@ -106,7 +116,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
 
     func stop() {
         stopGlide()
-        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press, keys] as [UIGestureRecognizer] {
             recognizer.view?.removeGestureRecognizer(recognizer)
         }
         hideSystemPointer(false)
@@ -152,6 +162,12 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
             }
         }
         updateCursor()
+    }
+
+    /// The keys held and the middle button for a press within `seconds`, if one was.
+    func recentPress(within seconds: CFTimeInterval) -> (flags: UIKeyModifierFlags, middle: Bool)? {
+        guard let lastPress, CACurrentMediaTime() - lastPress.time < seconds else { return nil }
+        return (lastPress.flags, lastPress.middle)
     }
 
     // MARK: The page's own cursor
@@ -455,6 +471,18 @@ private final class PressWatcher: UIGestureRecognizer {
 
     private func report(_ touches: Set<UITouch>) {
         if let touch = touches.first { moved?(touch.location(in: view)) }
+    }
+}
+
+/// Tells the keys held and the buttons down at every press on the page, a
+/// finger's as well as the pointer's, so a tap after a ⌘-click isn't
+/// taken for one; then stands aside for the rest of the touch.
+private final class PressKeys: UIGestureRecognizer {
+    var began: ((UIKeyModifierFlags, UIEvent.ButtonMask) -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        began?(event.modifierFlags, event.buttonMask)
+        state = .failed
     }
 }
 

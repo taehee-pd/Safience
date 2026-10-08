@@ -38,6 +38,10 @@ final class WindowModel: ObservableObject {
     /// The page is in the iPhone's desktop view (DesktopPad), or could be.
     @Published var desktopView = false
     @Published var canDesktopView = false
+    /// Ads and trackers blocked on the page on screen: true or false where
+    /// its site's switch applies, nil where it doesn't (no page, a hands-off
+    /// page, blocking off in Settings).
+    @Published var blocking: Bool?
 
     init(spaceID: UUID) {
         self.spaceID = spaceID
@@ -97,6 +101,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var phoneHeight: NSLayoutConstraint?
     /// The cursor and the trackpad over a page in the iPhone's desktop view.
     private var desktopPad: DesktopPad?
+    /// The last tab a ⌘-click opened behind, and the tab it came from.
+    private var openedBehind: (from: UUID, opened: UUID)?
     private weak var barSwipe: BarSwipe?
     /// The phone's tabs, while they show or the bar is turning into them.
     private var tabSheet: TabSheet?
@@ -385,6 +391,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         start?.view.isHidden = !(page != nil && model.url == nil)
         let bookmarked = url.flatMap { session.workspace.bookmark(for: $0, in: model.spaceID) } != nil
         if model.bookmarked != bookmarked { model.bookmarked = bookmarked }
+        var blocking: Bool?
+        if let host = url?.host, let page, !page.isHandsOff, preferences.blocksContent {
+            blocking = preferences.blocksContent(onHost: host)
+        }
+        if model.blocking != blocking { model.blocking = blocking }
         showDiagnostics(preferences.diagnostics)
         applySiteColor()
     }
@@ -680,6 +691,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     private func attach(_ page: Page, thawed: Bool) {
+        // Another tab on screen: the next ⌘-click starts again right after
+        // its own tab, as in Safari and Chrome.
+        if openedBehind?.from != page.tab { openedBehind = nil }
         page.host = self
         page.view.frame = stage.bounds
         page.view.autoresizingMask = []
@@ -795,10 +809,22 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             present(popup, animated: true)
             return popup.page.view
         }
-        // Anything else is a tab, right after the one it came from.
+        // Anything else is a tab, right after the one it came from; behind
+        // this one when a ⌘-click asked for it (a page that answers ⌘-click
+        // with window.open), live there with its tie to this page.
         let session = Session.shared
-        guard let id = session.change({ $0.openTab(action.request.url, in: page.space, after: page.tab) }) else { return nil }
+        let behind = page.newTabChoice(for: action) == .behind
+        guard let id = session.change({ $0.openTab(action.request.url, in: page.space,
+                                                   after: behind ? behindAfter(page) : page.tab) }) else {
+            return nil
+        }
         let child = session.pages.adopt(tab: id, space: page.space, configuration: configuration)
+        if behind {
+            openedBehind = (page.tab, id)
+            session.pages.enforce()
+            return child.view
+        }
+        openedBehind = nil
         detach()
         attach(child, thawed: false)
         model.tabID = id
@@ -808,6 +834,30 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         focusPage()
         session.pages.enforce()
         return child.view
+    }
+
+    func page(_ page: Page, openInNewTab url: URL, inFront: Bool) -> Bool {
+        let session = Session.shared
+        guard let id = session.change({ $0.openTab(url, in: page.space, after: inFront ? page.tab : behindAfter(page)) }) else {
+            return false
+        }
+        if inFront {
+            openedBehind = nil
+            show(tab: id, inSpace: page.space)
+        } else {
+            // It loads when it is first shown, as every tab not on screen does.
+            openedBehind = (page.tab, id)
+        }
+        return true
+    }
+
+    /// Where a tab opened behind goes: after the last one opened behind
+    /// from the same tab, so several ⌘-clicks keep their order, as in Safari.
+    private func behindAfter(_ page: Page) -> UUID {
+        if let last = openedBehind, last.from == page.tab, Session.shared.workspace.tab(last.opened) != nil {
+            return last.opened
+        }
+        return page.tab
     }
 
     func pageDidClose(_ page: Page) {
@@ -935,6 +985,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .bookmark: toggleBookmark()
         case .share: sharePage()
         case .siteMode: switchSiteMode()
+        case .contentBlocking: switchBlocking()
         case .spaceSettings: openSpaceSettings(model.spaceID)
         case .importBookmarks: chooseBookmarksFile()
         }
@@ -1101,6 +1152,17 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         let natural = SiteMode.choose(host: nil, width: Double(size.width), height: Double(size.height), overrides: [:])
         Session.shared.preferences.siteModes[key] = wanted == natural ? nil : wanted
         page.reload(as: wanted)
+    }
+
+    /// Ads and trackers allowed or blocked on the site on screen, kept for
+    /// the site, and the page loaded again with it. Not on a hands-off page,
+    /// which the blocker never touches, nor with blocking off in Settings.
+    private func switchBlocking() {
+        guard let page, let host = page.view.url?.host, !page.isHandsOff, Session.shared.preferences.blocksContent else { return }
+        let on = Session.shared.preferences.blocksContent(onHost: host)
+        Session.shared.preferences.setBlocksContent(!on, onHost: host)
+        page.reload()
+        refreshChrome()
     }
 
     // MARK: The iPhone's desktop view

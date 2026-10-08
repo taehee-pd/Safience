@@ -41,11 +41,17 @@ public struct Preferences: Codable, Equatable, Sendable {
     /// How far the iPhone's desktop view cursor goes for a finger's move,
     /// times the usual (DesktopView.cursorSpeeds).
     public var cursorSpeed = 1.0
+    /// Ads and trackers blocked by WebKit's content blocker, with EasyList
+    /// and EasyPrivacy (ContentBlocking.swift); on unless turned off.
+    public var blocksContent = true
+    /// The sites it is off for, by site (SiteMode.siteKey).
+    public var unblockedSites: [String] = []
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
         case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync, cursorSpeed
+        case blocksContent, unblockedSites
     }
 
     public init(from decoder: Decoder) throws {
@@ -63,6 +69,23 @@ public struct Preferences: Codable, Equatable, Sendable {
         iCloudSync = (try? c.decodeIfPresent(Bool.self, forKey: .iCloudSync)) ?? false
         let speed = (try? c.decodeIfPresent(Double.self, forKey: .cursorSpeed)) ?? 1
         cursorSpeed = min(max(speed, DesktopView.cursorSpeeds.lowerBound), DesktopView.cursorSpeeds.upperBound)
+        blocksContent = (try? c.decodeIfPresent(Bool.self, forKey: .blocksContent)) ?? true
+        unblockedSites = (try? c.decodeIfPresent([String].self, forKey: .unblockedSites)) ?? []
+    }
+
+    /// Whether a page at `host` has ads and trackers blocked.
+    public func blocksContent(onHost host: String?) -> Bool {
+        guard blocksContent else { return false }
+        guard let site = SiteMode.siteKey(host) else { return true }
+        return !unblockedSites.contains(site)
+    }
+
+    /// Blocking on or off for the site at `host`, the rest as they were.
+    public mutating func setBlocksContent(_ on: Bool, onHost host: String?) {
+        guard let site = SiteMode.siteKey(host) else { return }
+        unblockedSites.removeAll { $0 == site }
+        if !on { unblockedSites.append(site) }
+        unblockedSites.sort()
     }
 
     /// An adapter's bridges with these settings laid over them.

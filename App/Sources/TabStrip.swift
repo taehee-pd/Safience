@@ -311,6 +311,12 @@ final class TabStripView: UIView {
                     self?.act(.toggleBookmark)
                 })
             }
+            if let blocking = model.blocking {
+                items.append(UIAction(title: blocking ? "Allow Ads on This Site" : "Block Ads on This Site",
+                                      image: UIImage(systemName: blocking ? "shield.slash" : "shield")) { [weak self] _ in
+                    self?.act(.command(.contentBlocking))
+                })
+            }
             if !items.isEmpty { sections.append(UIMenu(options: .displayInline, children: items)) }
         }
         var own: [UIMenuElement] = []

@@ -21,6 +21,7 @@ final class Session: ObservableObject {
             }
             for page in pages.live.values { page.settingsChanged() }
             if preferences.limits != oldValue.limits { pages.enforce() }
+            if preferences.blocksContent != oldValue.blocksContent { ContentBlocker.shared.preferencesChanged() }
             if preferences.iCloudSync != oldValue.iCloudSync {
                 if preferences.iCloudSync { Sync.shared.start(join: true) } else { Sync.shared.stop() }
             }
@@ -54,6 +55,7 @@ final class Session: ObservableObject {
         Stores.sweep()
         Snapshots.prune(keeping: Set(workspace.spaces.flatMap { $0.tabs.map(\.id) }))
         pages.watchMemory()
+        ContentBlocker.shared.start()
         if preferences.iCloudSync { Sync.shared.start(join: false) }
     }
 
