@@ -230,6 +230,20 @@
   bridge.key({ key: 'Tab', code: 'Tab', shift: true });
   check('⇧Tab goes back', document.activeElement === a);
 
+  // A field inside a shadow root, between a and b: Tab goes on to b, not
+  // back to the page's first field.
+  const pocket = document.createElement('div');
+  a.insertAdjacentElement('afterend', pocket);
+  const pocketField = document.createElement('input');
+  pocket.attachShadow({ mode: 'open' }).append(pocketField);
+  pocketField.focus();
+  outcome = bridge.key({ key: 'Tab', code: 'Tab' });
+  check('Tab from inside a shadow root goes to the next field after its host', outcome === 'default' && document.activeElement === b, document.activeElement && document.activeElement.id);
+  pocketField.focus();
+  bridge.key({ key: 'Tab', code: 'Tab', shift: true });
+  check('⇧Tab from inside a shadow root goes to the field before its host', document.activeElement === a, document.activeElement && document.activeElement.id);
+  pocket.remove();
+
   let seen = null;
   editor.addEventListener('keydown', (event) => {
     seen = event;

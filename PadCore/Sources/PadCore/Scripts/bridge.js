@@ -291,6 +291,8 @@
     const view = doc.defaultView;
     const all = Array.from(doc.querySelectorAll(tabbable)).filter((element) => {
       if (element.tabIndex < 0 || element.disabled) return false;
+      if (element.hasAttribute('contenteditable') && !element.isContentEditable && element.tabIndex === 0
+          && !/^(a|area|button|input|select|textarea|iframe|summary)$/i.test(element.tagName)) return false;
       if (element.tagName === 'INPUT' && (element.getAttribute('type') || '').toLowerCase() === 'hidden') return false;
       if (element.closest('[inert]')) return false;
       const style = view.getComputedStyle(element);
@@ -307,7 +309,20 @@
     const doc = (from && from.ownerDocument) || document;
     const list = focusables(doc);
     if (!list.length) return false;
-    const at = list.indexOf(from);
+    let at = list.indexOf(from);
+    if (at < 0 && from) {
+      // Not in the list: in a shadow root, or something focused by script.
+      // Its place is where it sits in the document, its host's for a shadow
+      // root, so the next is the first field after that, not the page's first.
+      let mark = from;
+      while (mark && mark.getRootNode() !== doc) mark = mark.getRootNode().host || null;
+      if (mark) {
+        const after = list.findIndex((e) => e !== mark && (mark.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING));
+        at = backwards
+          ? (after < 0 ? list.length : after)
+          : (after < 0 ? list.length - 1 : after - 1);
+      }
+    }
     const next = at < 0
       ? list[backwards ? list.length - 1 : 0]
       : list[(at + (backwards ? -1 : 1) + list.length) % list.length];

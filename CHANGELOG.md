@@ -49,6 +49,7 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Fixed
 
+- Tab in a page's field moves to the next field again. iPadOS 26's focus system keeps Tab from the page, so nothing moved; Tab now reaches the page first on every site, as it did only where an adapter or Settings asked, and the page script moves the focus when the page doesn't: through tab order, and from a field inside a shadow root to the next field after it rather than the page's first.
 - Safience Sync for Chrome: a bookmark renamed, moved or removed in Chrome stays that way. The sync the edit set off wrote iCloud's older copy back over it (the old title or place, or the bookmark again) before sending it; Chrome now takes iCloud's bookmarks only when iCloud's changed, and a bookmark Chrome no longer has is deleted from iCloud by the next push rather than made again.
 - The row of tabs lays itself out again when the first ordinary tab is pinned or the last pinned tab unpinned: the order stayed the same, so the tab kept its old width until something else moved.
 - A trackpad's pointer over a round or capsule button on the bars (new tab, the palette, back, forward, the space, close, the star, reload) lit up a square; it now takes the shape drawn.

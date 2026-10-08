@@ -120,7 +120,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Trackpad and keyboard")
                 } footer: {
-                    Text("Pinch and ⌘ with two fingers zoom the page's own canvas, as on a Mac. Turn on “Send to the page first” if the system keeps Tab or the arrow keys from a page. A page's own cursor, such as Figma's tools, takes the pointer's place; turn it off to keep the iPad's pointer.")
+                    Text("Pinch and ⌘ with two fingers zoom the page's own canvas, as on a Mac. Tab reaches the page first on every site, since the system keeps it otherwise; turn on “Send to the page first” if the system keeps the arrow keys from a page too. A page's own cursor, such as Figma's tools, takes the pointer's place; turn it off to keep the iPad's pointer.")
                 }
                 }
 

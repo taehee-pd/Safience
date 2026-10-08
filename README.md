@@ -85,7 +85,7 @@ The privacy policy for the App Store is [PRIVACY.md](PRIVACY.md).
 | No swipe back | `allowsBackForwardNavigationGestures = false` | `Page.setUp` |
 | Default menus removed | Every top-level menu but the app menu and the Window menu removed in `buildMenu(with:)`. The Window menu, which iPadOS 26 shows in any case, keeps its items without their ⌘ keys and takes the window's commands; the app menu has Settings… and iPadOS's item for the Settings app | `Menus.swift` |
 | ⌘F for the page | `isFindInteractionEnabled = false` | `Page.setUp` |
-| Tab and arrows | Registered with `wantsPriorityOverSystemBehavior` when Settings or a site's adapter says so, and handed to the page as keydown and keyup | `PageView.keyCommands`, `bridge.js key()` |
+| Tab and arrows | Registered with `wantsPriorityOverSystemBehavior` and handed to the page as keydown and keyup: Tab on every site, since iPadOS 26's focus system keeps it from a page, the arrows when Settings or a site's adapter says so | `PageView.keyCommands`, `bridge.js key()` |
 | Focus back to the page | On `sceneDidBecomeActive` and `UIWindow.didBecomeKeyNotification`, and after the palette, the address bar or a sheet | `SceneDelegate`, `Browser.focusPage` |
 | Browser shortcuts on rare keys | Every one is ⌃⌥ (below) | `Shortcuts` in `Commands.swift` |
 | Address bar on sign-in pages | Shown on sign-in hosts, sign-in paths, OAuth requests and pages with a password field, whatever Settings says | `SignIn.swift`, `AddressVisibility` |

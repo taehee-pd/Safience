@@ -30,7 +30,11 @@ public struct Bridges: Equatable, Codable, Sendable {
     /// ⌘ held while scrolling with two fingers zooms the same way.
     public var commandZoom: Bool
     public var wheel: WheelMode
-    /// Taken from the system with priority and handed to the page.
+    /// Taken from the system with priority and handed to the page. Tab is
+    /// on everywhere: on iPadOS 26 the system's focus system keeps Tab from
+    /// the page, so it moves no focus in a form (Apple's forums, thread
+    /// 806077), and the page script moves it instead. The arrows stay the
+    /// system's unless a site needs them.
     public var keys: Set<RelayKey>
     /// The wheel delta for a pinch, per unit of the natural log of the scale
     /// step. 100 is Chrome's: a pinch to twice the size sends -69.3 in all.
@@ -40,7 +44,7 @@ public struct Bridges: Equatable, Codable, Sendable {
     public var cursors: Bool
 
     public init(pinch: Bool = true, commandZoom: Bool = true, wheel: WheelMode = .auto,
-                keys: Set<RelayKey> = [], pinchFactor: Double = 100, cursors: Bool = true) {
+                keys: Set<RelayKey> = [.tab], pinchFactor: Double = 100, cursors: Bool = true) {
         self.pinch = pinch
         self.commandZoom = commandZoom
         self.wheel = wheel
@@ -118,7 +122,7 @@ public enum Adapters {
         name: "Figma",
         domains: ["figma.com"],
         pageScript: Snippets.noTouchPoints,
-        bridges: Bridges(pinch: true, commandZoom: true, wheel: .auto, keys: [], pinchFactor: 200),
+        bridges: Bridges(pinch: true, commandZoom: true, wheel: .auto, keys: [.tab], pinchFactor: 200),
         heavyPaths: ["/design/", "/file/", "/board/", "/proto/", "/slides/", "/deck/", "/make/", "/site/", "/buzz/"]
     )
 

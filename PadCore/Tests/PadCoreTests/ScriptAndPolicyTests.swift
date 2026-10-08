@@ -41,6 +41,14 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(Preferences.self, from: data), preferences)
     }
 
+    func testTabReachesEveryPageFirst() {
+        // iPadOS 26's focus system keeps Tab from a page otherwise.
+        XCTAssertEqual(Bridges().keys, [.tab])
+        XCTAssertEqual(Adapters.standard.bridges.keys, [.tab])
+        XCTAssertEqual(Adapters.figma.bridges.keys, [.tab])
+        XCTAssertEqual(Preferences().bridges(for: Adapters.standard).keys, [.tab])
+    }
+
     func testSettingsLayOverTheAdaptersBridges() {
         var preferences = Preferences()
         XCTAssertEqual(preferences.bridges(for: Adapters.figma), Adapters.figma.bridges)
