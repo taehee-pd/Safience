@@ -292,7 +292,7 @@ private struct AppIconSection: View {
             } header: {
                 Text("App icon")
             } footer: {
-                Text(failure ?? "Safience is the app's own. The others draw the same globe and pointer their own way: a terminal's pixels, an engraving, an LED board, an orbit in glass, stitched leather, a poster and a star chart. The system says once that the icon changed.")
+                Text(failure ?? "Safience is the app's own. The others draw the same globe and pointer their own way: a terminal's pixels, an engraving, an LED board, a candy sticker, stitched leather, a poster and a star chart. The system says once that the icon changed.")
             }
         }
     }

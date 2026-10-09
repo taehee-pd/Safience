@@ -16,30 +16,19 @@
     {
       "layers": [
         {
-          "name": "cursor",
-          "image-name": "cursor.svg",
-          "glass": true,
+          "name": "pin-rim",
+          "image-name": "pin-rim.png",
+          "glass": false,
           "fill-specializations": [
-            {
-              "value": {
-                "solid": "display-p3:0.07843,0.07843,0.07843,1.00000"
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "display-p3:0.07843,0.07843,0.07843,1.00000"
-              }
-            },
             {
               "appearance": "tinted",
               "value": {
-                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
               }
             }
           ],
           "position": {
-            "scale": 1,
+            "scale": 0.25,
             "translation-in-points": [
               77.11776258695897,
               96.17084980519644
@@ -47,25 +36,45 @@
           }
         },
         {
-          "name": "cursor-edge",
-          "image-name": "cursor-edge.svg",
+          "name": "pin-shade",
+          "image-name": "pin-shade.png",
           "glass": false,
           "fill-specializations": [
             {
+              "appearance": "tinted",
               "value": {
-                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
+                "solid": "srgb:0.00000,0.00000,0.00000,0.00000"
+              }
+            }
+          ],
+          "position": {
+            "scale": 0.25,
+            "translation-in-points": [
+              77.11776258695897,
+              96.17084980519644
+            ]
+          }
+        },
+        {
+          "name": "pin-enamel",
+          "image-name": "pin-enamel.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.07059,0.07059,0.07843,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
+                "solid": "display-p3:0.07059,0.07059,0.07843,1.00000"
               }
             },
             {
               "appearance": "tinted",
               "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
               }
             }
           ],
@@ -87,7 +96,7 @@
       },
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.4
+        "opacity": 0.45
       },
       "specular": true,
       "lighting": "combined",

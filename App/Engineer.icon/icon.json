@@ -3,8 +3,8 @@
     {
       "value": {
         "linear-gradient": [
-          "display-p3:0.92549,0.89804,0.82353,1.00000",
-          "display-p3:0.81176,0.77255,0.67059,1.00000"
+          "display-p3:0.04314,0.16471,0.09020,1.00000",
+          "display-p3:0.00784,0.03922,0.01961,1.00000"
         ],
         "orientation": {
           "start": {
@@ -20,22 +20,7 @@
     },
     {
       "appearance": "dark",
-      "value": {
-        "linear-gradient": [
-          "display-p3:0.17255,0.16471,0.14118,1.00000",
-          "display-p3:0.07843,0.07451,0.06275,1.00000"
-        ],
-        "orientation": {
-          "start": {
-            "x": 0.5,
-            "y": 0.0
-          },
-          "stop": {
-            "x": 0.5,
-            "y": 1.0
-          }
-        }
-      }
+      "value": "system-dark"
     }
   ],
   "groups": [
@@ -282,70 +267,20 @@
               }
             }
           ]
-        },
-        {
-          "name": "window",
-          "image-name": "window.svg",
-          "glass": true,
-          "fill-specializations": [
-            {
-              "value": {
-                "linear-gradient": [
-                  "display-p3:0.04314,0.16471,0.09020,1.00000",
-                  "display-p3:0.00784,0.03922,0.01961,1.00000"
-                ],
-                "orientation": {
-                  "start": {
-                    "x": 0.5,
-                    "y": 0.0
-                  },
-                  "stop": {
-                    "x": 0.5,
-                    "y": 1.0
-                  }
-                }
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "linear-gradient": [
-                  "display-p3:0.04314,0.16471,0.09020,1.00000",
-                  "display-p3:0.00784,0.03922,0.01961,1.00000"
-                ],
-                "orientation": {
-                  "start": {
-                    "x": 0.5,
-                    "y": 0.0
-                  },
-                  "stop": {
-                    "x": 0.5,
-                    "y": 1.0
-                  }
-                }
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
-              }
-            }
-          ]
         }
       ],
       "position": {
-        "scale": 1.18,
+        "scale": 1.0,
         "translation-in-points": [
           0,
           0
         ]
       },
       "shadow": {
-        "kind": "layer-color",
-        "opacity": 0.6
+        "kind": "none",
+        "opacity": 0
       },
-      "specular": true,
+      "specular": false,
       "lighting": "individual",
       "translucency": {
         "enabled": false,
