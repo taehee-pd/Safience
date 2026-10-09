@@ -39,6 +39,11 @@ enum Palette {
         static let hover = pair(0.965, 0.15)
         static let tray = pair(0.93, 0.06)
         static let card = pair(1.0, 0.16)
+        /// A split's band between its panes and the handle on it: a light grey no page
+        /// is, so two white pages read as two without the band pulling the eye.
+        static let splitBand = pair(0.90, 0.10)
+        static let splitHandle = pair(0.68, 0.36)
+        static let splitHandleActive = pair(0.42, 0.66)
         static let shade = dark(0.06, 0.24)
         static let hoverShade = dark(0.04, 0.14)
         static let safe = tint(light: (0.08, 0.50, 0.24), dark: (0.29, 0.87, 0.50))
@@ -277,13 +282,12 @@ struct PressScale: ButtonStyle {
 // MARK: A site's icon
 
 /// A site's icon as SiteIcons has it, or its first letter on a colour of
-/// its own until it does. A thin outline, black in light and white in dark,
-/// gives every icon the same edge, whatever colour it is.
+/// its own until it does. No outline: a site's icon already has its own
+/// shape, and a second edge around it reads as a frame.
 struct SiteIconView: View {
     let url: URL?
     var size: CGFloat = 16
     @ObservedObject private var icons = SiteIcons.shared
-    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
@@ -304,7 +308,6 @@ struct SiteIconView: View {
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(scheme == .dark ? Color.white.opacity(0.1) : Color.black.opacity(0.1), lineWidth: 1))
         .accessibilityHidden(true)
     }
 

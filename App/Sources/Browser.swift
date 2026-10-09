@@ -600,7 +600,18 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             partnerPicture.isHidden = partnerPicture.image == nil
             divider.frame = CGRect(x: leftWidth, y: 0, width: gap, height: bounds.height)
             divider.isHidden = false
-            focusEdge.frame = CGRect(x: main.minX, y: 0, width: main.width, height: 2)
+            // Each pane a card on the band: its corners along the band rounded.
+            let leftCorners: CACornerMask = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+            let rightCorners: CACornerMask = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+            let mainCorners = onLeft ? leftCorners : rightCorners
+            let partnerCorners = onLeft ? rightCorners : leftCorners
+            for (view, corners) in [(page.view, mainCorners), (picture, mainCorners),
+                                    (partner.view, partnerCorners), (partnerPicture, partnerCorners)] as [(UIView, CACornerMask)] {
+                round(view, corners)
+            }
+            // The line along the top of the pane with the keys stops short of its rounded corner.
+            let inset = SplitDivider.corner
+            focusEdge.frame = CGRect(x: main.minX + (onLeft ? 0 : inset), y: 0, width: main.width - inset, height: 2)
             focusEdge.backgroundColor = Session.shared.workspace.space(model.spaceID)?.color.uiColor ?? .tintColor
             focusEdge.isHidden = false
         } else {
@@ -608,6 +619,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             partnerPicture.isHidden = true
             divider.isHidden = true
             focusEdge.isHidden = true
+            for view in [page?.view, picture, partner?.view, partnerPicture].compactMap({ $0 }) { round(view, []) }
         }
         // Under the phone bar and the home indicator: the page goes on
         // there, told it is covered so its end scrolls clear of the bar and
@@ -624,7 +636,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             page?.view.transform = .identity
             page?.view.frame = main
             page?.obscure(bottom: covered)
-            stage.backgroundColor = Palette.UI.ground
+            // A split's band shows behind its panes' rounded corners too.
+            stage.backgroundColor = divider.isHidden ? Palette.UI.ground : Palette.UI.splitBand
         }
         picture.frame = main
         // The start page runs on under the bar too, its own ground behind
@@ -644,6 +657,17 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         return view.safeAreaInsets.bottom + PhoneBar.height
     }
 
+
+    /// A pane's corners along a split's band, rounded; none outside a split.
+    private func round(_ view: UIView, _ corners: CACornerMask) {
+        let radius = corners.isEmpty ? 0 : SplitDivider.corner
+        guard view.layer.cornerRadius != radius || view.layer.maskedCorners != corners else { return }
+        view.layer.cornerRadius = radius
+        view.layer.cornerCurve = .continuous
+        view.layer.maskedCorners = corners.isEmpty ? [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner] : corners
+        // A frozen page's picture always clips, to crop it; a page only for its corners.
+        view.layer.masksToBounds = !corners.isEmpty || view is UIImageView
+    }
 
     private func dragDivider(to x: CGFloat) {
         let width = stage.bounds.width - SplitDivider.width
