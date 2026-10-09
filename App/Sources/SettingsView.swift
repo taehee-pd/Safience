@@ -44,10 +44,15 @@ struct SettingsView: View {
                         Text("How far the cursor goes as your finger moves, in Desktop View (the page's menu). It goes further the faster you move, whatever the speed.")
                     }
                     Section {
+                        // Its choices as rows: a menu beside a label this long has no room on a phone.
                         Picker("The address bar shows", selection: $session.preferences.address) {
                             Text("The page's address").tag(AddressMode.always)
                             Text("The page's title").tag(AddressMode.automatic)
                         }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    } header: {
+                        Text("The address bar shows")
                     } footer: {
                         Text("Sign-in pages always show the address, so you can see which site is asking for your password.")
                     }
@@ -137,19 +142,6 @@ struct SettingsView: View {
                 BlockingSection(session: session)
 
                 Section {
-                    ForEach(Adapters.all + [Adapters.standard]) { adapter in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(adapter.name)
-                            Text(describe(adapter))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("Sites")
-                }
-
-                Section {
                     Toggle("Show diagnostics", isOn: $session.preferences.diagnostics)
                 } footer: {
                     Text("A small panel over the page: which site adapter is on, what the bridges send, the user agent the page sees, and which tabs are live. ⌃⌥D shows and hides it.")
@@ -202,17 +194,6 @@ struct SettingsView: View {
         }
     }
 
-    private func describe(_ adapter: SiteAdapter) -> String {
-        let bridges = session.preferences.bridges(for: adapter)
-        var parts: [String] = []
-        if !adapter.domains.isEmpty { parts.append(adapter.domains.joined(separator: ", ")) }
-        parts.append(bridges.pinch ? "pinch zooms" : "no pinch")
-        if bridges.commandZoom { parts.append("⌘ scroll zooms") }
-        parts.append("wheel bridge \(bridges.wheel.rawValue)")
-        if !bridges.keys.isEmpty { parts.append("keys: " + bridges.keys.map(\.rawValue).sorted().joined(separator: ", ")) }
-        if !adapter.heavyPaths.isEmpty { parts.append("files are heavy") }
-        return parts.joined(separator: " · ")
-    }
 }
 
 /// Ads and trackers (ContentBlocker): on or off, the sites it is off for,
@@ -224,6 +205,21 @@ private struct BlockingSection: View {
     var body: some View {
         Section {
             Toggle("Block ads and trackers", isOn: $session.preferences.blocksContent)
+            if session.preferences.blocksContent {
+                if let shown = blocker.shown {
+                    ForEach(shown.lists) { list in
+                        LabeledContent(list.name) {
+                            Text(list.made.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "Unknown")
+                                .monospacedDigit()
+                        }
+                    }
+                    LabeledContent("Rules") {
+                        Text(shown.rules.formatted(.number)).monospacedDigit()
+                    }
+                } else {
+                    LabeledContent("Lists") { Text("Getting ready…") }
+                }
+            }
             if session.preferences.blocksContent && !session.preferences.unblockedSites.isEmpty {
                 let count = session.preferences.unblockedSites.count
                 Button("Block on All Sites Again (\(count) allowed)") {
@@ -239,15 +235,17 @@ private struct BlockingSection: View {
 
     private var footer: String {
         var text = "Blocked by WebKit itself before they load, with \(ContentBlocking.credit). "
-        text += "A site's menu can allow them on that site. Sign-in pages are never touched."
-        if session.preferences.blocksContent { text += " \(blocker.summary)." }
+        text += "A site's menu can allow them on that site. Sign-in pages are never touched. Each list's date is the day it was made; the lists update themselves."
+        if session.preferences.blocksContent, let dropped = blocker.shown?.dropped, dropped > 0 {
+            text += " \(dropped) of WebKit's rule lists couldn't be made, so some ads still show."
+        }
         return text
     }
 }
 
 /// The Home Screen icon: Redline, the app's own, or one of the alternates the
 /// asset catalog compiles in (ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in
-/// the project). The system keeps the choice, so nothing here stores it; each
+/// project.yml), each the globe and pointer drawn in a style of its own. The system keeps the choice, so nothing here stores it; each
 /// preview is that icon rendered in light and dark, so it matches the screen.
 private struct AppIconSection: View {
     private struct Choice: Identifiable {
@@ -294,7 +292,7 @@ private struct AppIconSection: View {
             } header: {
                 Text("App icon")
             } footer: {
-                Text(failure ?? "Redline is Safience's own. The others are the same drawing on other papers and inks. The system says once that the icon changed.")
+                Text(failure ?? "Redline is Safience's own. The others draw the same globe and pointer their own way: a terminal's pixels, an engraving, an LED board, rings of glass, a linocut, a poster and a star chart. The system says once that the icon changed.")
             }
         }
     }

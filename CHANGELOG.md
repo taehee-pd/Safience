@@ -35,6 +35,8 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Changed
 
+- Settings › Ads and trackers lists EasyList and EasyPrivacy, each with the day it was made, and the number of rules, as rows instead of a sentence under the switch.
+- Settings no longer lists the sites and what each adapter does; Diagnostics still says which adapter a page has.
 - Diagnostics' cursor line also says where the cursor's place comes from (a press, the hover recognizer, or off the page), how long ago the hover recognizer last spoke, and its state: a page cursor that stops moving can then be told from a page that stopped answering.
 - The iPhone's desktop view and the new tab's start page run on under the bar as other pages do, so the bar's blur is over the page rather than a grey strip: the desktop view's cursor and view, and the start page's tiles, keep above the bar, and past the desktop's edge is the page's own colour.
 - A desktop-view tab's picture in the tab overview is the part of the page that showed; a picture wider than a card fills its height and is cut at the side, never stretched.
@@ -52,6 +54,8 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Fixed
 
+- The tabs from other devices in the tab overview show an iPad's tabs under an iPad, not an iPhone.
+- Settings on iPhone: the address bar's two choices are rows with a checkmark; the menu beside the long label wrapped onto a line of its own.
 - Safience Sync for Chrome: a bookmark Chrome failed to make (an error mid-sync) is made on the next sync, rather than read as removed in Chrome and deleted from iCloud; deletions not yet made in Chrome are kept for it too, and a bookmark is removed with Chrome's call for a bookmark, a folder with the one for a folder.
 - Safience Sync for Chrome: a pinned tab closed or unpinned in Chrome stays closed, instead of the next sync opening it again from iCloud's copy before the deletion went out.
 - iCloud sync: a change made on this device and not yet sent survives a fetch of another device's version of the same record; it goes out on top of that version instead of being put back.

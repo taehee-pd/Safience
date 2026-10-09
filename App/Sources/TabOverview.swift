@@ -228,12 +228,22 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
                   let device = Sync.shared.elsewhere.first(where: { $0.id == id }) else { return }
             var content = UIListContentConfiguration.groupedHeader()
             content.text = "\(device.browser) · \(device.deviceName)"
-            content.image = UIImage(systemName: device.browser == "Safience" ? "iphone" : "laptopcomputer")
+            content.image = UIImage(systemName: Self.symbol(for: device))
             view.contentConfiguration = content
         }
         source.supplementaryViewProvider = { view, kind, path in
             view.dequeueConfiguredReusableSupplementary(using: heading, for: path)
         }
+    }
+
+    /// The device a list of tabs is on: Safience names it by UIDevice's model,
+    /// iPad or iPhone; another browser is on a computer.
+    private static func symbol(for device: SyncDeviceTabs) -> String {
+        guard device.browser == "Safience" else { return "laptopcomputer" }
+        let model = device.deviceName.lowercased()
+        if model.hasPrefix("ipad") { return "ipad" }
+        if model.hasPrefix("iphone") { return "iphone" }
+        return "ipad.and.iphone"
     }
 
     private var space: Space? {
