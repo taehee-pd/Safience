@@ -17,8 +17,8 @@
 import config from '../config.js';
 import { CloudKit, SignedOut } from './cloudkit.js';
 import {
-  changes, deviceTabsName, emptyMirror, flatten, isShareable, joinTrees, newName, remove, take,
-  toRecord, tree, urlKey,
+  bookmarkPull, changes, deviceTabsName, emptyMirror, flatten, isShareable, joinTrees, newName, pinsToOpen, remove,
+  take, toRecord, tree, urlKey,
 } from './model.js';
 
 const ck = new CloudKit(config);
@@ -42,6 +42,8 @@ async function load() {
     pinnedMap: loaded.pinnedMap || {},
     pinnedOps: loaded.pinnedOps || { save: [], delete: [] },
     pendingSpace: !!loaded.pendingSpace,
+    // iCloud's bookmarks not yet all in Chrome (bookmarkPull): tried again first.
+    pendingApply: loaded.pendingApply || null,
     lastSync: loaded.lastSync || 0,
     error: loaded.error || '',
   };
@@ -97,6 +99,9 @@ function sync(reason) {
         state.signedIn = false;
         return state;
       }
+      // Tabs unpinned or closed here go into the deletions first: the pull
+      // would otherwise find their records still in iCloud and open them again.
+      if (state.paired) takeUnpinned(state);
       await pull(state);
       await push(state);
       state.signedIn = true;
@@ -138,6 +143,7 @@ async function pull(state) {
     state.paired = null;
     state.bookmarkMap = {};
     state.pinnedMap = {};
+    state.pendingApply = null;
     state.error = 'The space this profile was paired with was removed in Safience. Pair it again.';
   }
   const deleted = new Set();
@@ -153,8 +159,15 @@ async function pull(state) {
   if (!state.paired) return;
   // Chrome takes iCloud's bookmarks only when iCloud's changed: a sync set off by an
   // edit made here would otherwise write the older copy back over the edit (the old
-  // title or place, or the bookmark again) before push() could send it.
-  if (bookmarksDiffer(before, state.mirror, state.paired.space) && await isWriter(state)) await applyBookmarks(state, deleted);
+  // title or place, or the bookmark again) before push() could send it. And again
+  // after an attempt that failed, before anything is sent: an error here stops this
+  // sync, and the next one tries first, with the deletions still to make.
+  const plan = bookmarkPull(state.pendingApply, bookmarksDiffer(before, state.mirror, state.paired.space), deleted);
+  if (plan.apply && await isWriter(state)) {
+    state.pendingApply = { deleted: [...plan.deleted] };
+    await applyBookmarks(state, plan.deleted);
+    state.pendingApply = null;
+  }
   await applyPinned(state, before);
 }
 
@@ -228,7 +241,9 @@ async function applyBookmarks(state, deleted = new Set()) {
     if (otherNode && other) await reconcile(otherNode.children || [], other.id, reverse, state);
     for (const [chromeId, name] of Object.entries(state.bookmarkMap)) {
       if (!deleted.has(name) || chromeId === other?.id || chromeId === bar.id) continue;
-      try { await chrome.bookmarks.removeTree(chromeId); } catch (_) {}
+      // A failure throws, and keeps the mapping: the next sync removes it, rather
+      // than the next push making it again in iCloud as new.
+      await removeNode(chromeId);
       delete state.bookmarkMap[chromeId];
     }
   } finally {
@@ -239,6 +254,15 @@ async function applyBookmarks(state, deleted = new Set()) {
 
 async function chromeNode(id) {
   try { return (await chrome.bookmarks.get(id))[0] || null; } catch (_) { return null; }
+}
+
+// remove() for a bookmark, removeTree() for a folder, as Chrome documents
+// them; one already gone is done.
+async function removeNode(id) {
+  const node = await chromeNode(id);
+  if (!node) return;
+  if (node.url) await chrome.bookmarks.remove(id);
+  else await chrome.bookmarks.removeTree(id);
 }
 
 async function reconcile(list, parentId, reverse, state) {
@@ -255,7 +279,7 @@ async function reconcile(list, parentId, reverse, state) {
     }
     if (existing && !!existing.url !== !!node.url) {
       // A folder became a link or the other way: made again.
-      try { await chrome.bookmarks.removeTree(existing.id); } catch (_) {}
+      await removeNode(existing.id);
       delete state.bookmarkMap[existing.id];
       existing = null;
     }
@@ -335,9 +359,7 @@ async function applyPinned(state, before) {
   // opening iCloud's then would make them twice.
   const { startedAt } = await chrome.storage.session.get('startedAt');
   const settling = startedAt && Date.now() - startedAt < 60000;
-  for (const pin of wanted) {
-    const entry = state.pinnedMap[pin.id];
-    if (entry?.tabId) continue;
+  for (const pin of pinsToOpen(wanted, state.pinnedMap, state.pinnedOps.delete)) {
     if (!window || settling) break;
     const tab = await chrome.tabs.create({ windowId: window.id, url: pin.url, pinned: true, active: false });
     state.pinnedMap[pin.id] = { tabId: tab.id, url: pin.url };

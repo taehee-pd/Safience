@@ -1,9 +1,9 @@
 // The extension's sync rules, the same cases as PadCore's SyncModelTests:
-//   node --test Extension/tests
+//   node --test Extension/tests/*.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  changes, emptyMirror, flatten, isShareable, joinTrees, positions, take, toRecord, tree, urlKey,
+  bookmarkPull, changes, emptyMirror, flatten, isShareable, joinTrees, pinsToOpen, positions, take, toRecord, tree, urlKey,
 } from '../src/model.js';
 
 const SPACE = 'S';
@@ -117,4 +117,23 @@ test('addresses: the same page, and what may be shared', () => {
   assert.ok(!isShareable('https://example.com/#access_token=abc'));
   assert.ok(!isShareable('chrome://settings'));
   assert.ok(!isShareable('https://example.com/oauth/authorize'));
+});
+
+test('a pull applies iCloud\'s bookmarks when they changed, and again after a failed attempt', () => {
+  assert.equal(bookmarkPull(null, false, new Set()).apply, false, 'nothing new, nothing pending');
+  const first = bookmarkPull(null, true, new Set(['X']));
+  assert.equal(first.apply, true);
+  assert.deepEqual([...first.deleted], ['X']);
+  // That attempt failed (a create threw): kept, then the next pull, with nothing new, tries again.
+  const pending = { deleted: [...first.deleted] };
+  const retry = bookmarkPull(pending, false, new Set(['Y']));
+  assert.equal(retry.apply, true, 'a bookmark Chrome never made must not read as removed here');
+  assert.deepEqual([...retry.deleted].sort(), ['X', 'Y'], 'the deletions still to make are kept');
+});
+
+test('a pinned tab closed here is not opened again before its deletion is sent', () => {
+  const wanted = [{ id: 'P1' }, { id: 'P2' }, { id: 'P3' }];
+  const map = { P1: { tabId: 7 } };           // P1 shows; P2 was closed here; P3 is new from iCloud
+  assert.deepEqual(pinsToOpen(wanted, map, ['P2']).map((p) => p.id), ['P3']);
+  assert.deepEqual(pinsToOpen(wanted, map, []).map((p) => p.id), ['P2', 'P3']);
 });

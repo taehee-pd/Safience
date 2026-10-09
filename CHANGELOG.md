@@ -52,6 +52,11 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Fixed
 
+- Safience Sync for Chrome: a bookmark Chrome failed to make (an error mid-sync) is made on the next sync, rather than read as removed in Chrome and deleted from iCloud; deletions not yet made in Chrome are kept for it too, and a bookmark is removed with Chrome's call for a bookmark, a folder with the one for a folder.
+- Safience Sync for Chrome: a pinned tab closed or unpinned in Chrome stays closed, instead of the next sync opening it again from iCloud's copy before the deletion went out.
+- iCloud sync: a change made on this device and not yet sent survives a fetch of another device's version of the same record; it goes out on top of that version instead of being put back.
+- iCloud sync: a device offline when sync first started joins when it next comes to the front, rather than at the next launch.
+- `project.yml`, which makes the Xcode project, carries build 11 and the alternate icons, so regenerating it no longer takes the build number back to 7.
 - Tab in a page's field moves to the next field again. iPadOS 26's focus system keeps Tab from the page, so nothing moved; Tab now reaches the page first on every site, as it did only where an adapter or Settings asked, and the page script moves the focus when the page doesn't: through tab order, and from a field inside a shadow root to the next field after it rather than the page's first.
 - Safience Sync for Chrome: a bookmark renamed, moved or removed in Chrome stays that way. The sync the edit set off wrote iCloud's older copy back over it (the old title or place, or the bookmark again) before sending it; Chrome now takes iCloud's bookmarks only when iCloud's changed, and a bookmark Chrome no longer has is deleted from iCloud by the next push rather than made again.
 - The row of tabs lays itself out again when the first ordinary tab is pinned or the last pinned tab unpinned: the order stayed the same, so the tab kept its old width until something else moved.

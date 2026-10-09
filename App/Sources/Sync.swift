@@ -136,8 +136,11 @@ final class Sync: ObservableObject, CKSyncEngineDelegate {
         saveSoon()
     }
 
+    /// On coming to the front. A device whose first join failed (offline at
+    /// launch) joins now, rather than staying out of sync until the next launch.
     private func fetchSoon() {
         guard running, engine != nil else { return }
+        if !stored.joined { joinSoon(); return }
         outsideCallback { sync in try? await sync.engine?.fetchChanges() }
     }
 
@@ -308,12 +311,24 @@ final class Sync: ObservableObject, CKSyncEngineDelegate {
         }
     }
 
-    /// Records from iCloud into the mirror, and the workspace from it.
+    /// Records from iCloud into the mirror, and the workspace from it. A
+    /// record this device changed and has not sent yet keeps its change: only
+    /// iCloud's version of it is taken, so the save goes on top of that one
+    /// (as after a conflict, below) instead of the fetch putting the old
+    /// value back in the workspace and the save then sending that.
     private func took(_ changes: CKSyncEngine.Event.FetchedRecordZoneChanges) {
         var deletedSpaces = Set<String>()
+        let unsent = Set((engine?.state.pendingRecordZoneChanges ?? []).compactMap { change -> String? in
+            if case .saveRecord(let id) = change { return id.recordName }
+            return nil
+        })
         for modification in changes.modifications {
             let record = modification.record
             let name = record.recordID.recordName
+            if unsent.contains(name), stored.mirror.record(named: name) != nil {
+                stored.systemFields[name] = Self.systemFields(of: record)
+                continue
+            }
             if let plain = Self.syncRecord(record), stored.mirror.take(plain) {
                 stored.systemFields[name] = Self.systemFields(of: record)
             }
