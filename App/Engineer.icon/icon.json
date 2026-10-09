@@ -138,8 +138,8 @@
           ]
         },
         {
-          "name": "arrow-body",
-          "image-name": "arrow-body.svg",
+          "name": "beam-body",
+          "image-name": "beam-body.svg",
           "glass": false,
           "fill-specializations": [
             {
@@ -162,8 +162,8 @@
           ]
         },
         {
-          "name": "arrow-edge",
-          "image-name": "arrow-edge.svg",
+          "name": "beam-edge",
+          "image-name": "beam-edge.svg",
           "glass": false,
           "fill-specializations": [
             {
