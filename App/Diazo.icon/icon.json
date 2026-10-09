@@ -1,23 +1,91 @@
 {
-  "features": [
-    "refractivity"
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.95294,0.90196,0.79608,1.00000",
+          "display-p3:0.86275,0.78039,0.62745,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0.0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1.0
+          }
+        }
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.14118,0.09412,0.06667,1.00000",
+          "display-p3:0.06667,0.04314,0.02745,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0.0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1.0
+          }
+        }
+      }
+    }
   ],
   "groups": [
     {
-      "blur-material": 0.5,
-      "hidden": false,
       "layers": [
         {
+          "name": "edge",
+          "image-name": "cursor-edge.svg",
+          "glass": true,
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:1.00000,0.97000,0.92000,1.00000"
+                "solid": "display-p3:0.29020,0.17647,0.09020,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:1.00000,0.97000,0.92000,1.00000"
+                "solid": "display-p3:0.94902,0.87451,0.75294,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+              }
+            }
+          ],
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              77.11776258695897,
+              96.17084980519644
+            ]
+          }
+        },
+        {
+          "name": "body",
+          "image-name": "cursor-body.svg",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.96471,0.92549,0.83922,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.16863,0.10196,0.05098,1.00000"
               }
             },
             {
@@ -27,9 +95,6 @@
               }
             }
           ],
-          "hidden": false,
-          "image-name": "cursor0- 3.svg",
-          "name": "cursor0- 3",
           "position": {
             "scale": 1,
             "translation-in-points": [
@@ -39,7 +104,6 @@
           }
         }
       ],
-      "opacity": 1,
       "position": {
         "scale": 1.85,
         "translation-in-points": [
@@ -47,37 +111,51 @@
           0
         ]
       },
-      "refractivity": {
-        "depth": 0,
-        "enabled": true,
-        "strength": 0.5
-      },
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.35
+        "opacity": 0.25
       },
+      "specular": true,
+      "lighting": "individual",
       "translucency": {
         "enabled": true,
         "value": 0.3
-      }
+      },
+      "blur-material": 0.5,
+      "opacity": 1,
+      "shadow-specializations": [
+        {
+          "appearance": "dark",
+          "value": {
+            "kind": "neutral",
+            "opacity": 0.5
+          }
+        },
+        {
+          "appearance": "tinted",
+          "value": {
+            "kind": "neutral",
+            "opacity": 0.5
+          }
+        }
+      ]
     },
     {
-      "blur-material": 0.5,
       "layers": [
         {
-          "name": "marks",
-          "image-name": "marks.svg",
+          "name": "lines",
+          "image-name": "lines.svg",
           "glass": false,
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:0.43000,0.27000,0.15000,1.00000"
+                "solid": "display-p3:0.29020,0.17647,0.09020,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:0.95000,0.85000,0.68000,0.80000"
+                "solid": "display-p3:0.94902,0.87451,0.75294,1.00000"
               }
             },
             {
@@ -89,17 +167,19 @@
           ]
         },
         {
-          "blend-mode": "normal",
+          "name": "hatch",
+          "image-name": "hatch.svg",
+          "glass": false,
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:0.99000,0.93000,0.81000,1.00000"
+                "solid": "display-p3:0.29020,0.17647,0.09020,0.85000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:0.99000,0.93000,0.81000,1.00000"
+                "solid": "display-p3:0.94902,0.87451,0.75294,0.60000"
               }
             },
             {
@@ -108,30 +188,48 @@
                 "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
               }
             }
-          ],
-          "hidden": false,
-          "image-name": "globe.svg",
-          "name": "globe",
-          "glass": false
+          ]
         },
         {
-          "blend-mode": "normal",
+          "name": "disc",
+          "image-name": "disc.svg",
+          "glass": true,
           "fill-specializations": [
             {
               "value": {
                 "linear-gradient": [
-                  "display-p3:0.46000,0.29000,0.17000,1.00000",
-                  "display-p3:0.25000,0.14000,0.07000,1.00000"
-                ]
+                  "display-p3:0.98431,0.95686,0.89412,1.00000",
+                  "display-p3:0.92157,0.86667,0.74902,1.00000"
+                ],
+                "orientation": {
+                  "start": {
+                    "x": 0.5,
+                    "y": 0.0
+                  },
+                  "stop": {
+                    "x": 0.5,
+                    "y": 1.0
+                  }
+                }
               }
             },
             {
               "appearance": "dark",
               "value": {
                 "linear-gradient": [
-                  "display-p3:0.46000,0.29000,0.17000,1.00000",
-                  "display-p3:0.25000,0.14000,0.07000,1.00000"
-                ]
+                  "display-p3:0.22745,0.14902,0.08235,1.00000",
+                  "display-p3:0.11765,0.07451,0.03922,1.00000"
+                ],
+                "orientation": {
+                  "start": {
+                    "x": 0.5,
+                    "y": 0.0
+                  },
+                  "stop": {
+                    "x": 0.5,
+                    "y": 1.0
+                  }
+                }
               }
             },
             {
@@ -141,9 +239,6 @@
               }
             }
           ],
-          "glass": true,
-          "image-name": "BG 2.svg",
-          "name": "BG-2",
           "position": {
             "scale": 1.08,
             "translation-in-points": [
@@ -153,8 +248,6 @@
           }
         }
       ],
-      "lighting": "individual",
-      "name": "Group",
       "position": {
         "scale": 1.25,
         "translation-in-points": [
@@ -162,20 +255,18 @@
           0
         ]
       },
-      "refractivity": {
-        "depth": 0,
-        "enabled": true,
-        "strength": 0.5
-      },
       "shadow": {
-        "kind": "layer-color",
-        "opacity": 0.5
+        "kind": "neutral",
+        "opacity": 0.35
       },
       "specular": true,
+      "lighting": "individual",
       "translucency": {
         "enabled": true,
         "value": 0.3
       },
+      "blur-material": 0.5,
+      "opacity": 1,
       "shadow-specializations": [
         {
           "appearance": "dark",
@@ -196,24 +287,5 @@
   ],
   "supported-platforms": {
     "squares": "shared"
-  },
-  "fill-specializations": [
-    {
-      "value": {
-        "linear-gradient": [
-          "display-p3:0.96000,0.91000,0.81000,1.00000",
-          "display-p3:0.89000,0.81000,0.67000,1.00000"
-        ]
-      }
-    },
-    {
-      "appearance": "dark",
-      "value": {
-        "linear-gradient": [
-          "display-p3:0.20000,0.13000,0.08000,1.00000",
-          "display-p3:0.10000,0.06000,0.03000,1.00000"
-        ]
-      }
-    }
-  ]
+  }
 }
