@@ -14,7 +14,7 @@ settings:
     # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "16"
+    CURRENT_PROJECT_VERSION: "17"
 packages:
   PadCore:
     path: PadCore
