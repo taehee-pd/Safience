@@ -243,7 +243,7 @@ private struct BlockingSection: View {
     }
 }
 
-/// The Home Screen icon: Redline, the app's own, or one of the alternates the
+/// The Home Screen icon: Safience, the app's own, or one of the alternates the
 /// asset catalog compiles in (ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES in
 /// project.yml), each the globe and pointer drawn in a style of its own. The system keeps the choice, so nothing here stores it; each
 /// preview is that icon rendered in light and dark, so it matches the screen.
@@ -255,7 +255,7 @@ private struct AppIconSection: View {
         var id: String { title }
     }
 
-    private static let choices = [Choice(name: nil, title: "Redline")]
+    private static let choices = [Choice(name: nil, title: "Safience")]
         + ["Diazo", "Engineer", "Signal", "Lilac", "Oxide", "Citrus", "Midnight"].map { Choice(name: $0, title: $0) }
 
     @State private var current = UIApplication.shared.alternateIconName
@@ -292,7 +292,7 @@ private struct AppIconSection: View {
             } header: {
                 Text("App icon")
             } footer: {
-                Text(failure ?? "Redline is Safience's own. The others draw the same globe and pointer their own way: a terminal's pixels, an engraving, an LED board, rings of glass, a linocut, a poster and a star chart. The system says once that the icon changed.")
+                Text(failure ?? "Safience is the app's own. The others draw the same globe and pointer their own way: a terminal's pixels, an engraving, an LED board, rings of glass, a linocut, a poster and a star chart. The system says once that the icon changed.")
             }
         }
     }

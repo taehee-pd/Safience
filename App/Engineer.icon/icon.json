@@ -42,107 +42,6 @@
     {
       "layers": [
         {
-          "name": "body",
-          "image-name": "arrow-body.svg",
-          "glass": false,
-          "fill-specializations": [
-            {
-              "value": {
-                "solid": "display-p3:0.90980,1.00000,0.92549,1.00000"
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "display-p3:0.90980,1.00000,0.92549,1.00000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            }
-          ],
-          "position": {
-            "scale": 1,
-            "translation-in-points": [
-              54,
-              96
-            ]
-          }
-        },
-        {
-          "name": "edge",
-          "image-name": "arrow-edge.svg",
-          "glass": false,
-          "fill-specializations": [
-            {
-              "value": {
-                "solid": "display-p3:0.01569,0.10196,0.04706,1.00000"
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "display-p3:0.01569,0.10196,0.04706,1.00000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
-              }
-            }
-          ],
-          "position": {
-            "scale": 1,
-            "translation-in-points": [
-              54,
-              96
-            ]
-          }
-        }
-      ],
-      "position": {
-        "scale": 1.7,
-        "translation-in-points": [
-          0,
-          0
-        ]
-      },
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.3
-      },
-      "specular": true,
-      "lighting": "individual",
-      "translucency": {
-        "enabled": false,
-        "value": 0
-      },
-      "blur-material": 0.5,
-      "opacity": 1,
-      "shadow-specializations": [
-        {
-          "appearance": "dark",
-          "value": {
-            "kind": "neutral",
-            "opacity": 0.5
-          }
-        },
-        {
-          "appearance": "tinted",
-          "value": {
-            "kind": "neutral",
-            "opacity": 0.5
-          }
-        }
-      ]
-    },
-    {
-      "layers": [
-        {
           "name": "close",
           "image-name": "close.svg",
           "glass": false,
@@ -239,6 +138,54 @@
           ]
         },
         {
+          "name": "arrow-body",
+          "image-name": "arrow-body.svg",
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.90980,1.00000,0.92549,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.90980,1.00000,0.92549,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "name": "arrow-edge",
+          "image-name": "arrow-edge.svg",
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.01569,0.10196,0.04706,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.01569,0.10196,0.04706,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+              }
+            }
+          ]
+        },
+        {
           "name": "pixels",
           "image-name": "pixels.svg",
           "glass": false,
@@ -257,7 +204,31 @@
             {
               "appearance": "tinted",
               "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+                "solid": "srgb:0.55000,0.55000,0.55000,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "name": "separator",
+          "image-name": "separator.svg",
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.00000,0.00000,0.00000,0.50000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.00000,0.00000,0.00000,0.50000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.00000,0.00000,0.00000,0.50000"
               }
             }
           ]

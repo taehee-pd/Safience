@@ -11,13 +11,13 @@
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:0.82000,0.36000,0.29000,1.00000"
+                "solid": "display-p3:0.34000,0.66000,1.00000,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:0.82000,0.36000,0.29000,1.00000"
+                "solid": "display-p3:0.34000,0.66000,1.00000,1.00000"
               }
             },
             {
@@ -71,13 +71,13 @@
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:0.74000,0.29000,0.24000,1.00000"
+                "solid": "display-p3:0.30000,0.60000,1.00000,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:0.88000,0.47000,0.40000,1.00000"
+                "solid": "display-p3:0.58000,0.80000,1.00000,1.00000"
               }
             },
             {
@@ -93,13 +93,13 @@
           "fill-specializations": [
             {
               "value": {
-                "solid": "display-p3:0.96000,0.95000,0.91000,1.00000"
+                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
               }
             },
             {
               "appearance": "dark",
               "value": {
-                "solid": "display-p3:0.96000,0.95000,0.91000,1.00000"
+                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
               }
             },
             {
@@ -110,7 +110,7 @@
             }
           ],
           "hidden": false,
-          "image-name": "globe.svg",
+          "image-name": "globe-blur.png",
           "name": "globe",
           "glass": false
         },
