@@ -112,73 +112,23 @@
     {
       "layers": [
         {
-          "name": "equator",
-          "image-name": "equator.svg",
+          "name": "band",
+          "image-name": "band.svg",
           "glass": true,
           "fill-specializations": [
             {
               "value": {
                 "linear-gradient": [
-                  "display-p3:0.48627,0.54902,1.00000,1.00000",
-                  "display-p3:0.72549,0.54510,1.00000,1.00000"
+                  "display-p3:1.00000,0.70196,0.86667,1.00000",
+                  "display-p3:0.48235,0.36078,1.00000,1.00000"
                 ],
                 "orientation": {
                   "start": {
-                    "x": 0,
-                    "y": 0.5
-                  },
-                  "stop": {
-                    "x": 1,
-                    "y": 0.5
-                  }
-                }
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "linear-gradient": [
-                  "display-p3:0.48627,0.54902,1.00000,1.00000",
-                  "display-p3:0.72549,0.54510,1.00000,1.00000"
-                ],
-                "orientation": {
-                  "start": {
-                    "x": 0,
-                    "y": 0.5
-                  },
-                  "stop": {
-                    "x": 1,
-                    "y": 0.5
-                  }
-                }
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            }
-          ]
-        },
-        {
-          "name": "meridian",
-          "image-name": "meridian.svg",
-          "glass": true,
-          "fill-specializations": [
-            {
-              "value": {
-                "linear-gradient": [
-                  "display-p3:1.00000,0.60784,0.82353,1.00000",
-                  "display-p3:0.61176,0.48235,1.00000,1.00000"
-                ],
-                "orientation": {
-                  "start": {
-                    "x": 0.5,
+                    "x": 0.3,
                     "y": 0.0
                   },
                   "stop": {
-                    "x": 0.5,
+                    "x": 0.7,
                     "y": 1.0
                   }
                 }
@@ -188,16 +138,16 @@
               "appearance": "dark",
               "value": {
                 "linear-gradient": [
-                  "display-p3:1.00000,0.60784,0.82353,1.00000",
-                  "display-p3:0.61176,0.48235,1.00000,1.00000"
+                  "display-p3:1.00000,0.62353,0.83137,1.00000",
+                  "display-p3:0.41961,0.29804,0.94118,1.00000"
                 ],
                 "orientation": {
                   "start": {
-                    "x": 0.5,
+                    "x": 0.3,
                     "y": 0.0
                   },
                   "stop": {
-                    "x": 0.5,
+                    "x": 0.7,
                     "y": 1.0
                   }
                 }
@@ -206,30 +156,30 @@
             {
               "appearance": "tinted",
               "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+                "solid": "srgb:0.62000,0.62000,0.62000,1.00000"
               }
             }
           ]
         },
         {
-          "name": "outer",
-          "image-name": "outer.svg",
+          "name": "ring",
+          "image-name": "ring.svg",
           "glass": true,
           "fill-specializations": [
             {
               "value": {
                 "linear-gradient": [
-                  "display-p3:0.55686,0.48235,1.00000,1.00000",
-                  "display-p3:0.35686,0.41961,1.00000,1.00000"
+                  "display-p3:0.76471,0.69804,1.00000,1.00000",
+                  "display-p3:0.33333,0.27451,0.90196,1.00000"
                 ],
                 "orientation": {
                   "start": {
-                    "x": 0,
-                    "y": 0
+                    "x": 0.15,
+                    "y": 0.1
                   },
                   "stop": {
-                    "x": 1,
-                    "y": 1
+                    "x": 0.85,
+                    "y": 0.9
                   }
                 }
               }
@@ -238,17 +188,17 @@
               "appearance": "dark",
               "value": {
                 "linear-gradient": [
-                  "display-p3:0.55686,0.48235,1.00000,1.00000",
-                  "display-p3:0.35686,0.41961,1.00000,1.00000"
+                  "display-p3:0.71765,0.64314,1.00000,1.00000",
+                  "display-p3:0.29412,0.23529,0.83922,1.00000"
                 ],
                 "orientation": {
                   "start": {
-                    "x": 0,
-                    "y": 0
+                    "x": 0.15,
+                    "y": 0.1
                   },
                   "stop": {
-                    "x": 1,
-                    "y": 1
+                    "x": 0.85,
+                    "y": 0.9
                   }
                 }
               }
@@ -260,37 +210,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "disc",
-          "image-name": "disc.svg",
-          "glass": true,
-          "fill-specializations": [
-            {
-              "value": {
-                "solid": "display-p3:1.00000,1.00000,1.00000,0.45000"
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "display-p3:0.16471,0.12941,0.25098,0.60000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
-              }
-            }
-          ],
-          "position": {
-            "scale": 1.08,
-            "translation-in-points": [
-              0,
-              0
-            ]
-          }
         }
       ],
       "position": {

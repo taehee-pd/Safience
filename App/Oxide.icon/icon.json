@@ -136,30 +136,6 @@
           ]
         },
         {
-          "name": "gouges",
-          "image-name": "gouges.svg",
-          "glass": false,
-          "fill-specializations": [
-            {
-              "value": {
-                "solid": "display-p3:0.22745,0.05490,0.03922,0.55000"
-              }
-            },
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "display-p3:1.00000,0.89412,0.80000,0.35000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
-              }
-            }
-          ]
-        },
-        {
           "name": "disc",
           "image-name": "disc.svg",
           "glass": true,
