@@ -43,6 +43,7 @@
 		B6BC6731F7D0A7A4D6A10A75 /* Spaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C853B222D6041EF25DDE463 /* Spaces.swift */; };
 		CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDB06E275F05C5DC35F5F409 /* Dialogs.swift */; };
 		D4B4AC01030D11A05B64B5E3 /* Signal.icon in Resources */ = {isa = PBXBuildFile; fileRef = 58F6C5CDBCE1B9CBA4D904DB /* Signal.icon */; };
+		D546ED830251ED10B0D222F5 /* Welcome.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE984F6AF777B597159E2C30 /* Welcome.swift */; };
 		E7DF6BA50A37C08EFA6DD149 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98ADE0F015573BE29D113B69 /* AppDelegate.swift */; };
 		ED593CD2CCCF8AE55B5FD515 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A825AD3F237E75FE4112E0F /* SettingsView.swift */; };
 		EFB4ED839E8488D924234E49 /* Pointer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26830907E9299824307361FA /* Pointer.swift */; };
@@ -91,6 +92,7 @@
 		B6522D61BD5EC7A7B841EA02 /* ContentBlocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentBlocker.swift; sourceTree = "<group>"; };
 		B78DD965C7E2C2BE09D6E8FD /* DesktopPad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopPad.swift; sourceTree = "<group>"; };
 		B8B8D645DD3D370107DC42C1 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		BE984F6AF777B597159E2C30 /* Welcome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Welcome.swift; sourceTree = "<group>"; };
 		CDB06E275F05C5DC35F5F409 /* Dialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dialogs.swift; sourceTree = "<group>"; };
 		DC1E327B0EF5710ADF1392D4 /* Popup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Popup.swift; sourceTree = "<group>"; };
 		E60AD010641A5D997D95B8AB /* Citrus.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Citrus.icon; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 				6D9D979FE9120276CFCCEF83 /* TabSheet.swift */,
 				F3A57216CC57C7852C3DA580 /* TabStrip.swift */,
 				454BB91AD08E546C79F7A68B /* TypingField.swift */,
+				BE984F6AF777B597159E2C30 /* Welcome.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -318,6 +321,7 @@
 				6C59C9D7C4A6F818B0E91E5B /* TabSheet.swift in Sources */,
 				26EB0960CC7A0E2DCF65015A /* TabStrip.swift in Sources */,
 				134B206FE21F5C445DF8C30F /* TypingField.swift in Sources */,
+				D546ED830251ED10B0D222F5 /* Welcome.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

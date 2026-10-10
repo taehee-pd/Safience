@@ -6,15 +6,16 @@ final class WorkspaceTests: XCTestCase {
     let slack = URL(string: "https://app.slack.com/client")
     let notion = URL(string: "https://www.notion.so/")
 
-    func testStartsWithOneSpaceOnFigma() {
+    func testStartsWithOneSpaceOnANewTab() {
         let w = Workspace.starting()
         XCTAssertEqual(w.spaces.count, 1)
-        XCTAssertEqual(w.spaces[0].tabs.first?.url, figma)
+        XCTAssertEqual(w.spaces[0].tabs.count, 1)
+        XCTAssertNil(w.spaces[0].tabs.first?.url, "the start page, not a site's sign-in page")
         XCTAssertEqual(w.spaces[0].selected, w.spaces[0].tabs.first?.id)
     }
 
     func testOpenPutsTheTabAfterTheOneItCameFromAndSelectsIt() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let first = try XCTUnwrap(w.spaces[0].selected)
         let second = try XCTUnwrap(w.openTab(slack, in: space))
@@ -25,7 +26,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testClosingSelectsTheRightNeighbourThenTheLeft() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -39,7 +40,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testReopenPutsTheTabBackWhereItWas() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -52,7 +53,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testClosedTabsAreKeptUpToALimit() {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         for _ in 0..<40 {
             if let id = w.openTab(slack, in: space) { w.closeTab(id) }
@@ -61,7 +62,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testNeighboursGoRound() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -75,7 +76,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testSpacesComeWithAnEmptyTabAndTheLastOneStays() {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let first = w.spaces[0].id
         let client = w.addSpace(named: "Client")
         XCTAssertEqual(w.space(client)?.tabs.count, 1)
@@ -87,7 +88,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testRemovingASpaceForgetsItsClosedTabs() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let client = w.addSpace(named: "Client")
         let tab = try XCTUnwrap(w.openTab(slack, in: client))
         w.closeTab(tab)
@@ -97,7 +98,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testMovingATabToAnotherSpace() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let first = w.spaces[0].id
         let tab = try XCTUnwrap(w.spaces[0].selected)
         let client = w.addSpace(named: "Client")
@@ -109,7 +110,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testRecordAndRename() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let tab = try XCTUnwrap(w.spaces[0].selected)
         w.record(tab, url: slack, title: "Slack")
         XCTAssertEqual(w.tab(tab)?.url, slack)
@@ -133,7 +134,7 @@ final class WorkspaceTests: XCTestCase {
     }
 
     func testFileRoundTrip() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let client = w.addSpace(named: "Client")
         w.openTab(slack, in: client)
         let file = FileManager.default.temporaryDirectory

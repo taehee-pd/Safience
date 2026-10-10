@@ -174,6 +174,32 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         show(tab: firstTab, inSpace: model.spaceID, userInitiated: false)
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        welcomeIfNew()
+    }
+
+    /// Only one window welcomes, however many open at a first launch.
+    private static var welcoming = false
+
+    /// The first launch's welcome (Welcome.swift), over the first window. It
+    /// can't be swiped away by accident; Skip and its last button end it.
+    private func welcomeIfNew() {
+        guard Session.shared.needsWelcome, !Browser.welcoming, presentedViewController == nil else { return }
+        Browser.welcoming = true
+        let welcome = UIHostingController(rootView: Welcome(session: Session.shared, spaceID: model.spaceID) { [weak self] in
+            Session.shared.finishWelcome()
+            self?.dismiss(animated: true) {
+                Browser.welcoming = false
+                self?.focusPage()
+            }
+        })
+        welcome.modalPresentationStyle = .formSheet
+        welcome.preferredContentSize = CGSize(width: 520, height: 680)
+        welcome.isModalInPresentation = true
+        present(welcome, animated: true)
+    }
+
     /// The window is gone (its scene was closed): its page stays, off
     /// screen now, for the Freezer to decide about.
     func disconnect() {
