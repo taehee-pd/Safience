@@ -7,8 +7,9 @@
 // would otherwise keep them, and a stylesheet.
 //
 // The app calls in through window.__safience (Page.swift): wheel() for every
-// step of a trackpad scroll or pinch, key() for a relayed key, unsaved()
-// before a tab is frozen, state() for Diagnostics. It hears back through the
+// step of a trackpad scroll or pinch, key() for a relayed key, pointer() and
+// type() for the iPhone's desktop view, which moves a cursor of its own,
+// unsaved() before a tab is frozen, state() for Diagnostics. It hears back through the
 // "safience" message handler: where the focus is, whether there is a
 // password field, whether WebKit's own wheel events are arriving, the
 // cursor the page asks for under the pointer, and the icons it names.
@@ -290,6 +291,8 @@
     const view = doc.defaultView;
     const all = Array.from(doc.querySelectorAll(tabbable)).filter((element) => {
       if (element.tabIndex < 0 || element.disabled) return false;
+      if (element.hasAttribute('contenteditable') && !element.isContentEditable && element.tabIndex === 0
+          && !/^(a|area|button|input|select|textarea|iframe|summary)$/i.test(element.tagName)) return false;
       if (element.tagName === 'INPUT' && (element.getAttribute('type') || '').toLowerCase() === 'hidden') return false;
       if (element.closest('[inert]')) return false;
       const style = view.getComputedStyle(element);
@@ -306,7 +309,20 @@
     const doc = (from && from.ownerDocument) || document;
     const list = focusables(doc);
     if (!list.length) return false;
-    const at = list.indexOf(from);
+    let at = list.indexOf(from);
+    if (at < 0 && from) {
+      // Not in the list: in a shadow root, or something focused by script.
+      // Its place is where it sits in the document, its host's for a shadow
+      // root, so the next is the first field after that, not the page's first.
+      let mark = from;
+      while (mark && mark.getRootNode() !== doc) mark = mark.getRootNode().host || null;
+      if (mark) {
+        const after = list.findIndex((e) => e !== mark && (mark.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING));
+        at = backwards
+          ? (after < 0 ? list.length : after)
+          : (after < 0 ? list.length - 1 : after - 1);
+      }
+    }
     const next = at < 0
       ? list[backwards ? list.length - 1 : 0]
       : list[(at + (backwards ? -1 : 1) + list.length) % list.length];
@@ -317,7 +333,17 @@
     return true;
   }
 
-  const legacyCodes = { Tab: 9, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+  const legacyCodes = { Tab: 9, Enter: 13, Escape: 27, Backspace: 8, Delete: 46,
+    ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 };
+
+  // A typed character's code and keyCode, as a US keyboard's: KeyA and 65 for
+  // "a", Digit1 and 49 for "1"; 0 and the character for anything else.
+  function charCodes(key) {
+    if (/^[a-z]$/i.test(key)) return { code: 'Key' + key.toUpperCase(), legacy: key.toUpperCase().charCodeAt(0) };
+    if (/^[0-9]$/.test(key)) return { code: 'Digit' + key, legacy: key.charCodeAt(0) };
+    if (key === ' ') return { code: 'Space', legacy: 32 };
+    return { code: key, legacy: 0 };
+  }
 
   function keyEvent(view, type, m) {
     const Keyboard = view.KeyboardEvent || KeyboardEvent;
@@ -335,25 +361,44 @@
     });
     // keyCode and which can't be given to the constructor; older code
     // still reads them.
-    const code = legacyCodes[m.key] || 0;
+    const code = legacyCodes[m.key] || (Array.from(m.key).length === 1 ? charCodes(m.key).legacy : 0);
     for (const name of ['keyCode', 'which']) {
       try { Object.defineProperty(event, name, { get: () => code }); } catch (_) {}
     }
     return event;
   }
 
-  // m: { key: 'Tab' | 'ArrowUp' | ..., code, shift, alt, ctrl, meta }
+  // m: { key: 'Tab' | 'ArrowUp' | 'Enter' | 'a' | ..., code, shift, alt, ctrl, meta }
   // The key goes to the focused element as keydown and keyup. When the page
   // doesn't take it, it does what a browser would: Tab moves the focus, an
-  // arrow outside a text field scrolls. Returns 'handled' or 'default'.
+  // arrow outside a text field scrolls, and in a field Return, Backspace and
+  // a character edit it. Returns 'handled' or 'default'.
   function key(m) {
     const target = deepActive() || document.body || document.documentElement;
     const view = target.ownerDocument.defaultView;
+    const doc = target.ownerDocument;
     const proceed = target.dispatchEvent(keyEvent(view, 'keydown', m));
+    // One character, whatever its length in JavaScript's units: an emoji is two.
+    const printable = Array.from(m.key).length === 1;
+    if (proceed && (printable || m.key === 'Enter')) {
+      target.dispatchEvent(keyEvent(view, 'keypress', m));
+    }
     if (proceed) {
       if (m.key === 'Tab') {
         moveFocus(target, !!m.shift);
-      } else if (!editable(target)) {
+      } else if (editable(target) && printable && !m.ctrl && !m.meta) {
+        doc.execCommand('insertText', false, m.key);
+      } else if (editable(target) && (m.key === 'Backspace' || m.key === 'Delete')) {
+        doc.execCommand(m.key === 'Backspace' ? 'delete' : 'forwardDelete', false);
+      } else if (editable(target) && m.key === 'Enter') {
+        // A field sends its form, as Return does; a text area and
+        // anything content-editable take a new line.
+        if (target.tagName === 'INPUT') {
+          if (target.form && target.form.requestSubmit) target.form.requestSubmit();
+        } else {
+          doc.execCommand(target.tagName === 'TEXTAREA' ? 'insertLineBreak' : 'insertParagraph', false);
+        }
+      } else if (!editable(target) && m.key.startsWith('Arrow')) {
         const step = m.alt ? view.innerHeight * 0.875 : 40;
         const dx = m.key === 'ArrowLeft' ? -step : m.key === 'ArrowRight' ? step : 0;
         const dy = m.key === 'ArrowUp' ? -step : m.key === 'ArrowDown' ? step : 0;
@@ -363,6 +408,288 @@
     target.dispatchEvent(keyEvent(view, 'keyup', m));
     reportFocus();
     return proceed ? 'default' : 'handled';
+  }
+
+  // MARK: The iPhone's desktop view
+
+  // The phone has no pointer. In its desktop view the app moves a cursor of
+  // its own over the page, as a trackpad would, and its moves, presses and
+  // clicks come here to reach the page as a Mac's mouse does: pointer
+  // events, then mouse events, then click. Script events, which a page can
+  // tell from a real mouse's (isTrusted), and a few pages ignore.
+  let over = null;
+  let pressed = null;
+  let mouseless = false;
+
+  function lineage(node) {
+    const list = [];
+    for (let at = node; at; at = parentOf(at)) {
+      if (at.nodeType === 1) list.push(at);
+    }
+    return list;
+  }
+
+  function mouseEvent(view, kind, type, hit, point, m, related) {
+    const init = {
+      bubbles: !/enter|leave/.test(type),
+      cancelable: !/enter|leave/.test(type),
+      composed: true,
+      view,
+      detail: m.detail || 0,
+      clientX: hit.x,
+      clientY: hit.y,
+      screenX: point.x + (window.screenX || 0),
+      screenY: point.y + (window.screenY || 0),
+      button: m.button || 0,
+      buttons: m.buttons || 0,
+      relatedTarget: related || null,
+      ctrlKey: !!m.ctrl, altKey: !!m.alt, shiftKey: !!m.shift, metaKey: !!m.meta,
+    };
+    if (kind === 'pointer') {
+      const Pointer = view.PointerEvent || PointerEvent;
+      return new Pointer(type, Object.assign(init, {
+        pointerId: 1, pointerType: 'mouse', isPrimary: true, width: 1, height: 1,
+        pressure: init.buttons ? 0.5 : 0,
+      }));
+    }
+    const Mouse = view.MouseEvent || MouseEvent;
+    return new Mouse(type, init);
+  }
+
+  // :hover, for the cursor the app moves. A page's hover styles answer
+  // only the engine's own pointer, which a phone hasn't got, so each of
+  // its :hover rules is copied once with :hover as an attribute, which the
+  // elements under the cursor get. The copies sit in a style element of
+  // the bridge's own, after the page's; media queries asking for a pointer
+  // that hovers are answered yes there, as a Mac answers them. A style
+  // sheet from another origin can't be read, so its hover styles stay
+  // off; a shadow root's aren't copied.
+  const hoverMark = 'data-safience-hover';
+  const hoverCopies = new WeakMap();
+  let hovered = [];
+
+  function hoverMedia(prelude) {
+    return prelude
+      .replace(/\(\s*(any-)?hover\s*:\s*hover\s*\)/gi, '(min-width: 0px)')
+      .replace(/\(\s*(any-)?pointer\s*:\s*fine\s*\)/gi, '(min-width: 0px)')
+      .replace(/\(\s*(any-)?hover\s*:\s*none\s*\)/gi, '(max-width: 0px)')
+      .replace(/\(\s*(any-)?pointer\s*:\s*coarse\s*\)/gi, '(max-width: 0px)');
+  }
+
+  function copyHoverRules(rules, out) {
+    for (const rule of Array.from(rules)) {
+      if (rule.styleSheet) {
+        try { copyHoverRules(rule.styleSheet.cssRules, out); } catch (_) {}
+        continue;
+      }
+      const inner = rule.cssRules;
+      const nested = [];
+      if (inner && inner.length) copyHoverRules(inner, nested);
+      if (rule.selectorText !== undefined) {
+        if (rule.selectorText.includes(':hover')) {
+          out.push(rule.selectorText.replace(/:hover\b/g, '[' + hoverMark + ']') + '{' + rule.style.cssText + '}');
+        }
+        if (nested.length) out.push(rule.selectorText + '{' + nested.join('') + '}');
+      } else if (nested.length) {
+        const text = rule.cssText;
+        out.push(hoverMedia(text.slice(0, text.indexOf('{'))) + '{' + nested.join('') + '}');
+      }
+    }
+  }
+
+  // The copies for a document, made again for a sheet only when its
+  // number of rules changed: the page added some, as script-made styles do.
+  function copyHover(doc) {
+    let state = hoverCopies.get(doc);
+    if (!state) {
+      state = { style: null, counts: new Map(), texts: new Map() };
+      hoverCopies.set(doc, state);
+    }
+    const sheets = Array.from(doc.styleSheets).concat(Array.from(doc.adoptedStyleSheets || []));
+    let changed = false;
+    for (const sheet of sheets) {
+      if (state.style && sheet.ownerNode === state.style) continue;
+      let rules;
+      try { rules = sheet.cssRules; } catch (_) { continue; }
+      if (!rules || state.counts.get(sheet) === rules.length) continue;
+      state.counts.set(sheet, rules.length);
+      const out = [];
+      try { copyHoverRules(rules, out); } catch (_) {}
+      state.texts.set(sheet, out.join('\n'));
+      changed = true;
+    }
+    for (const sheet of Array.from(state.texts.keys())) {
+      if (!sheets.includes(sheet)) {
+        state.texts.delete(sheet);
+        state.counts.delete(sheet);
+        changed = true;
+      }
+    }
+    const text = Array.from(state.texts.values()).filter(Boolean).join('\n');
+    if (!text) return;
+    if (!state.style) {
+      state.style = doc.createElement('style');
+      state.style.setAttribute('data-safience', 'hover');
+    }
+    if (changed || state.style.textContent !== text) state.style.textContent = text;
+    if (!state.style.isConnected) (doc.head || doc.documentElement).appendChild(state.style);
+  }
+
+  function markHover(lineup) {
+    for (const element of hovered) {
+      if (!lineup.includes(element)) element.removeAttribute(hoverMark);
+    }
+    const docs = new Set();
+    for (const element of lineup) {
+      if (!element.hasAttribute(hoverMark)) element.setAttribute(hoverMark, '');
+      docs.add(element.ownerDocument);
+    }
+    hovered = lineup;
+    for (const doc of docs) copyHover(doc);
+  }
+
+  // Over, out, enter and leave as the cursor goes from one element to the
+  // next, so hover menus open and close; and the hover styles with them.
+  function crossTo(element, hit, point, m) {
+    if (element === over) return;
+    const view = hit.view;
+    const before = over && over.isConnected ? lineage(over) : [];
+    const after = lineage(element);
+    if (before.length) {
+      const old = before[0];
+      old.dispatchEvent(mouseEvent(old.ownerDocument.defaultView, 'pointer', 'pointerout', hit, point, m, element));
+      old.dispatchEvent(mouseEvent(old.ownerDocument.defaultView, 'mouse', 'mouseout', hit, point, m, element));
+      for (const left of before.filter((e) => !after.includes(e))) {
+        left.dispatchEvent(mouseEvent(left.ownerDocument.defaultView, 'pointer', 'pointerleave', hit, point, m, element));
+        left.dispatchEvent(mouseEvent(left.ownerDocument.defaultView, 'mouse', 'mouseleave', hit, point, m, element));
+      }
+    }
+    element.dispatchEvent(mouseEvent(view, 'pointer', 'pointerover', hit, point, m, before[0]));
+    element.dispatchEvent(mouseEvent(view, 'mouse', 'mouseover', hit, point, m, before[0]));
+    for (const entered of after.filter((e) => !before.includes(e)).reverse()) {
+      entered.dispatchEvent(mouseEvent(entered.ownerDocument.defaultView, 'pointer', 'pointerenter', hit, point, m, before[0]));
+      entered.dispatchEvent(mouseEvent(entered.ownerDocument.defaultView, 'mouse', 'mouseenter', hit, point, m, before[0]));
+    }
+    over = element;
+    markHover(after);
+  }
+
+  // What a press gives the focus to, as a browser does: the field or the
+  // control under it, or nothing, and a field's caret where it was pressed.
+  function focusFor(element, hit) {
+    const focusable = element.closest(tabbable + ', [tabindex]');
+    const active = deepActive();
+    if (focusable && !focusable.disabled) {
+      if (focusable !== active) focusable.focus({ preventScroll: true });
+      if (focusable.isContentEditable && hit.view.document.caretRangeFromPoint) {
+        const range = hit.view.document.caretRangeFromPoint(hit.x, hit.y);
+        const selection = hit.view.getSelection();
+        if (range && selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    } else if (active && active !== document.body && active.blur) {
+      active.blur();
+    }
+  }
+
+  function commonAncestor(a, b) {
+    const others = lineage(b);
+    return lineage(a).find((e) => others.includes(e)) || null;
+  }
+
+  // m: { type: 'move' | 'down' | 'up' | 'click' | 'context', x, y, width,
+  //      button, buttons, detail, shift, alt, ctrl, meta }
+  // x and y are in the web view's points, as for wheel(). A click is a press
+  // and a release in place; a second or third (detail 2, 3) adds dblclick on
+  // the second. 'context' is a press of the right button. Returns 'handled'
+  // when the page cancelled the press, 'default' otherwise.
+  function pointer(m) {
+    const point = clientPoint(m.x, m.y, m.width);
+    const hit = hitTest(point.x, point.y);
+    const target = hit.element;
+    const view = hit.view;
+    const send = (kind, type, init) => target.dispatchEvent(mouseEvent(view, kind, type, hit, point, init));
+    crossTo(target, hit, point, m);
+    if (m.type === 'move') {
+      send('pointer', 'pointermove', m);
+      if (!mouseless) send('mouse', 'mousemove', m);
+      return 'default';
+    }
+    if (m.type === 'click') {
+      const outcome = pointer(Object.assign({}, m, { type: 'down' }));
+      pointer(Object.assign({}, m, { type: 'up' }));
+      return outcome;
+    }
+    if (m.type === 'context') {
+      const right = { button: 2, buttons: 2, detail: 1 };
+      const outcome = pointer(Object.assign({}, m, right, { type: 'down' }));
+      target.dispatchEvent(mouseEvent(view, 'mouse', 'contextmenu', hit, point, Object.assign({}, m, right)));
+      pointer(Object.assign({}, m, right, { type: 'up', buttons: 0 }));
+      return outcome;
+    }
+    const button = m.button || 0;
+    if (m.type === 'down') {
+      const held = Object.assign({}, m, { button, buttons: button === 2 ? 2 : 1, detail: m.detail || 1 });
+      // A cancelled pointerdown keeps the mouse events from the page, as in a browser.
+      mouseless = !send('pointer', 'pointerdown', held);
+      const proceed = mouseless ? false : send('mouse', 'mousedown', held);
+      if (proceed && !mouseless && button === 0) focusFor(target, hit);
+      pressed = { element: target, button };
+      reportFocus();
+      return mouseless || !proceed ? 'handled' : 'default';
+    }
+    if (m.type === 'up') {
+      const released = Object.assign({}, m, { button, buttons: 0, detail: m.detail || 1 });
+      send('pointer', 'pointerup', released);
+      if (!mouseless) send('mouse', 'mouseup', released);
+      mouseless = false;
+      const from = pressed;
+      pressed = null;
+      if (from && from.button === button && button === 0 && from.element.isConnected) {
+        const clicked = commonAncestor(from.element, target);
+        if (clicked) {
+          clicked.dispatchEvent(mouseEvent(clicked.ownerDocument.defaultView, 'mouse', 'click', hit, point, released));
+          if (released.detail === 2) {
+            clicked.dispatchEvent(mouseEvent(clicked.ownerDocument.defaultView, 'mouse', 'dblclick', hit, point, released));
+          }
+        }
+      }
+      reportFocus();
+      return 'default';
+    }
+    return 'ignored';
+  }
+
+  // m: { text, back }
+  // What the phone's keyboard typed in the desktop view: `back` characters
+  // taken away, then `text`, as the keyboard's own field changed (a Korean
+  // syllable is typed by replacing the one before it). In a field it is
+  // edited as typing edits it; on the rest of the page each new character is
+  // a key, for the page's own shortcuts, and a replacement is not. Returns
+  // 'typed', 'keys' or 'ignored'.
+  function type(m) {
+    const text = m.text || '';
+    const back = m.back || 0;
+    const target = deepActive();
+    if (!text) {
+      for (let i = 0; i < back; i++) key({ key: 'Backspace', code: 'Backspace' });
+      return back ? 'keys' : 'ignored';
+    }
+    if (target && editable(target)) {
+      if (!back && Array.from(text).length === 1) {
+        key({ key: text, code: charCodes(text).code });
+        return 'typed';
+      }
+      const doc = target.ownerDocument;
+      for (let i = 0; i < back; i++) doc.execCommand('delete', false);
+      doc.execCommand('insertText', false, text);
+      return 'typed';
+    }
+    if (back) return 'ignored';
+    for (const character of Array.from(text)) key({ key: character, code: charCodes(character).code });
+    return 'keys';
   }
 
   // MARK: Reports
@@ -708,6 +1035,6 @@
   post({ kind: 'hello', userAgent: navigator.userAgent, adapter: config.adapter || '' });
 
   Object.defineProperty(window, '__safience', {
-    value: Object.freeze({ wheel, key, unsaved, state, clientPoint, hitTest, parseCursor, siteIcons }),
+    value: Object.freeze({ wheel, key, pointer, type, unsaved, state, clientPoint, hitTest, parseCursor, siteIcons }),
   });
 })();

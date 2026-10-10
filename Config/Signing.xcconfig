@@ -6,11 +6,15 @@
 //
 // Xcode > Settings > Accounts shows the team ID.
 //
-// Once Apple grants your team the browser entitlement (README), add this
-// line there too, for passkeys and to be offered as the default browser:
+// Safience is signed with Apple's browser entitlement (Config/Safience.entitlements),
+// which Apple granted to the team that publishes it. A team without it can't
+// sign with it: such a team turns it off in Local.xcconfig, and the app then
+// builds and runs as before, without passkeys and without being offered as
+// the default browser:
 //
-//     CODE_SIGN_ENTITLEMENTS = Config/Browser.entitlements
+//     CODE_SIGN_ENTITLEMENTS =
 PRODUCT_BUNDLE_IDENTIFIER = net.taehee.safience
 DEVELOPMENT_TEAM =
+CODE_SIGN_ENTITLEMENTS = Config/Safience.entitlements
 
 #include? "Local.xcconfig"

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Safience Sync</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <img src="../icons/icon-48.png" alt="" width="28" height="28">
+    <div>
+      <h1>Safience Sync</h1>
+      <p id="subtitle" class="muted">Bookmarks, pinned and open tabs, through your iCloud</p>
+    </div>
+  </header>
+
+  <!-- No API token yet: what to set up, once. -->
+  <section id="setup" hidden>
+    <p>This copy of the extension has no CloudKit API token yet.</p>
+    <ol>
+      <li>In CloudKit Console, open <b>iCloud.net.taehee.safience</b> › API Access › API Tokens, and add one.</li>
+      <li>Set its sign-in callback to <b>URL</b>:<code id="redirect" class="block"></code></li>
+      <li>Put the token in <code>config.js</code> and reload the extension.</li>
+    </ol>
+  </section>
+
+  <!-- Signed out. -->
+  <section id="signin" hidden>
+    <p>Sign in with the Apple Account you use on your iPhone or iPad. Safience keeps nothing anywhere else.</p>
+    <button id="signin-button" class="primary">Sign in with Apple Account</button>
+  </section>
+
+  <!-- Signed in, this profile not paired yet. -->
+  <section id="pair" hidden>
+    <h2>Pair this profile with a space</h2>
+    <p class="muted">Its bookmarks bar becomes the space's bookmarks, and its pinned tabs the space's. Both sides keep what they have.</p>
+    <div id="spaces" class="choices" role="radiogroup" aria-label="Spaces"></div>
+    <label class="choice new">
+      <input type="radio" name="space" value="">
+      <span>New space</span>
+      <input id="new-name" type="text" placeholder="Name" autocomplete="off" spellcheck="false">
+    </label>
+    <button id="pair-button" class="primary" disabled>Pair</button>
+  </section>
+
+  <!-- Paired. -->
+  <section id="paired" hidden>
+    <div class="space-row">
+      <span class="chip" id="space-name"></span>
+      <button id="sync-button" class="quiet" title="Sync now">Sync now</button>
+    </div>
+    <p id="last-sync" class="muted"></p>
+    <p id="follower" class="note" hidden>
+      Another computer with this Chrome profile syncs its bookmarks; Chrome Sync brings them here.
+      <button id="writer-button" class="link">Sync bookmarks from this computer instead</button>
+    </p>
+    <div class="device">
+      <label for="device-name" class="muted">This computer shows in Safience as</label>
+      <input id="device-name" type="text" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="elsewhere"></div>
+  </section>
+
+  <p id="error" class="error" role="alert" hidden></p>
+
+  <footer id="footer" hidden>
+    <button id="unpair-button" class="link">Unpair</button>
+    <button id="signout-button" class="link">Sign out</button>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

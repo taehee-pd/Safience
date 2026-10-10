@@ -26,8 +26,11 @@ public enum Command: String, CaseIterable, Sendable {
     case pinTab
     case splitTab
     case bookmark
+    case share
+    case siteMode
     case spaceSettings
     case importBookmarks
+    case contentBlocking
 
     public var title: String {
         switch self {
@@ -54,8 +57,11 @@ public enum Command: String, CaseIterable, Sendable {
         case .pinTab: return "Pin or Unpin Tab"
         case .splitTab: return "Split or Separate Tabs"
         case .bookmark: return "Bookmark This Page"
+        case .share: return "Share Page…"
+        case .siteMode: return "Request Desktop or Mobile Site"
         case .spaceSettings: return "Space Settings"
         case .importBookmarks: return "Import Bookmarks"
+        case .contentBlocking: return "Block or Allow Ads on This Site"
         }
     }
 
@@ -82,8 +88,11 @@ public enum Command: String, CaseIterable, Sendable {
         case .pinTab: return ["pin", "keep", "unpin"]
         case .splitTab: return ["split view", "side by side", "two", "pane", "unsplit"]
         case .bookmark: return ["save", "favorite", "star", "remove bookmark"]
+        case .share: return ["add to home screen", "copy link", "send", "airdrop", "web app"]
+        case .siteMode: return ["desktop site", "mobile site", "user agent", "phone"]
         case .spaceSettings: return ["profile", "colour", "color", "icon", "rename"]
         case .importBookmarks: return ["chrome", "safari", "html", "favorites"]
+        case .contentBlocking: return ["ad blocker", "adblock", "trackers", "content blocker", "easylist", "turn off", "allow ads"]
         }
     }
 }
@@ -97,17 +106,29 @@ public enum Key: Hashable, Sendable {
 
 /// The browser's own shortcuts are ⌃⌥ and a key, with ⇧ on a few: a pair of
 /// modifiers pages almost never use, so ⌘ and everything else stays theirs.
-/// Figma alone has hundreds of shortcuts on ⌘, ⌥ and ⇧.
+/// Figma alone has hundreds of shortcuts on ⌘, ⌥ and ⇧. The exceptions are
+/// the keys every browser keeps for itself, which no page can count on:
+/// ⌘T, ⌘W, ⌘N and the like, on the commands Chrome reserves from pages
+/// (Shortcuts.reserved).
 public struct Chord: Hashable, Sendable {
-    public var key: Key
-    public var shift: Bool
-
-    public init(_ key: Key, shift: Bool = false) {
-        self.key = key
-        self.shift = shift
+    /// What is held with the key, ⇧ aside.
+    public enum Base: Hashable, Sendable {
+        case controlOption
+        case command
+        case control
     }
 
-    /// As the menu bar writes it: ⌃⌥⇧T.
+    public var key: Key
+    public var shift: Bool
+    public var base: Base
+
+    public init(_ key: Key, shift: Bool = false, _ base: Base = .controlOption) {
+        self.key = key
+        self.shift = shift
+        self.base = base
+    }
+
+    /// As the menu bar writes it, modifiers in Apple's order: ⌃⌥⇧T, ⇧⌘T.
     public var label: String {
         let name: String
         switch key {
@@ -119,28 +140,33 @@ public struct Chord: Hashable, Sendable {
         case .escape: name = "⎋"
         case .tab: name = "⇥"
         }
-        return "⌃⌥" + (shift ? "⇧" : "") + name
+        let shifted = shift ? "⇧" : ""
+        switch base {
+        case .controlOption: return "⌃⌥" + shifted + name
+        case .command: return shifted + "⌘" + name
+        case .control: return "⌃" + shifted + name
+        }
     }
 }
 
 public enum Shortcuts {
     public static let chords: [Command: Chord] = [
         .palette: Chord(.character("k")),
-        .newTab: Chord(.character("t")),
-        .closeTab: Chord(.character("w")),
-        .reopenTab: Chord(.character("t"), shift: true),
+        .newTab: Chord(.character("t"), .command),
+        .closeTab: Chord(.character("w"), .command),
+        .reopenTab: Chord(.character("t"), shift: true, .command),
         .address: Chord(.character("l")),
         .reload: Chord(.character("r")),
         .stop: Chord(.character(".")),
         .back: Chord(.character("[")),
         .forward: Chord(.character("]")),
-        .nextTab: Chord(.right),
-        .previousTab: Chord(.left),
+        .nextTab: Chord(.tab, .control),
+        .previousTab: Chord(.tab, shift: true, .control),
         .nextSpace: Chord(.down),
         .previousSpace: Chord(.up),
         .newSpace: Chord(.character("n"), shift: true),
-        .newWindow: Chord(.character("n")),
-        .closeWindow: Chord(.character("w"), shift: true),
+        .newWindow: Chord(.character("n"), .command),
+        .closeWindow: Chord(.character("w"), shift: true, .command),
         .tabBar: Chord(.character("b")),
         .diagnostics: Chord(.character("d")),
         .settings: Chord(.character(",")),
@@ -148,13 +174,23 @@ public enum Shortcuts {
         .pinTab: Chord(.character("p"), shift: true),
         .splitTab: Chord(.character("\\")),
         .bookmark: Chord(.character("d"), shift: true),
+        .share: Chord(.character("s")),
+        .siteMode: Chord(.character("m"), shift: true),
         .spaceSettings: Chord(.character("s"), shift: true),
         .importBookmarks: Chord(.character("i"), shift: true),
+        .contentBlocking: Chord(.character("a"), shift: true),
     ]
 
     public static func chord(for command: Command) -> Chord? {
         chords[command]
     }
+
+    /// The commands on the keys every browser keeps for itself, as browsers
+    /// and tabbed apps have them: Chrome reserves these from pages
+    /// (IsReservedCommandOrKey, browser_command_controller.cc), so no page
+    /// counts on ⌘T, ⌘W, ⌘N, ⇧⌘T, ⇧⌘W, ⌃⇥ or ⌃⇧⇥. Every other command is on ⌃⌥.
+    public static let reserved: Set<Command> = [.newTab, .closeTab, .reopenTab, .newWindow, .closeWindow,
+                                                .nextTab, .previousTab]
 
     /// ⌃⌥1 to ⌃⌥9: the nth tab of the space, ⌃⌥9 the last, as in every browser.
     public static let tabNumbers = (1...9).map { Chord(.character(String($0))) }

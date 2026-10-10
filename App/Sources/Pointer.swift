@@ -29,6 +29,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     private let pinch: UIPinchGestureRecognizer
     private let scroll: UIPanGestureRecognizer
     private let press: PressWatcher
+    private let keys: PressKeys
 
     /// Where the cursor last was over the page, in the page view's points.
     private(set) var cursor: CGPoint?
@@ -51,6 +52,9 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     /// by bridge.js's id, the view that draws the one showing, and the
     /// interaction that hides the system pointer while it shows.
     private(set) var pageCursor: PageCursor = .system
+    /// The page asked for another cursor: the iPhone's desktop view draws
+    /// its own cursor, and draws this one.
+    var changed: (() -> Void)?
     private var pictures: [Int: CursorPicture] = [:]
     /// The pictures' ids, oldest first: past 128, the oldest goes. The page
     /// names by id only its last 65 (bridge.js showCursor), so those stay.
@@ -62,6 +66,11 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
     /// recognizer doesn't follow; and when the hover recognizer last did.
     private var pressed: CGPoint?
     private var lastHover: CFTimeInterval = 0
+    /// The last press on the page: when, the keys held, and whether it was a
+    /// mouse's middle button. What a click asks for (NewTabClick) where
+    /// WebKit doesn't say: before iPadOS 18.4, and for a button whose own
+    /// script goes somewhere.
+    private var lastPress: (time: CFTimeInterval, flags: UIKeyModifierFlags, middle: Bool)?
 
     init(page: Page) {
         self.page = page
@@ -69,6 +78,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         pinch = UIPinchGestureRecognizer()
         scroll = UIPanGestureRecognizer()
         press = PressWatcher()
+        keys = PressKeys()
         super.init()
         hover.addTarget(self, action: #selector(hovered(_:)))
         pinch.addTarget(self, action: #selector(pinched(_:)))
@@ -76,6 +86,9 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         let pointer = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         press.allowedTouchTypes = pointer
         press.moved = { [weak self] point in self?.pressMoved(point) }
+        keys.began = { [weak self] flags, buttons in
+            self?.lastPress = (CACurrentMediaTime(), flags, buttons.contains(.button(3)))
+        }
         pinch.allowedTouchTypes = pointer
         // Scroll events, from a trackpad or a mouse wheel. Fingers on the
         // glass never reach it; a click-drag with the pointer does, and is
@@ -83,7 +96,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         // doesn't. Either stays the page's.
         scroll.allowedScrollTypesMask = .all
         scroll.allowedTouchTypes = pointer
-        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press, keys] as [UIGestureRecognizer] {
             recognizer.delegate = self
             recognizer.cancelsTouchesInView = false
             recognizer.delaysTouchesBegan = false
@@ -103,7 +116,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
 
     func stop() {
         stopGlide()
-        for recognizer in [hover, pinch, scroll, press] as [UIGestureRecognizer] {
+        for recognizer in [hover, pinch, scroll, press, keys] as [UIGestureRecognizer] {
             recognizer.view?.removeGestureRecognizer(recognizer)
         }
         hideSystemPointer(false)
@@ -151,6 +164,12 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         updateCursor()
     }
 
+    /// The keys held and the middle button for a press within `seconds`, if one was.
+    func recentPress(within seconds: CFTimeInterval) -> (flags: UIKeyModifierFlags, middle: Bool)? {
+        guard let lastPress, CACurrentMediaTime() - lastPress.time < seconds else { return nil }
+        return (lastPress.flags, lastPress.middle)
+    }
+
     // MARK: The page's own cursor
 
     /// What bridge.js says the page asks for under the pointer. A picture
@@ -180,6 +199,25 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         }
         pageCursor = asked
         updateCursor()
+        changed?()
+    }
+
+    /// The page's own cursor as a picture with its hotspot, in points; nil
+    /// for the system's pointer, and `hidden` for `cursor: none`.
+    var picture: (image: UIImage, size: CGSize, hotspot: CGPoint)? {
+        guard case .image(let image) = pageCursor, let picture = pictures[image.id] else { return nil }
+        return (picture.image, picture.size, picture.hotspot)
+    }
+
+    var hidden: Bool {
+        pageCursor == .hidden
+    }
+
+    /// One of CSS's own cursors the page names (pointer, text…), for the
+    /// iPhone's desktop view to draw; nil for the default arrow or a picture.
+    var keyword: String? {
+        guard case .keyword(let name) = pageCursor else { return nil }
+        return name
     }
 
     /// Over the page, the page's cursor: its picture drawn at the pointer,
@@ -191,7 +229,7 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         var hide = false
         if point != nil {
             switch pageCursor {
-            case .system:
+            case .system, .keyword:
                 break
             case .hidden:
                 hide = true
@@ -244,18 +282,37 @@ final class Pointer: NSObject, UIGestureRecognizerDelegate, UIPointerInteraction
         .hidden()
     }
 
-    /// For Diagnostics.
+    /// For Diagnostics: the cursor, and where its place comes from (a press,
+    /// the hover recognizer, or nowhere) with how long ago the hover
+    /// recognizer last spoke, which tells a frozen picture apart from a
+    /// frozen page.
     var cursorSummary: String {
+        let shape: String
         switch pageCursor {
         case .system:
-            return "the system's"
+            shape = "the system's"
+        case .keyword(let name):
+            shape = "the system's (\(name))"
         case .hidden:
-            return "none, the pointer hidden"
+            shape = "none, the pointer hidden"
         case .image(let image):
-            guard let picture = pictures[image.id] else { return "the system's (picture missing)" }
-            let size = "\(Int(picture.size.width))×\(Int(picture.size.height)) at \(Int(picture.hotspot.x)),\(Int(picture.hotspot.y))"
-            return "the page's, \(size)\(hiding ? "" : ", pointer elsewhere")"
+            if let picture = pictures[image.id] {
+                let size = "\(Int(picture.size.width))×\(Int(picture.size.height)) at \(Int(picture.hotspot.x)),\(Int(picture.hotspot.y))"
+                shape = "the page's, \(size)\(hiding ? "" : ", pointer elsewhere")"
+            } else {
+                shape = "the system's (picture missing)"
+            }
         }
+        let place: String
+        if let pressed {
+            place = "pressed at \(Int(pressed.x)),\(Int(pressed.y))"
+        } else if let cursor {
+            place = "hover at \(Int(cursor.x)),\(Int(cursor.y))"
+        } else {
+            place = "off the page"
+        }
+        let ago = lastHover == 0 ? "never" : String(format: "%.1f s ago", CACurrentMediaTime() - lastHover)
+        return "\(shape); \(place), hover \(ago), \(hover.state.rawValue)"
     }
 
     private func place(of recognizer: UIGestureRecognizer) -> CGPoint {
@@ -417,6 +474,18 @@ private final class PressWatcher: UIGestureRecognizer {
     }
 }
 
+/// Tells the keys held and the buttons down at every press on the page, a
+/// finger's as well as the pointer's, so a tap after a ⌘-click isn't
+/// taken for one; then stands aside for the rest of the touch.
+private final class PressKeys: UIGestureRecognizer {
+    var began: ((UIKeyModifierFlags, UIEvent.ButtonMask) -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        began?(event.modifierFlags, event.buttonMask)
+        state = .failed
+    }
+}
+
 /// Holds the page's zoom where ZoomLock says, whatever tries to change it:
 /// the scroll view's pinch is off, and anything else that zooms (a double
 /// tap a page didn't turn off, WebKit zooming in on a field) is set back.
@@ -430,7 +499,7 @@ final class ZoomHold: NSObject {
         self.scrollView = scrollView
         super.init()
         let changed: @Sendable (UIScrollView, NSKeyValueObservedChange<CGFloat>) -> Void = { [weak self] _, _ in
-            DispatchQueue.main.async { self?.hold() }
+            DispatchQueue.main.async { self?.keep() }
         }
         observations = [
             scrollView.observe(\.zoomScale, changeHandler: changed),
@@ -439,8 +508,22 @@ final class ZoomHold: NSObject {
         ]
     }
 
+    /// Let go: the page's own zoom, pinched by a finger, as in Safari.
+    private var free = false
+
+    func release() {
+        free = true
+        scrollView?.pinchGestureRecognizer?.isEnabled = true
+        scrollView?.bouncesZoom = true
+    }
+
     func hold() {
-        guard let scrollView, !holding else { return }
+        free = false
+        keep()
+    }
+
+    private func keep() {
+        guard let scrollView, !holding, !free else { return }
         holding = true
         defer { holding = false }
         scrollView.pinchGestureRecognizer?.isEnabled = false

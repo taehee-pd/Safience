@@ -45,12 +45,12 @@ final class AdapterTests: XCTestCase {
         XCTAssertFalse(Adapters.standard.isHeavy(URL(string: "https://example.com/design/x")))
     }
 
-    func testEveryBridgeIsOnByDefaultAndKeysAreLeftToTheSystem() {
+    func testEveryBridgeIsOnByDefaultAndOnlyTabIsTakenFromTheSystem() {
         let bridges = Adapters.standard.bridges
         XCTAssertTrue(bridges.pinch)
         XCTAssertTrue(bridges.commandZoom)
         XCTAssertEqual(bridges.wheel, .auto)
-        XCTAssertTrue(bridges.keys.isEmpty)
+        XCTAssertEqual(bridges.keys, [.tab], "Tab reaches the page first; the arrows stay the system's")
         XCTAssertEqual(bridges.pinchFactor, 100)
     }
 

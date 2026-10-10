@@ -21,6 +21,10 @@ final class Session: ObservableObject {
             }
             for page in pages.live.values { page.settingsChanged() }
             if preferences.limits != oldValue.limits { pages.enforce() }
+            if preferences.blocksContent != oldValue.blocksContent { ContentBlocker.shared.preferencesChanged() }
+            if preferences.iCloudSync != oldValue.iCloudSync {
+                if preferences.iCloudSync { Sync.shared.start(join: true) } else { Sync.shared.stop() }
+            }
         }
     }
 
@@ -51,6 +55,8 @@ final class Session: ObservableObject {
         Stores.sweep()
         Snapshots.prune(keeping: Set(workspace.spaces.flatMap { $0.tabs.map(\.id) }))
         pages.watchMemory()
+        ContentBlocker.shared.start()
+        if preferences.iCloudSync { Sync.shared.start(join: false) }
     }
 
     // MARK: The workspace
@@ -61,9 +67,12 @@ final class Session: ObservableObject {
     func change<T>(_ edit: (inout Workspace) -> T) -> T {
         var copy = workspace
         let result = edit(&copy)
+        if Sync.shared.assigns { SyncPlan.assignIDs(&copy) }
         if copy != workspace {
+            let old = workspace
             workspace = copy
             save()
+            Sync.shared.changed(from: old, to: copy)
         }
         return result
     }
@@ -102,12 +111,21 @@ final class Session: ObservableObject {
         pages.close(id)
     }
 
+    /// Several tabs closed: the ones no window shows first, so no window
+    /// goes to a tab about to go, then the ones on screen.
+    func closeTabs(_ ids: [UUID]) {
+        let shown = Set(allBrowsers.compactMap(\.model.tabID))
+        for id in ids.filter({ !shown.contains($0) }) + ids.filter({ shown.contains($0) }) {
+            closeTab(id)
+        }
+    }
+
     /// A bookmarks file into a space: an HTML export (Chrome's, Safari's,
     /// Firefox's) or the ZIP of Safari's Export Browsing Data with one in it.
     /// Returns what to tell the person who chose it.
     func importBookmarks(from file: URL, into space: UUID) -> (title: String, message: String) {
         guard let data = try? Data(contentsOf: file) else {
-            return ("Couldn’t Read the File", "Choose the file again, or save a copy to On My iPad first.")
+            return ("Couldn’t Read the File", "Choose the file again, or save a copy to On My \(Device.name) first.")
         }
         var html = data
         if ZipFile.isArchive(data) {

@@ -110,6 +110,11 @@ final class Popup: UIViewController, PageHost {
         return nil
     }
 
+    /// A pop-up has no tabs: a ⌘-click goes there in the pop-up.
+    func page(_ page: Page, openInNewTab url: URL, inFront: Bool) -> Bool {
+        false
+    }
+
     func pageDidClose(_ page: Page) {
         dismiss(animated: true)
     }

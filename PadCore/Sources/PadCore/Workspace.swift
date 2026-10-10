@@ -11,6 +11,10 @@ public struct TabRecord: Codable, Identifiable, Equatable, Sendable {
     /// For a pinned tab, the address it was pinned with, which closing it
     /// takes it back to; nil for every other tab.
     public var pinned: URL?
+    /// For a pinned tab that came from iCloud or joined one there, the id
+    /// the other devices know it by; nil otherwise, when its own id is
+    /// that id (SyncPlan).
+    public var cloudID: UUID?
 
     public init(id: UUID = UUID(), url: URL?, title: String = "", shown: Date = .distantPast, pinned: URL? = nil) {
         self.id = id
@@ -93,6 +97,10 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
     /// Tabs shown two at a time; a tab is in one split at most, and never a
     /// pinned one.
     public var splits: [Split]
+    /// The id iCloud knows this space by, the same on every device; nil for
+    /// a space that has never been synced (CloudSync.swift). Not `id`: that
+    /// one names this device's sign-ins for the space.
+    public var cloudID: UUID?
 
     public init(id: UUID = UUID(), name: String, symbol: String, color: SpaceColor? = nil, tabs: [TabRecord] = [],
                 selected: UUID? = nil, bookmarks: [Bookmark] = [], splits: [Split] = []) {
@@ -107,7 +115,7 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, symbol, color, tabs, selected, bookmarks, splits
+        case id, name, symbol, color, tabs, selected, bookmarks, splits, cloudID
     }
 
     public init(from decoder: Decoder) throws {
@@ -122,6 +130,7 @@ public struct Space: Codable, Identifiable, Equatable, Sendable {
         color = (try? c.decodeIfPresent(SpaceColor.self, forKey: .color)) ?? SpaceColor.standard(for: symbol)
         bookmarks = (try? c.decodeIfPresent([Bookmark].self, forKey: .bookmarks)) ?? []
         splits = (try? c.decodeIfPresent([Split].self, forKey: .splits)) ?? []
+        cloudID = try? c.decodeIfPresent(UUID.self, forKey: .cloudID)
     }
 
     /// The split `tab` is in, if any.
@@ -275,6 +284,53 @@ public struct Workspace: Codable, Equatable, Sendable {
             return spaces[s].selected
         }
         return nil
+    }
+
+    /// How a space's tabs can be put in order, as Safari's Arrange Tabs By.
+    public enum Arrangement: Sendable {
+        case title
+        case website
+    }
+
+    /// The space's tabs in order of their names or their sites. The pinned
+    /// ones stay first as they were, and a split's two tabs stay together,
+    /// in order of the left one. Tabs that tie keep their order.
+    public mutating func arrangeTabs(in space: UUID, by arrangement: Arrangement) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return }
+        let pinned = spaces[s].tabs.filter(\.isPinned)
+        let ordinary = spaces[s].tabs.filter { !$0.isPinned }
+        var units: [[TabRecord]] = []
+        var index = 0
+        while index < ordinary.count {
+            let tab = ordinary[index]
+            if index + 1 < ordinary.count,
+               spaces[s].splits.contains(where: { $0.left == tab.id && $0.right == ordinary[index + 1].id }) {
+                units.append([tab, ordinary[index + 1]])
+                index += 2
+            } else {
+                units.append([tab])
+                index += 1
+            }
+        }
+        func key(_ tab: TabRecord) -> String {
+            switch arrangement {
+            case .title:
+                return tab.label
+            case .website:
+                let host = tab.url?.host()?.lowercased() ?? ""
+                let site = Destination.registrable(host.hasPrefix("www.") ? String(host.dropFirst(4)) : host)
+                // A tab gone nowhere yet goes last.
+                return site.isEmpty ? "\u{10FFFF}" : site + " " + tab.label
+            }
+        }
+        let sorted = units.enumerated().sorted { a, b in
+            switch key(a.element[0]).localizedStandardCompare(key(b.element[0])) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            case .orderedSame: return a.offset < b.offset
+            }
+        }
+        spaces[s].tabs = pinned + sorted.flatMap(\.element)
     }
 
     /// The last closed tab back where it was, selected; into the first space
@@ -535,6 +591,40 @@ public struct Workspace: Codable, Equatable, Sendable {
     public mutating func removeBookmark(_ id: UUID, in space: UUID) {
         guard let s = spaces.firstIndex(where: { $0.id == space }) else { return }
         Bookmarks.remove(id, from: &spaces[s].bookmarks)
+    }
+
+    /// A new folder at the end of `parent` (nil: the top level), named as
+    /// given, or "New Folder". Returns its id; nil when the space or the
+    /// parent is not there.
+    @discardableResult
+    public mutating func addFolder(named name: String, in parent: UUID?, of space: UUID) -> UUID? {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return nil }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let folder = Bookmark(folder: trimmed.isEmpty ? "New Folder" : trimmed, children: [])
+        return Bookmarks.insert(folder, into: parent, of: &spaces[s].bookmarks) ? folder.id : nil
+    }
+
+    /// A bookmark's or a folder's name; an empty name leaves it as it was.
+    public mutating func renameBookmark(_ id: UUID, to name: String, in space: UUID) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        Bookmarks.update(id, in: &spaces[s].bookmarks) { $0.title = trimmed }
+    }
+
+    /// Moves a bookmark or a folder to the end of `folder` (nil: the top
+    /// level). A folder never goes into itself or into one of its own.
+    public mutating func moveBookmark(_ id: UUID, into folder: UUID?, in space: UUID) {
+        guard let s = spaces.firstIndex(where: { $0.id == space }),
+              let item = Bookmarks.find(id, in: spaces[s].bookmarks) else { return }
+        if let folder {
+            guard folder != id, Bookmarks.find(folder, in: item.children ?? []) == nil,
+                  Bookmarks.find(folder, in: spaces[s].bookmarks)?.isFolder == true else { return }
+        }
+        var items = spaces[s].bookmarks
+        Bookmarks.remove(id, from: &items)
+        guard Bookmarks.insert(item, into: folder, of: &items) else { return }
+        spaces[s].bookmarks = items
     }
 
     /// An import's bookmarks into the space, merged with what it has.

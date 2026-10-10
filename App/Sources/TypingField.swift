@@ -15,6 +15,8 @@ struct TypingField: UIViewRepresentable {
     let placeholder: String
     var fontSize: CGFloat = 13
     @Binding var focused: Bool
+    /// All of it selected as it takes the keys, so typing replaces it.
+    var selectsAll = false
     let submit: (String) -> Void
 
     func makeUIView(context: Context) -> UITextField {
@@ -89,6 +91,12 @@ struct TypingField: UIViewRepresentable {
 
         func textFieldDidBeginEditing(_ field: UITextField) {
             if !parent.focused { parent.focused = true }
+            // The field's own selection: sent to no one in particular, select
+            // all reached the page when it still had the keys, and the page
+            // took them back.
+            if parent.selectsAll {
+                DispatchQueue.main.async { if field.isFirstResponder { field.selectAll(nil) } }
+            }
         }
 
         func textFieldDidEndEditing(_ field: UITextField) {

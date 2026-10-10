@@ -13,6 +13,9 @@ protocol PageHost: AnyObject {
     /// for the new page to keep its tie to the one that opened it.
     func page(_ page: Page, open configuration: WKWebViewConfiguration, for action: WKNavigationAction,
               features: WKWindowFeatures) -> WKWebView?
+    /// A ⌘-click's address, for a tab of its own (NewTabClick); false where
+    /// there are no tabs, and the page goes there itself.
+    func page(_ page: Page, openInNewTab url: URL, inFront: Bool) -> Bool
     func pageDidClose(_ page: Page)
     /// Somewhere to show an alert, a sign-in prompt or a save sheet.
     var presenter: UIViewController? { get }
@@ -42,7 +45,37 @@ final class Page: NSObject {
     /// The scripts installed for the next document: an adapter's id and its
     /// settings, "hands-off", or nil before the first page.
     private var installed: String?
+    /// The content blocker's lists on this page, by identifier: none on a
+    /// hands-off page, or where Settings or the site's switch turns it off.
+    private var blocking: [String] = []
+    /// The app itself is loading the page (an address typed, a reload): no
+    /// click of the page's asked for it, whatever the pointer last did. True
+    /// from the start: a page WebKit opens for a link loads it in place,
+    /// though that load carries the ⌘ of the click that opened it.
+    private var ownLoad = true
     private(set) var committed: URL?
+    /// Desktop or mobile site, chosen for each page as it loads (SiteMode).
+    private(set) var mode: SiteMode = .desktop
+    /// In the iPhone's desktop view (DesktopPad): laid out at an iPad's size,
+    /// always the desktop site, and reached only through the cursor, so
+    /// touches on the page itself are off.
+    /// What the iPhone's desktop view shows of the page, in the page view's
+    /// points, for the tab overview's picture of it: what was being looked
+    /// at, not the whole desktop squeezed into a card.
+    var desktopShown: CGRect?
+
+    var desktopView = false {
+        didSet {
+            guard desktopView != oldValue else { return }
+            if !desktopView { desktopShown = nil }
+            view.isUserInteractionEnabled = !desktopView
+            applyScrolling()
+        }
+    }
+    /// The cursor's moves, one at a time: while one is on its way to the
+    /// page, only the latest of those after it is kept.
+    private var moving = false
+    private var nextMove: [String: Any]?
     private(set) var mimeType: String?
     private(set) var passwordField = false
     /// The focus is in a field someone types in (bridge.js decides).
@@ -162,6 +195,8 @@ final class Page: NSObject {
         pointer = nil
         zoom = nil
         controller.removeAllUserScripts()
+        controller.removeAllContentRuleLists()
+        blocking = []
         controller.removeScriptMessageHandler(forName: Page.handlerName, contentWorld: Page.world)
         view.stopLoading()
         view.navigationDelegate = nil
@@ -176,6 +211,7 @@ final class Page: NSObject {
     func load(_ url: URL) {
         failure = nil
         exhausted = false
+        ownLoad = true
         view.load(URLRequest(url: url))
     }
 
@@ -185,6 +221,7 @@ final class Page: NSObject {
         failure = nil
         exhausted = false
         if byHand { crashes.reset() }
+        ownLoad = true
         if view.url == nil, let url = committed ?? Session.shared.workspace.tab(tab)?.url {
             view.load(URLRequest(url: url))
         } else {
@@ -219,11 +256,20 @@ final class Page: NSObject {
     /// decisions, so the document starts with the right ones.
     private func prepare(for url: URL?) {
         let handsOff = HandsOff.covers(url)
+        applyBlocking(for: url)
         adapter = Adapters.adapter(for: url)
         bridges = Session.shared.preferences.bridges(for: adapter)
-        view.customUserAgent = handsOff ? nil : adapter.userAgent
+        if handsOff {
+            view.customUserAgent = nil
+        } else if mode == .mobile {
+            // WebKit's own, in a mobile layout, lacks the "Mobile" sites look for.
+            view.customUserAgent = Identity.mobileUserAgent(for: ProcessInfo.processInfo.operatingSystemVersion,
+                                                            pad: UIDevice.current.userInterfaceIdiom == .pad)
+        } else {
+            view.customUserAgent = adapter.userAgent
+        }
         let keys = bridges.keys.map(\.rawValue).sorted().joined(separator: ",")
-        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)|\(bridges.cursors)"
+        let wanted = handsOff ? "hands-off" : "\(adapter.id)|\(bridges.wheel.rawValue)|\(keys)|\(bridges.cursors)|\(mode.rawValue)"
         guard wanted != installed else { return }
         installed = wanted
         controller.removeAllUserScripts()
@@ -236,6 +282,57 @@ final class Page: NSObject {
         }
     }
 
+    /// Whether a navigation is a ⌘-click (or ⌘⇧, or a middle click) to open
+    /// in a new tab (NewTabClick). WebKit says which keys and button made it
+    /// from iPadOS 18.4; the pointer's own last press, a second ago at most,
+    /// says it before then, and for a button whose script goes somewhere,
+    /// which WebKit gives no keys for.
+    func newTabChoice(for action: WKNavigationAction) -> NewTabClick.Choice {
+        var flags: UIKeyModifierFlags = []
+        var middle = false
+        if #available(iOS 18.4, *) {
+            flags = action.modifierFlags
+            middle = action.buttonNumber.contains(.button(3))
+        }
+        if let press = pointer?.recentPress(within: 1) {
+            flags.formUnion(press.flags)
+            middle = middle || press.middle
+        }
+        let kind: NewTabClick.Kind
+        switch action.navigationType {
+        case .linkActivated: kind = .link
+        case .formSubmitted: kind = .form
+        case .other: kind = .script
+        default: kind = .history
+        }
+        return NewTabClick.choice(kind: kind, command: flags.contains(.command), shift: flags.contains(.shift),
+                                  middleButton: middle, method: action.request.httpMethod,
+                                  scheme: action.request.url?.scheme, mainFrame: action.targetFrame?.isMainFrame ?? true)
+    }
+
+    /// The content blocker's lists for a document at `url` (ContentBlocker):
+    /// WebKit blocks with them from the next load, nothing in the page. Never
+    /// on a hands-off host, where nothing of the app's may touch the page.
+    private func applyBlocking(for url: URL?) {
+        let on = !HandsOff.covers(url) && Session.shared.preferences.blocksContent(onHost: url?.host)
+        let lists = on ? ContentBlocker.shared.lists : []
+        let identifiers = lists.compactMap(\.identifier)
+        guard identifiers != blocking else { return }
+        controller.removeAllContentRuleLists()
+        for list in lists { controller.add(list) }
+        blocking = identifiers
+    }
+
+    /// Whether the page on screen has ads and trackers blocked, for its menus and Diagnostics.
+    var blocksContent: Bool {
+        !blocking.isEmpty
+    }
+
+    /// The content blocker has new lists: this page's next load has them.
+    func blockingChanged() {
+        applyBlocking(for: committed ?? view.url)
+    }
+
     /// After Settings changed: the bridges at once, the scripts from the next page.
     func settingsChanged() {
         bridges = Session.shared.preferences.bridges(for: adapter)
@@ -245,10 +342,44 @@ final class Page: NSObject {
     }
 
     /// WebKit's own scrolling, off unless no bridge can run (Scrolling.swift).
+    /// On a phone, and for a mobile site, a finger is what there is: the page
+    /// scrolls and pinches as in Safari, its zoom free.
     private func applyScrolling() {
+        if touchFirst {
+            view.scrollView.isScrollEnabled = true
+            zoom?.release()
+            return
+        }
         view.scrollView.isScrollEnabled = Scrolling.isNative(url: view.url, mimeType: mimeType)
         view.scrollView.pinchGestureRecognizer?.isEnabled = false
         zoom?.hold()
+    }
+
+    /// Loads the page again as its desktop or its mobile site, the user
+    /// agent set first, so the reload goes with it.
+    func reload(as wanted: SiteMode) {
+        mode = wanted
+        prepare(for: view.url)
+        view.reload()
+    }
+
+    /// Touch is the way in: an iPhone (no trackpad reaches it), or a mobile
+    /// site. Not in the desktop view, where the cursor is.
+    var touchFirst: Bool {
+        (UIDevice.current.userInterfaceIdiom == .phone && !desktopView) || mode == .mobile
+    }
+
+    /// The mode for a page at `url` in this page's window, as it is now.
+    private func chooseMode(for url: URL?) -> SiteMode {
+        if desktopView { return .desktop }
+        var size = view.window?.bounds.size ?? host?.presenter?.view.window?.bounds.size ?? view.bounds.size
+        if size.width < 1 || size.height < 1 {
+            // Not on screen yet: the size of the window it will be shown in, near enough.
+            let windows = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }
+            size = windows.first?.bounds.size ?? size
+        }
+        return SiteMode.choose(host: url?.host, width: Double(size.width), height: Double(size.height),
+                               overrides: Session.shared.preferences.siteModes)
     }
 
     // MARK: Calls into the page
@@ -314,6 +445,64 @@ final class Page: NSObject {
         call("return window.__safience ? window.__safience.key(m) : 'absent';", ["m": message])
     }
 
+    // MARK: The iPhone's desktop view
+
+    /// The desktop view's cursor at `point`, in the page view's points (the
+    /// desktop's): "move", "down", "up", "click" (`detail` 2 for the second
+    /// of a double click) or "context". A move waits for the one before.
+    func pointer(_ type: String, at point: CGPoint, button: Int = 0, buttons: Int = 0, detail: Int = 0) {
+        let message: [String: Any] = [
+            "type": type, "x": Double(point.x), "y": Double(point.y), "width": Double(view.bounds.width),
+            "button": button, "buttons": buttons, "detail": detail,
+        ]
+        guard type == "move" else {
+            // A press or a click comes after the moves before it.
+            if let next = nextMove { nextMove = nil; send(move: next) }
+            call("return window.__safience ? window.__safience.pointer(m) : 'absent';", ["m": message])
+            return
+        }
+        if moving { nextMove = message } else { send(move: message) }
+    }
+
+    private func send(move message: [String: Any]) {
+        moving = true
+        call("return window.__safience ? window.__safience.pointer(m) : 'absent';", ["m": message]) { [weak self] _ in
+            guard let self else { return }
+            self.moving = false
+            if let next = self.nextMove {
+                self.nextMove = nil
+                self.send(move: next)
+            }
+        }
+    }
+
+    /// What the phone's keyboard did in the desktop view: `back` characters
+    /// taken away, then `text` (bridge.js type()).
+    func type(_ text: String, back: Int) {
+        call("return window.__safience ? window.__safience.type(m) : 'absent';", ["m": ["text": text, "back": back]])
+    }
+
+    /// A key from the keys over the phone's keyboard: Return, Escape, Tab,
+    /// Backspace or an arrow.
+    func press(_ key: String) {
+        call("return window.__safience ? window.__safience.key(m) : 'absent';", ["m": ["key": key, "code": key]])
+    }
+
+    /// How much of the page's bottom the phone bar covers: the page lays out
+    /// above it, its own bottom bars sitting clear of it, and scrolls its
+    /// end clear of it, while what is under the bar shows through its blur.
+    func obscure(bottom: CGFloat) {
+        let scroll = view.scrollView
+        if #available(iOS 26.0, *) {
+            if view.obscuredContentInsets.bottom != bottom {
+                view.obscuredContentInsets = UIEdgeInsets(top: 0, left: 0, bottom: bottom, right: 0)
+            }
+        } else if scroll.contentInset.bottom != bottom {
+            scroll.contentInset.bottom = bottom
+            scroll.verticalScrollIndicatorInsets.bottom = bottom
+        }
+    }
+
     /// Whether freezing would lose something typed: nil when the page can't
     /// be asked, which counts as yes.
     func holdsTyping(_ done: @escaping (Bool?) -> Void) {
@@ -330,6 +519,20 @@ final class Page: NSObject {
         }
         let configuration = WKSnapshotConfiguration()
         configuration.afterScreenUpdates = false
+        view.takeSnapshot(with: configuration) { image, _ in done(image) }
+    }
+
+    /// A small picture of the page as it shows, `width` points wide, for a
+    /// card in the tab overview. Nil off screen, where WebKit draws nothing.
+    func preview(width: CGFloat, _ done: @escaping (UIImage?) -> Void) {
+        guard view.window != nil, view.bounds.width > 0, view.bounds.height > 0 else {
+            done(nil)
+            return
+        }
+        let configuration = WKSnapshotConfiguration()
+        configuration.afterScreenUpdates = false
+        configuration.snapshotWidth = NSNumber(value: Double(width))
+        if desktopView, let shown = desktopShown, shown.width > 0, shown.height > 0 { configuration.rect = shown }
         view.takeSnapshot(with: configuration) { image, _ in done(image) }
     }
 
@@ -442,7 +645,40 @@ extension Page: WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  preferences: WKWebpagePreferences,
                  decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
-        preferences.preferredContentMode = .desktop
+        // ⌘-click: where it goes opens in a tab of its own, and this page stays.
+        var own = false
+        if navigationAction.targetFrame?.isMainFrame == true {
+            own = ownLoad
+            ownLoad = false
+        }
+        let click = own ? .here : newTabChoice(for: navigationAction)
+        if click != .here, let url = navigationAction.request.url,
+           host?.page(self, openInNewTab: url, inFront: click == .inFront) == true {
+            decisionHandler(.cancel, preferences)
+            return
+        }
+        if navigationAction.targetFrame?.isMainFrame == true {
+            let chosen = chooseMode(for: navigationAction.request.url)
+            // The user agent goes with the request as it was made: a page
+            // that changes mode is asked for again, with the new one. Only a
+            // plain load; a form sent or a step back isn't sent twice.
+            if chosen != mode, let url = navigationAction.request.url, !HandsOff.covers(url),
+               ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+               (navigationAction.request.httpMethod ?? "GET").uppercased() == "GET",
+               ![.backForward, .formSubmitted, .formResubmitted, .reload].contains(navigationAction.navigationType) {
+                mode = chosen
+                prepare(for: url)
+                decisionHandler(.cancel, preferences)
+                // Without the old request's user agent, so WebKit puts in the new one.
+                var request = navigationAction.request
+                request.setValue(nil, forHTTPHeaderField: "User-Agent")
+                ownLoad = true
+                webView.load(request)
+                return
+            }
+            mode = chosen
+        }
+        preferences.preferredContentMode = mode == .desktop ? .desktop : .mobile
         if navigationAction.shouldPerformDownload {
             decisionHandler(.download, preferences)
             return

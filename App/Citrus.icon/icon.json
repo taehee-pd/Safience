@@ -1,0 +1,259 @@
+{
+  "features": [
+    "refractivity"
+  ],
+  "groups": [
+    {
+      "blur-material": 0.5,
+      "hidden": false,
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ],
+          "hidden": false,
+          "image-name": "cursor0- 3.svg",
+          "name": "cursor0- 3",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              77.11776258695897,
+              96.17084980519644
+            ]
+          }
+        }
+      ],
+      "opacity": 1,
+      "position": {
+        "scale": 1.85,
+        "translation-in-points": [
+          0,
+          0
+        ]
+      },
+      "refractivity": {
+        "depth": 0,
+        "enabled": true,
+        "strength": 0.5
+      },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.35
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.3
+      }
+    },
+    {
+      "blur-material": 0.5,
+      "layers": [
+        {
+          "name": "marks",
+          "image-name": "marks.svg",
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.11373,0.15294,0.27843,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.91373,1.00000,0.41569,0.85000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "blend-mode": "normal",
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "display-p3:0.91373,1.00000,0.41569,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "display-p3:0.91373,1.00000,0.41569,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ],
+          "hidden": false,
+          "image-name": "globe.svg",
+          "name": "globe",
+          "glass": false
+        },
+        {
+          "blend-mode": "normal",
+          "fill-specializations": [
+            {
+              "value": {
+                "linear-gradient": [
+                  "display-p3:0.11373,0.15294,0.27843,1.00000",
+                  "display-p3:0.02745,0.04314,0.09412,1.00000"
+                ],
+                "orientation": {
+                  "start": {
+                    "x": 0.5,
+                    "y": 0.0
+                  },
+                  "stop": {
+                    "x": 0.5,
+                    "y": 1.0
+                  }
+                }
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "display-p3:0.11373,0.15294,0.27843,1.00000",
+                  "display-p3:0.02745,0.04314,0.09412,1.00000"
+                ],
+                "orientation": {
+                  "start": {
+                    "x": 0.5,
+                    "y": 0.0
+                  },
+                  "stop": {
+                    "x": 0.5,
+                    "y": 1.0
+                  }
+                }
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.00000,0.00000,0.00000,1.00000"
+              }
+            }
+          ],
+          "glass": true,
+          "image-name": "BG 2.svg",
+          "name": "BG-2",
+          "position": {
+            "scale": 1.08,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "lighting": "individual",
+      "name": "Group",
+      "position": {
+        "scale": 1.25,
+        "translation-in-points": [
+          0,
+          0
+        ]
+      },
+      "refractivity": {
+        "depth": 0,
+        "enabled": true,
+        "strength": 0.5
+      },
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.5
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.3
+      },
+      "shadow-specializations": [
+        {
+          "appearance": "dark",
+          "value": {
+            "kind": "neutral",
+            "opacity": 0.5
+          }
+        },
+        {
+          "appearance": "tinted",
+          "value": {
+            "kind": "neutral",
+            "opacity": 0.5
+          }
+        }
+      ]
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.93333,1.00000,0.41569,1.00000",
+          "display-p3:0.56078,0.85882,0.35294,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "stop": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        }
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "display-p3:0.14902,0.20000,0.10196,1.00000",
+          "display-p3:0.05490,0.07843,0.03922,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "stop": {
+            "x": 1.0,
+            "y": 1.0
+          }
+        }
+      }
+    }
+  ]
+}

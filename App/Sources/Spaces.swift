@@ -74,7 +74,7 @@ struct SpaceEditor: View {
                 if let done { done() } else { dismiss() }
             }
         } message: {
-            Text("Its \(space?.tabs.count ?? 0) tabs close, and its sign-ins and bookmarks are erased from this iPad.")
+            Text("Its \(space?.tabs.count ?? 0) tabs close, and its sign-ins and bookmarks are erased from this \(Device.name).")
         }
     }
 

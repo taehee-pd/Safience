@@ -1,5 +1,5 @@
 """Puts the simulator's Safience in one of the screenshot states.
-Usage: python3 state.py <container> hero|split|client|start|palette"""
+Usage: python3 state.py <container> hero|split|client|start|palette|notes"""
 import json, sys, os, uuid
 C, mode = sys.argv[1], sys.argv[2]
 f = os.path.join(C, "Library/Application Support/Safience/workspace.json")
@@ -16,6 +16,8 @@ for space in (studio, client, home):
         for page, title in titles.items():
             if page in (t.get("url") or ""): t["title"] = title
 for t in client["tabs"]:
+    # On its own host, so the phone's address bar shows Lanes' icon, not the one 127.0.0.1 has.
+    if "board.html" in (t.get("url") or ""): t["url"] = "http://board.localhost:8765/board.html?dark"
     if "notes.localhost" in (t.get("url") or ""): t["title"] = "Brand review · Margin"
     if "canvas.localhost" in (t.get("url") or ""): t["title"] = "Campaign · Forma"
 studio["tabs"] = [t for t in studio["tabs"] if t.get("url")]
@@ -24,6 +26,8 @@ w["spaces"] = [studio, client, home]
 canvas, notes = tab(studio, "canvas.html"), tab(studio, "notes.html")
 if mode in ("hero", "palette"):
     studio["selected"] = canvas["id"]
+elif mode == "notes":
+    studio["selected"] = notes["id"]
 elif mode == "split":
     studio["splits"] = [{"left": canvas["id"], "right": notes["id"], "ratio": 0.56}]
     studio["selected"] = notes["id"]

@@ -56,9 +56,13 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--canvas);font-siz
 .sw{width:16px;height:16px;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
 .pct{margin-left:auto;color:var(--text2)}
 /* Canvas */
-.canvas{flex:1;position:relative;overflow:hidden;min-width:0}
+.canvas{flex:1;position:relative;overflow:hidden;min-width:0;cursor:default;touch-action:none;-webkit-user-select:none;user-select:none}
 .board{position:absolute;left:0;top:0;transform-origin:0 0;transform:translate(var(--tx),var(--ty)) scale(var(--s))}
 .frame{position:absolute;background:#fff;box-shadow:0 0 0 calc(1px / var(--s)) rgba(0,0,0,.06)}
+/* Under the pointer, a frame shows its bounds, as a design tool's does; a click selects it, a drag moves it. */
+.frame:hover{box-shadow:0 0 0 calc(1.5px / var(--s)) var(--select)}
+.row:hover,.page:hover,.tab:hover{background:#f3f3ee}
+.tool,.btn,.plus,.cta{cursor:pointer}
 .name{position:absolute;left:0;bottom:100%;margin-bottom:calc(6px / var(--s));font-size:calc(11px / var(--s));font-weight:500;color:var(--text2);white-space:nowrap}
 .name.on{color:var(--select)}
 .phone{width:390px;height:844px;padding:0 24px}
@@ -76,12 +80,15 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--canvas);font-siz
 .d .cta{background:var(--coral)}
 /* The selection: the frame's bounds, a handle at each corner and its size under it. */
 .sel{position:absolute;inset:0;box-shadow:0 0 0 calc(1.5px / var(--s)) var(--select);pointer-events:none}
-.hd{position:absolute;width:calc(8px / var(--s));height:calc(8px / var(--s));background:#fff;box-shadow:0 0 0 calc(1px / var(--s)) var(--select);transform:translate(-50%,-50%)}
-.hd.tl{left:0;top:0}.hd.tr{left:100%;top:0}.hd.bl{left:0;top:100%}.hd.br{left:100%;top:100%}
+.hd{position:absolute;width:calc(8px / var(--s));height:calc(8px / var(--s));background:#fff;box-shadow:0 0 0 calc(1px / var(--s)) var(--select);transform:translate(-50%,-50%);z-index:2}
+.hd:after{content:"";position:absolute;inset:calc(-6px / var(--s))}
+.hd.tl{left:0;top:0;cursor:nwse-resize}.hd.tr{left:100%;top:0;cursor:nesw-resize}.hd.bl{left:0;top:100%;cursor:nesw-resize}.hd.br{left:100%;top:100%;cursor:nwse-resize}
 .size{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:calc(8px / var(--s));background:var(--select);color:#fff;font-size:calc(11px / var(--s));font-weight:600;padding:calc(2px / var(--s)) calc(6px / var(--s));border-radius:calc(4px / var(--s));white-space:nowrap}
 /* Someone else in the file: Mina's selection and cursor in her colour. */
 .other{position:absolute;box-shadow:0 0 0 calc(1.5px / var(--s)) var(--mina);border-radius:29px}
-.cursor{position:absolute;width:calc(22px / var(--s))}
+.cursor{position:absolute;width:calc(22px / var(--s));pointer-events:none;animation:mina 11s ease-in-out infinite}
+@keyframes mina{0%,100%{transform:translate(0,0)}28%{transform:translate(-150px,90px)}55%{transform:translate(-40px,230px)}80%{transform:translate(70px,60px)}}
+@media (prefers-reduced-motion:reduce){.cursor{animation:none}}
 .cursor svg{display:block;width:100%;height:auto;filter:drop-shadow(0 calc(2px / var(--s)) calc(3px / var(--s)) rgba(0,0,0,.2))}
 .cursor .tag{position:absolute;left:calc(15px / var(--s));top:calc(19px / var(--s));background:var(--mina);color:#fff;font-size:calc(12px / var(--s));font-weight:600;padding:calc(3px / var(--s)) calc(8px / var(--s));border-radius:calc(8px / var(--s));white-space:nowrap}
 .pin{position:absolute;width:calc(30px / var(--s));height:calc(30px / var(--s));border-radius:50% 50% 50% 0;background:var(--violet);box-shadow:0 0 0 calc(2px / var(--s)) #fff,0 calc(4px / var(--s)) calc(12px / var(--s)) rgba(0,0,0,.18);color:#fff;font-size:calc(11px / var(--s));font-weight:700;display:grid;place-items:center}
@@ -172,7 +179,7 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--canvas);font-siz
   <div class="ptabs"><div class="tab on">Design</div><div class="tab">Prototype</div><div class="zoom" id="zoom">56%</div></div>
   <div class="sec">
     <div class="cap">Frame</div>
-    <div class="grid"><div class="inp"><b>X</b>470</div><div class="inp"><b>Y</b>0</div><div class="inp"><b>W</b>390</div><div class="inp"><b>H</b>844</div></div>
+    <div class="grid"><div class="inp"><b>X</b><span id="fx">470</span></div><div class="inp"><b>Y</b><span id="fy">0</span></div><div class="inp"><b>W</b><span id="fw">390</span></div><div class="inp"><b>H</b><span id="fh">844</span></div></div>
   </div>
   <div class="sec">
     <div class="cap">Auto layout<span class="plus">−</span></div>
@@ -204,14 +211,60 @@ body{display:flex;height:100vh;overflow:hidden;background:var(--canvas);font-siz
 <script>
 // The canvas at the zoom where a phone frame takes 46% of it, the selected
 // frame in the middle and its neighbours running off either side and below.
+let scale=1;
 function fit(){
   const c=document.getElementById('canvas'), b=document.getElementById('board').style;
   const s=Math.min(c.clientWidth*0.46/390,0.72);
+  scale=s;
   b.setProperty('--s',s);
   b.setProperty('--tx',(c.clientWidth/2-(470+195)*s)+'px');
   b.setProperty('--ty','62px');
   document.getElementById('zoom').textContent=Math.round(s*100)+'%';
 }
 addEventListener('resize',fit);fit();
+
+// Editing, enough of it to show: a click selects a frame (its bounds, handles and
+// size move to it, the panel shows where it is), a drag moves it, and a drag on a
+// corner handle resizes it.
+const board=document.getElementById('board');
+const chrome={sel:board.querySelector('.sel'),hds:[...board.querySelectorAll('.hd')],size:board.querySelector('.size')};
+function rect(f){
+  return {x:parseFloat(f.style.left)||0,y:parseFloat(f.style.top)||0,w:f.offsetWidth,h:f.offsetHeight};
+}
+function show(f){
+  const r=rect(f);
+  chrome.size.textContent=r.w+' × '+r.h;
+  for(const [id,v] of [['fx',r.x],['fy',r.y],['fw',r.w],['fh',r.h]]) document.getElementById(id).textContent=Math.round(v);
+}
+function select(f){
+  for(const n of board.querySelectorAll('.name.on')) n.classList.remove('on');
+  f.querySelector('.name').classList.add('on');
+  f.append(chrome.sel,...chrome.hds,chrome.size);
+  show(f);
+}
+let drag=null;
+board.addEventListener('pointerdown',e=>{
+  const hd=e.target.closest('.hd'), f=e.target.closest('.frame');
+  if(!f) return;
+  select(f);
+  const r=rect(f);
+  drag={f,corner:hd?[...hd.classList].find(c=>c.length===2):null,x:e.clientX,y:e.clientY,r};
+  f.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+board.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const dx=(e.clientX-drag.x)/scale, dy=(e.clientY-drag.y)/scale, f=drag.f, r=drag.r, s=f.style;
+  if(!drag.corner){ s.left=Math.round(r.x+dx)+'px'; s.top=Math.round(r.y+dy)+'px'; }
+  else{
+    const c=drag.corner, left=c[1]==='l', top=c[0]==='t';
+    const w=Math.max(160,Math.round(r.w+(left?-dx:dx))), h=Math.max(200,Math.round(r.h+(top?-dy:dy)));
+    if(left) s.left=Math.round(r.x+r.w-w)+'px';
+    if(top) s.top=Math.round(r.y+r.h-h)+'px';
+    s.width=w+'px'; s.height=h+'px';
+  }
+  show(f);
+});
+for(const end of ['pointerup','pointercancel']) board.addEventListener(end,()=>{drag=null;});
 </script>
 </body></html>

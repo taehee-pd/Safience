@@ -23,11 +23,15 @@ final class CursorTests: XCTestCase {
         XCTAssertNil(image.png)
     }
 
-    func testNoneHidesThePointerAndOtherKeywordsAreTheSystems() {
+    func testNoneHidesThePointerAutoIsTheSystemsAndOthersAreNamed() {
         XCTAssertEqual(PageCursor(message: ["kind": "cursor", "keyword": "none"]), .hidden)
-        for keyword in ["auto", "default", "pointer", "text", "crosshair", "ew-resize"] {
+        for keyword in ["auto", "default", ""] {
             XCTAssertEqual(PageCursor(message: ["kind": "cursor", "keyword": keyword]), .system, keyword)
         }
+        for keyword in ["pointer", "text", "crosshair", "ew-resize"] {
+            XCTAssertEqual(PageCursor(message: ["kind": "cursor", "keyword": keyword]), .keyword(keyword), keyword)
+        }
+        XCTAssertEqual(PageCursor(message: ["kind": "cursor", "keyword": "Pointer "]), .keyword("pointer"))
         XCTAssertEqual(PageCursor(message: ["kind": "cursor"]), .system)
     }
 

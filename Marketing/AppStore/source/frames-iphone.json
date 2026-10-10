@@ -1,0 +1,66 @@
+{
+ "w": 1320,
+ "h": 2868,
+ "out": "iPhone-6.9",
+ "also": [
+  {
+   "out": "iPhone-6.3",
+   "w": 1206,
+   "h": 2622
+  }
+ ],
+ "params": {
+  "sw": "1040",
+  "top": "470",
+  "ct": "150",
+  "cs": "80",
+  "cp": "90",
+  "bezel": "promax-silver.png",
+  "bw": "1470",
+  "bh": "3000",
+  "hole": "75,66,1320,2868",
+  "corner": "232"
+ },
+ "frames": [
+  {
+   "name": "01-hero",
+   "params": {
+    "s": "Your web apps at phone size,<br>with the bar under your thumb.",
+    "img": "raw-iphone/1-hero.png",
+    "ring": "760,330,900"
+   }
+  },
+  {
+   "name": "02-desktop-view",
+   "params": {
+    "s": "Desktop View: the full-size page,<br>with a cursor you move like a trackpad.",
+    "img": "raw-iphone/7-desktop.png",
+    "ring": "-340,420,900"
+   }
+  },
+  {
+   "name": "03-spaces",
+   "params": {
+    "s": "Every space keeps its own<br>sign-ins, colour and bookmarks.",
+    "img": "raw-iphone/3-client.png",
+    "ring": "740,420,940"
+   }
+  },
+  {
+   "name": "04-palette",
+   "params": {
+    "s": "Tabs, spaces and commands<br>in one search.",
+    "img": "raw-iphone/4-palette.png",
+    "ring": "-320,360,880"
+   }
+  },
+  {
+   "name": "05-bookmarks",
+   "params": {
+    "s": "Bookmarks for every space,<br>synced through iCloud.",
+    "img": "raw-iphone/5-start.png",
+    "ring": "740,700,900"
+   }
+  }
+ ]
+}

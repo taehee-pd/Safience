@@ -8,7 +8,10 @@ import UIKit
 @MainActor
 final class PaletteModel: ObservableObject {
     @Published var query = "" {
-        didSet { selection = 0 }
+        // Only when it changed: Return writes the field's text back as it
+        // sends it (TypingField), and that put the first row back in place of
+        // the one chosen with the arrows.
+        didSet { if query != oldValue { selection = 0 } }
     }
     @Published var selection = 0
     private let window: WindowModel
@@ -56,6 +59,20 @@ final class PaletteModel: ObservableObject {
                 ))
             }
         }
+        // This space's tabs on other devices (Sync), to pick up from.
+        let cloud = workspace.space(window.spaceID)?.cloudID?.uuidString
+        for device in Sync.shared.elsewhere where device.space == cloud {
+            for tab in device.tabs {
+                guard let url = URL(string: tab.url) else { continue }
+                list.append(PaletteEntry(
+                    id: "elsewhere-\(device.id)-\(tab.url)",
+                    kind: .open(url),
+                    title: tab.title.isEmpty ? Destination.pretty(url) : tab.title,
+                    detail: "\(device.browser) · \(device.deviceName)",
+                    keywords: [Destination.pretty(url), device.browser, device.deviceName]
+                ))
+            }
+        }
         // This space's bookmarks, folders and all.
         for bookmark in workspace.space(window.spaceID)?.bookmarks.flatMap(\.links) ?? [] {
             guard let url = bookmark.url else { continue }
@@ -77,12 +94,12 @@ final class PaletteModel: ObservableObject {
                 keywords: ["space"]
             ))
         }
-        for command in Command.allCases where command != .palette {
+        for command in Command.allCases where command != .palette && Device.offers(command) {
             list.append(PaletteEntry(
                 id: "command-\(command.rawValue)",
                 kind: .command(command),
                 title: command.title,
-                detail: Shortcuts.chord(for: command)?.label ?? "",
+                detail: Device.keys(for: command) ?? "",
                 keywords: command.keywords
             ))
         }
@@ -140,21 +157,36 @@ final class PaletteController: UIHostingController<PaletteView> {
 struct PaletteView: View {
     @ObservedObject var model: PaletteModel
     @State private var focused = false
+    /// A phone: no Escape key, and the keyboard and the palette leave little
+    /// page to tap, so Cancel is beside the field, as in Safari's.
+    @Environment(\.horizontalSizeClass) private var width
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         let rows = model.results
         ZStack(alignment: .top) {
-            // A light touch only: the page stays in view behind the
-            // palette, as with Raycast, and a tap on it puts the palette away.
-            Color.black.opacity(0.06)
+            // A backdrop that dims the page, so the palette is what has the
+            // eye while it is open; the page still shows through, and a tap
+            // on it puts the palette away. Darker in the dark, where a light
+            // dim barely shows.
+            Color.black.opacity(scheme == .dark ? 0.45 : 0.28)
                 .ignoresSafeArea()
                 .onTapGesture { model.cancel() }
+                .accessibilityLabel("Close the palette")
+                .accessibilityAddTraits(.isButton)
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Color.primary.opacity(0.5))
                     TypingField(text: $model.query, placeholder: "Tabs, spaces, commands, or an address", fontSize: 17,
                                 focused: $focused) { _ in model.submit() }
+                    if width == .compact {
+                        Button("Cancel") { model.cancel() }
+                            .font(.system(size: 17))
+                            .foregroundStyle(Color.primary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 52)

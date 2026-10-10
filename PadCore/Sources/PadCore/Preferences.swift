@@ -34,11 +34,24 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var engine = Destination.standardEngine
     /// Pages' own cursor images, drawn over the hidden system pointer.
     public var pageCursors = true
+    /// Request Desktop Site or Request Mobile Site, by site (SiteMode.siteKey).
+    public var siteModes: [String: SiteMode] = [:]
+    /// Spaces and their bookmarks kept in iCloud (CloudSync.swift); off until turned on.
+    public var iCloudSync = false
+    /// How far the iPhone's desktop view cursor goes for a finger's move,
+    /// times the usual (DesktopView.cursorSpeeds).
+    public var cursorSpeed = 1.0
+    /// Ads and trackers blocked by WebKit's content blocker, with EasyList
+    /// and EasyPrivacy (ContentBlocking.swift); on unless turned off.
+    public var blocksContent = true
+    /// The sites it is off for, by site (SiteMode.siteKey).
+    public var unblockedSites: [String] = []
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors
+        case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync, cursorSpeed
+        case blocksContent, unblockedSites
     }
 
     public init(from decoder: Decoder) throws {
@@ -52,6 +65,27 @@ public struct Preferences: Codable, Equatable, Sendable {
         diagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .diagnostics)) ?? false
         engine = (try? c.decodeIfPresent(String.self, forKey: .engine)) ?? Destination.standardEngine
         pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
+        siteModes = (try? c.decodeIfPresent([String: SiteMode].self, forKey: .siteModes)) ?? [:]
+        iCloudSync = (try? c.decodeIfPresent(Bool.self, forKey: .iCloudSync)) ?? false
+        let speed = (try? c.decodeIfPresent(Double.self, forKey: .cursorSpeed)) ?? 1
+        cursorSpeed = min(max(speed, DesktopView.cursorSpeeds.lowerBound), DesktopView.cursorSpeeds.upperBound)
+        blocksContent = (try? c.decodeIfPresent(Bool.self, forKey: .blocksContent)) ?? true
+        unblockedSites = (try? c.decodeIfPresent([String].self, forKey: .unblockedSites)) ?? []
+    }
+
+    /// Whether a page at `host` has ads and trackers blocked.
+    public func blocksContent(onHost host: String?) -> Bool {
+        guard blocksContent else { return false }
+        guard let site = SiteMode.siteKey(host) else { return true }
+        return !unblockedSites.contains(site)
+    }
+
+    /// Blocking on or off for the site at `host`, the rest as they were.
+    public mutating func setBlocksContent(_ on: Bool, onHost host: String?) {
+        guard let site = SiteMode.siteKey(host) else { return }
+        unblockedSites.removeAll { $0 == site }
+        if !on { unblockedSites.append(site) }
+        unblockedSites.sort()
     }
 
     /// An adapter's bridges with these settings laid over them.

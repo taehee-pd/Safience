@@ -13,6 +13,11 @@ enum Palette {
     static let hairline = Color(uiColor: UI.hairline)
     static let wash = Color(uiColor: UI.wash)
     static let hover = Color(uiColor: UI.hover)
+    /// The tab overview's tray, and the cards on it: a light grey under
+    /// white cards, as Safari's tabs are shown, so the glass of the dock
+    /// and the buttons floating on it has something to show against.
+    static let tray = Color(uiColor: UI.tray)
+    static let card = Color(uiColor: UI.card)
     /// See-through dark, for what lies on the bars: they take the page's
     /// colour, and a grey of its own would sit on it as a patch, where a
     /// dark that lets the colour through reads as a deeper shade of it. A
@@ -32,6 +37,8 @@ enum Palette {
         static let hairline = pair(0.91, 0.20)
         static let wash = pair(0.937, 0.175)
         static let hover = pair(0.965, 0.15)
+        static let tray = pair(0.93, 0.06)
+        static let card = pair(1.0, 0.16)
         static let shade = dark(0.06, 0.24)
         static let hoverShade = dark(0.04, 0.14)
         static let safe = tint(light: (0.08, 0.50, 0.24), dark: (0.29, 0.87, 0.50))
@@ -67,6 +74,39 @@ enum Metrics {
     /// a click, which is never smaller than 40 points a side.
     static let control: CGFloat = 32
     static let target: CGFloat = 40
+    /// The ring between the two, where a click answers but nothing is drawn.
+    static let ring: CGFloat = (target - control) / 2
+}
+
+/// How big the address and what is in it are drawn: for a pointer, beside
+/// the tabs, or for a thumb, on the phone bar, where the address has a row
+/// of its own and a touch needs the 44 points Apple asks for.
+enum BarScale {
+    case pointer
+    case thumb
+
+    /// The address's height.
+    var control: CGFloat { self == .thumb ? 44 : Metrics.control }
+    /// The area that answers: the drawn height, never under 40.
+    var target: CGFloat { max(control, Metrics.target) }
+    var text: CGFloat { self == .thumb ? 16 : 13 }
+    var icon: CGFloat { self == .thumb ? 18 : 16 }
+    /// The star's, reload's and clear's width.
+    var button: CGFloat { self == .thumb ? 40 : 30 }
+    /// From the capsule's end to the icon's slot: a thumb-sized capsule's
+    /// end curves further in.
+    var lead: CGFloat { self == .thumb ? 8 : TabFace.lead }
+}
+
+private struct BarScaleKey: EnvironmentKey {
+    static let defaultValue = BarScale.pointer
+}
+
+extension EnvironmentValues {
+    var barScale: BarScale {
+        get { self[BarScaleKey.self] }
+        set { self[BarScaleKey.self] = newValue }
+    }
 }
 
 // MARK: A space's colour
@@ -282,20 +322,5 @@ struct SiteIconView: View {
         let palette: [SpaceColor] = [.blue, .purple, .pink, .red, .orange, .green, .teal, .indigo]
         let sum = host.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
         return palette[sum % palette.count].color
-    }
-}
-
-/// Glass shapes near each other, drawn as one material that flows between
-/// them, as the system's own bars do; just the content before iPadOS 26.
-struct GlassGroup<Content: View>: View {
-    var spacing: CGFloat = 6
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) { content }
-        } else {
-            content
-        }
     }
 }

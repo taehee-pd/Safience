@@ -54,6 +54,7 @@ enum Diagnostics {
             "wheel bridge \(bridges.wheel.rawValue) · keys to page: \(bridges.keys.isEmpty ? "none" : bridges.keys.map(\.rawValue).sorted().joined(separator: ", ")) · relayed \(stats.relayedKeys) · typing: \(page.editing ? "yes" : "no")",
             "\(tabs) · process ends \(stats.processEnds)",
             "cursor: \(bridges.cursors ? page.pointer?.cursorSummary ?? "the system's" : "the system's (pages' cursors off)")",
+            "ad blocking: \(page.blocksContent ? "on here" : "off here") · \(ContentBlocker.shared.status)",
         ]
     }
 }

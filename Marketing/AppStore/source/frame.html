@@ -1,31 +1,45 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:2064px;height:2752px;overflow:hidden}
+html,body{width:var(--w);height:var(--h);overflow:hidden}
 body{font-family:-apple-system,"SF Pro Display",system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#111110;
  background:linear-gradient(180deg,#f2f2ea 0%,#e4e4d8 55%,#d6d7c8 100%);position:relative}
 .ring{position:absolute;opacity:.13;pointer-events:none}
 /* One line of copy, the only words on the picture. */
-.copy{position:absolute;left:0;right:0;top:var(--copyTop);text-align:center;padding:0 120px}
-.copy p{font-size:88px;line-height:1.14;letter-spacing:-.032em;font-weight:680;color:#111110;text-wrap:balance}
-/* The whole iPad at a 13-inch screen's own 2064 by 2752 shape, large and low
-   enough that the picture's edge crops it; the bezel's corners follow the screen's. */
-.device{position:absolute;left:50%;transform:translateX(-50%);top:var(--top);padding:var(--bezel);
- border-radius:calc(var(--radius) + var(--bezel));background:#0d0d0c;
- box-shadow:0 2px 0 1px rgba(255,255,255,.35) inset,0 80px 160px -40px rgba(40,40,20,.45),0 30px 60px -30px rgba(0,0,0,.35)}
-.screen{width:var(--sw);aspect-ratio:2064/2752;border-radius:var(--radius);overflow:hidden;background:#fff}
-.screen img{display:block;width:100%;height:100%}
+.copy{position:absolute;left:0;right:0;top:var(--copyTop);text-align:center;padding:0 var(--copyPad)}
+.copy p{font-size:var(--copySize);line-height:1.14;letter-spacing:-.032em;font-weight:680;color:#111110;text-wrap:balance}
+/* The device is Apple's own picture of it (Apple Design Resources, bezels.sh),
+   shown as Apple's marketing guidelines ask: whole, straight on, with no shadow
+   or tilt added. The capture sits in the hole the picture leaves for the
+   screen (the frames file says where, in the picture's own pixels); the
+   picture over it hides the capture's square corners. */
+.device{position:absolute;left:50%;transform:translateX(-50%);top:var(--top);width:var(--dw);height:var(--dh)}
+.bezel{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
+.screen{position:absolute;left:var(--sx);top:var(--sy);width:var(--sw);height:var(--sh);border-radius:var(--sc);overflow:hidden;background:#fff}
+.screen img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
 </style></head><body>
-<img class="ring" id="ring" src="../../../App/Safiens.icon/Assets/Frame%201.png">
+<img class="ring" id="ring" src="ring.png">
 <div class="copy"><p id="s"></p></div>
-<div class="device"><div class="screen"><img id="shot"></div></div>
+<div class="device"><div class="screen"><img id="shot"></div><img class="bezel" id="bezel"></div>
 <script>
+// Defaults are the iPad's (13-inch, 2064 by 2752); frames-*.json sets the rest:
+// bezel, the picture in bezels/; bw and bh, its size; hole, the screen's
+// x,y,w,h in it; corner, the screen's corner radius in it, a little under
+// the true one so the capture reaches the hole's edge; sw, how wide the
+// screen is on this picture.
 const q=new URLSearchParams(location.search);
+const n=(k,d)=>Number(q.get(k)||d);
 document.getElementById('s').innerHTML=q.get('s');
 document.getElementById('shot').src=q.get('img');
+document.getElementById('bezel').src='bezels/'+(q.get('bezel')||'ipad13-silver.png');
 const g=document.getElementById('ring');const rp=(q.get('ring')||'1200,600,1400').split(',').map(Number);
 g.style.left=rp[0]+'px';g.style.top=rp[1]+'px';g.style.width=rp[2]+'px';
-const sw=Number(q.get('sw')||1800), bezel=28;
+const [hx,hy,hw,hh]=(q.get('hole')||'118,124,2064,2752').split(',').map(Number);
+const sw=n('sw',1560), k=sw/hw;
 const st=document.documentElement.style;
-st.setProperty('--sw',sw+'px');st.setProperty('--bezel',bezel+'px');st.setProperty('--radius',Math.round(sw*0.03)+'px');
-st.setProperty('--top',(q.get('top')||'560')+'px');st.setProperty('--copyTop',(q.get('ct')||'210')+'px');
+st.setProperty('--w',n('w',2064)+'px');st.setProperty('--h',n('h',2752)+'px');
+st.setProperty('--dw',n('bw',2300)*k+'px');st.setProperty('--dh',n('bh',3000)*k+'px');
+st.setProperty('--sx',hx*k+'px');st.setProperty('--sy',hy*k+'px');st.setProperty('--sw',sw+'px');st.setProperty('--sh',hh*k+'px');
+st.setProperty('--sc',n('corner',62)*k+'px');
+st.setProperty('--top',(q.get('top')||'440')+'px');st.setProperty('--copyTop',(q.get('ct')||'205')+'px');
+st.setProperty('--copySize',n('cs',88)+'px');st.setProperty('--copyPad',n('cp',120)+'px');
 </script></body></html>

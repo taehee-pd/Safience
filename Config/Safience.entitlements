@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The app's entitlements, used unless Config/Local.xcconfig turns them off
+  (Config/Signing.xcconfig says how).
+
+  com.apple.developer.web-browser: Apple's browser entitlement, granted to
+  the team that publishes Safience. iPadOS and iOS offer Safience as the
+  default browser, and WebKit lets pages use passkeys for any site, service
+  workers and full script access on every domain.
+
+  com.apple.developer.icloud-container-identifiers, icloud-services: the
+  app's CloudKit container, iCloud. and the bundle identifier, where
+  Settings › iCloud keeps spaces, bookmarks, pinned tabs and each device's
+  open tabs, in the user's private database (Sync.swift). aps-environment:
+  the silent pushes that tell the app something changed in it.
+
+  com.apple.developer.ubiquity-kvstore-identifier: iCloud's key-value store,
+  where sync kept spaces and bookmarks before CloudKit, read once to move
+  them over.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.web-browser</key>
+	<true/>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.$(CFBundleIdentifier)</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>
