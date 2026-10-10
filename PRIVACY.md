@@ -22,6 +22,7 @@ To work as a browser, the app keeps some things on your iPhone or iPad. They are
 | Ad-blocking lists, and the sites you allowed ads on | To block ads and trackers as pages load |
 | Files you download | Kept in a temporary folder until you choose where to save them |
 | Bookmarks you import | Read from the file you pick, on your device |
+| What you type in the address bar, with the names and sites of your tabs and bookmarks, when Apple Intelligence suggests from them | Read by Apple's model on your device (Settings › Search › Suggest with Apple Intelligence, on iOS and iPadOS 26 and later where Apple Intelligence is on), to find what you mean; not kept, and not sent anywhere |
 
 iOS and iPadOS may include the app's data in your device's backups, as they do for any app, under your backup settings.
 

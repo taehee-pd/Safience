@@ -167,4 +167,86 @@ final class AutocompleteTests: XCTestCase {
         XCTAssertTrue(try JSONDecoder().decode(Preferences.self, from: Data("{}".utf8)).searchSuggestions)
         XCTAssertFalse(try JSONDecoder().decode(Preferences.self, from: Data(#"{"searchSuggestions":false}"#.utf8)).searchSuggestions)
     }
+
+    // MARK: Apple Intelligence
+
+    /// The letters do the work alone for fewer than three of them, and for an address.
+    func testIntentQuestionWaitsForThreeLettersAndSkipsAddresses() {
+        let list = [bookmark("Figma", "https://figma.com")]
+        XCTAssertNil(Autocomplete.intentQuestion(query: "fi", candidates: list))
+        XCTAssertNil(Autocomplete.intentQuestion(query: "figma.com", candidates: list))
+        XCTAssertNotNil(Autocomplete.intentQuestion(query: "design tool", candidates: list))
+    }
+
+    /// The pages seen last first, one line a page with its site, then every
+    /// command, numbered from 1.
+    func testIntentQuestionLists() throws {
+        let now = Date()
+        let list = [
+            bookmark("Linear", "https://linear.app"),
+            tab("Onboarding flows", "https://www.figma.com/file/abc", shown: now),
+            tab("Older", "https://example.com", shown: now.addingTimeInterval(-60)),
+            bookmark("Figma file", "https://www.figma.com/file/abc"),
+            command(.closeTab),
+        ]
+        let question = try XCTUnwrap(Autocomplete.intentQuestion(query: "close everything", candidates: list))
+        XCTAssertEqual(question.prompt, """
+            Typed: close everything
+
+            1. Open tab: Onboarding flows (figma.com)
+            2. Open tab: Older (example.com)
+            3. Bookmark: Linear (linear.app)
+            4. Command: Close Tab
+            """)
+        XCTAssertEqual(question.candidates.map(\.title), ["Onboarding flows", "Older", "Linear", "Close Tab"])
+    }
+
+    /// The numbers the model names become rows that still say where they
+    /// came from, marked as found by meaning; one already shown, one not in
+    /// the list, and any after the third are passed over.
+    func testIntentRows() throws {
+        let list = [
+            tab("Onboarding flows", "https://figma.com/file/abc", shown: Date()),
+            bookmark("Linear", "https://linear.app"),
+            command(.closeTab, keys: "⌘W"),
+            bookmark("Notion", "https://notion.so"),
+            bookmark("Slack", "https://slack.com"),
+        ]
+        let question = try XCTUnwrap(Autocomplete.intentQuestion(query: "close everything", candidates: list))
+        XCTAssertEqual(question.candidates.map(\.title), ["Onboarding flows", "Linear", "Notion", "Slack", "Close Tab"])
+        let shown = Autocomplete.local([bookmark("Linear", "https://linear.app")], query: "lin")
+        let answer = Autocomplete.IntentAnswer(
+            picks: [5, 2, 0, 99, 1, 3, 4],
+            searches: ["close everything", "close all tabs chrome", "Close all tabs chrome", "", "close tabs shortcut"]
+        )
+        let found = Autocomplete.intentRows(answer, to: question, shown: shown)
+        XCTAssertEqual(found.meant.map(\.phrase), ["Close Tab", "Onboarding flows", "Notion"])
+        XCTAssertEqual(found.meant.map(\.source), [.command, .tab, .bookmark])
+        XCTAssertTrue(found.meant.allSatisfy(\.byMeaning))
+        XCTAssertEqual(found.meant.first?.detail, "⌘W")
+        XCTAssertEqual(found.meant.dropFirst().first?.detail, "figma.com/file/abc")
+        XCTAssertEqual(found.searches.map(\.phrase), ["close all tabs chrome", "close tabs shortcut"])
+        XCTAssertEqual(found.searches.first?.source.label, "Apple Intelligence")
+        XCTAssertEqual(found.searches.first?.action, .go("close all tabs chrome"))
+    }
+
+    /// What the model found comes after the page the letters start, before the searches.
+    func testOrderWithWhatWasMeant() {
+        let figma = Suggestion(id: "b", source: .bookmark, action: .open(url("https://figma.com")), phrase: "figma.com",
+                               typed: [0..<3])
+        let guide = Suggestion(id: "t", source: .tab, action: .open(url("https://example.com")),
+                               phrase: "Auto Figma Guide", typed: [5..<8])
+        let meant = Suggestion(id: "m", source: .command, action: .command(.closeTab), phrase: "Close Tab", typed: [],
+                               byMeaning: true)
+        let search = Suggestion(id: "e", source: .engine("Google"), action: .go("figma login"), phrase: "figma login",
+                                typed: [0..<3])
+        XCTAssertEqual(Autocomplete.rows(local: [figma, guide], meant: [meant], engine: [search]).map(\.id),
+                       ["b", "m", "e", "t"])
+        XCTAssertEqual(Autocomplete.rows(local: [guide], meant: [meant], engine: [search]).map(\.id), ["m", "e", "t"])
+    }
+
+    func testIntelligenceSettingDefaultsToOn() throws {
+        XCTAssertTrue(try JSONDecoder().decode(Preferences.self, from: Data("{}".utf8)).intelligence)
+        XCTAssertFalse(try JSONDecoder().decode(Preferences.self, from: Data(#"{"intelligence":false}"#.utf8)).intelligence)
+    }
 }

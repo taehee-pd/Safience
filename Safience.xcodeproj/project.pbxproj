@@ -28,6 +28,7 @@
 		62A4AEE0CD76A947B4755FB6 /* StartPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26FCC216CAD2764E9BC35B99 /* StartPage.swift */; };
 		63D22B81ACB5611434171F0F /* PhoneBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A46847BFA9A21CE9DA37629 /* PhoneBar.swift */; };
 		6C59C9D7C4A6F818B0E91E5B /* TabSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D9D979FE9120276CFCCEF83 /* TabSheet.swift */; };
+		711EB118C9582447155A7B04 /* Intelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424DB9E2A281641A3E4373D7 /* Intelligence.swift */; };
 		7CDCF926FA894B2B55373CE9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9F3DF770EB8A6FC90D151A8D /* PrivacyInfo.xcprivacy */; };
 		81D51AD956ACB27B56492771 /* Oxide.icon in Resources */ = {isa = PBXBuildFile; fileRef = A98147C8E732BB4FF3E19BF0 /* Oxide.icon */; };
 		830AC5C5BD7674F0CE7E37FF /* Design.swift in Sources */ = {isa = PBXBuildFile; fileRef = B455D4DFE19101DC8D9B04D6 /* Design.swift */; };
@@ -67,6 +68,7 @@
 		35703117FE6070510D9ACD41 /* Split.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Split.swift; sourceTree = "<group>"; };
 		3C853B222D6041EF25DDE463 /* Spaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces.swift; sourceTree = "<group>"; };
 		3EF9E81EBAC67F3BB4262C21 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
+		424DB9E2A281641A3E4373D7 /* Intelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Intelligence.swift; sourceTree = "<group>"; };
 		42913D2892ED2BD37B49B46B /* SiteIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteIcons.swift; sourceTree = "<group>"; };
 		454BB91AD08E546C79F7A68B /* TypingField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingField.swift; sourceTree = "<group>"; };
 		512242CF748C7FC74E5144D7 /* CommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette.swift; sourceTree = "<group>"; };
@@ -154,6 +156,7 @@
 				EEF971FC5BBD0193585DD8BF /* Diagnostics.swift */,
 				CDB06E275F05C5DC35F5F409 /* Dialogs.swift */,
 				AA24A05C238565C89C5709DE /* Downloads.swift */,
+				424DB9E2A281641A3E4373D7 /* Intelligence.swift */,
 				3EF9E81EBAC67F3BB4262C21 /* Menus.swift */,
 				EFBA45B9156A4F863CB6645F /* Page.swift */,
 				82E5D050E5C6B6B0BC0362ED /* Pages.swift */,
@@ -302,6 +305,7 @@
 				4BA36CAD321B3DAECE500DE2 /* Diagnostics.swift in Sources */,
 				CA29CFAF4307AC6AFE2C3E6F /* Dialogs.swift in Sources */,
 				84FCF83CE8E1010D83C99B66 /* Downloads.swift in Sources */,
+				711EB118C9582447155A7B04 /* Intelligence.swift in Sources */,
 				391B4688B7965EC189CE6B5C /* Menus.swift in Sources */,
 				F8C48630A396E0E9BB9442BC /* Page.swift in Sources */,
 				8B82DF9060D876302EA0545B /* PageView.swift in Sources */,
@@ -342,6 +346,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					FoundationModels,
 				);
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -488,6 +497,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					FoundationModels,
 				);
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
