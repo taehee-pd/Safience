@@ -8,7 +8,7 @@ final class FolderTests: XCTestCase {
     }
 
     func testAFolderHoldsBookmarksMovedIntoIt() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         let linear = try XCTUnwrap(w.addBookmark(try url("https://linear.app/"), title: "Linear", in: work))
         let design = try XCTUnwrap(w.addFolder(named: "Design", in: nil, of: work))
@@ -23,7 +23,7 @@ final class FolderTests: XCTestCase {
     }
 
     func testAFolderNeverGoesIntoItselfOrItsOwn() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         let outer = try XCTUnwrap(w.addFolder(named: "Outer", in: nil, of: work))
         let inner = try XCTUnwrap(w.addFolder(named: "Inner", in: outer, of: work))
@@ -39,7 +39,7 @@ final class FolderTests: XCTestCase {
     }
 
     func testNamesAreTrimmedAndNeverEmpty() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         let folder = try XCTUnwrap(w.addFolder(named: "  ", in: nil, of: work))
         XCTAssertEqual(Bookmarks.find(folder, in: w.space(work)?.bookmarks ?? [])?.title, "New Folder")

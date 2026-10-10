@@ -4,7 +4,7 @@ import XCTest
 /// Arrange Tabs By: names or sites, the pinned tabs first, splits whole.
 final class ArrangeTests: XCTestCase {
     private func space(_ titles: [(String, String)]) throws -> (Workspace, UUID, [UUID]) {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         w.spaces[0].tabs = []
         var ids: [UUID] = []

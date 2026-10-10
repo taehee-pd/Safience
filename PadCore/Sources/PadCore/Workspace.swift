@@ -176,9 +176,11 @@ public struct Workspace: Codable, Equatable, Sendable {
         self.closed = closed
     }
 
-    /// The first launch: one space, on Figma.
+    /// The first launch: one space, on a new tab. What shows first is then the
+    /// browser's own start page and its address field, not a site's sign-in
+    /// page, which reads as the app asking for an account.
     public static func starting(now: Date = Date()) -> Workspace {
-        let tab = TabRecord(url: URL(string: "https://www.figma.com/files"), title: "Figma", shown: now)
+        let tab = TabRecord(url: nil, shown: now)
         return Workspace(spaces: [Space(name: "Work", symbol: "briefcase", tabs: [tab], selected: tab.id)])
     }
 

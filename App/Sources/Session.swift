@@ -45,7 +45,13 @@ final class Session: ObservableObject {
     }
 
     private init() {
-        workspace = WorkspaceFile.read(Session.workspaceFile) ?? .starting()
+        let saved = WorkspaceFile.read(Session.workspaceFile)
+        workspace = saved ?? .starting()
+        // Nothing saved yet is a first launch, which gets the welcome. Whoever
+        // has a workspace from before there was a welcome never sees it.
+        if saved == nil, UserDefaults.standard.string(forKey: Session.welcomeKey) == nil {
+            UserDefaults.standard.set("pending", forKey: Session.welcomeKey)
+        }
         preferences = UserDefaults.standard.data(forKey: Session.preferencesKey)
             .flatMap { try? JSONDecoder().decode(Preferences.self, from: $0) } ?? Preferences()
     }
@@ -57,6 +63,20 @@ final class Session: ObservableObject {
         pages.watchMemory()
         ContentBlocker.shared.start()
         if preferences.iCloudSync { Sync.shared.start(join: false) }
+    }
+
+    // MARK: The welcome
+
+    private static let welcomeKey = "welcome"
+
+    /// A first launch whose welcome hasn't been finished or skipped yet: kept
+    /// across launches, so quitting halfway brings it back.
+    var needsWelcome: Bool {
+        UserDefaults.standard.string(forKey: Session.welcomeKey) == "pending"
+    }
+
+    func finishWelcome() {
+        UserDefaults.standard.set("done", forKey: Session.welcomeKey)
     }
 
     // MARK: The workspace

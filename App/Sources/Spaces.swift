@@ -84,8 +84,8 @@ struct SpaceEditor: View {
 }
 
 /// The colours to choose from, each a dot; the chosen one ringed in its own
-/// colour, the ring's gap the same all round.
-private struct ColourRow: View {
+/// colour, the ring's gap the same all round. The welcome's too (Welcome.swift).
+struct ColourRow: View {
     let selected: SpaceColor
     let choose: (SpaceColor) -> Void
 
@@ -121,7 +121,7 @@ private struct ColourRow: View {
 
 /// Every icon a space can wear, as the icons themselves, in a grid: the
 /// chosen one filled with the space's colour.
-private struct IconGrid: View {
+struct IconGrid: View {
     let selected: String
     let colour: SpaceColor
     let choose: (String) -> Void

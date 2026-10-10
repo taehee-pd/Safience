@@ -8,7 +8,7 @@ final class PinnedTabTests: XCTestCase {
     let elsewhere = URL(string: "https://www.figma.com/design/AbC/Product")
 
     func testPinningMovesTheTabToTheFrontAndKeepsItsAddress() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -23,14 +23,14 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testATabThatWentNowhereHasNothingToPin() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let empty = try XCTUnwrap(w.openTab(nil, in: w.spaces[0].id))
         XCTAssertFalse(w.pin(empty))
         XCTAssertNil(w.tab(empty)?.pinned)
     }
 
     func testClosingAPinnedTabTakesItBackInsteadOfAway() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -45,7 +45,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testThePinnedTabAloneStaysSelected() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let a = try XCTUnwrap(w.spaces[0].selected)
         w.pin(a)
         XCTAssertEqual(w.closeTab(a), a)
@@ -53,7 +53,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testNewTabsNeverLandAmongThePinned() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -64,7 +64,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testUnpinningPutsItFirstAfterThePinned() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -78,7 +78,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testBackToThePinnedAddress() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let a = try XCTUnwrap(w.spaces[0].selected)
         w.pin(a)
         w.record(a, url: elsewhere, title: nil)
@@ -87,7 +87,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testMovingKeepsPinnedAndOtherTabsApart() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -108,7 +108,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testAPinnedTabStaysPinnedInAnotherSpace() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let home = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         w.pin(a)
@@ -120,7 +120,7 @@ final class PinnedTabTests: XCTestCase {
     }
 
     func testAReopenedTabIsNeverAmongThePinned() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
         let b = try XCTUnwrap(w.openTab(slack, in: space))
@@ -133,7 +133,7 @@ final class PinnedTabTests: XCTestCase {
 
 final class SpaceTests: XCTestCase {
     func testNewSpacesGetAColourNoOtherHas() {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         for number in 1...5 { w.addSpace(named: "Space \(number)") }
         let colours = w.spaces.map(\.color)
         XCTAssertEqual(Set(colours).count, colours.count)
@@ -142,7 +142,7 @@ final class SpaceTests: XCTestCase {
     }
 
     func testSpacesReorderAsAListDragsThem() {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let a = w.spaces[0].id
         let b = w.addSpace(named: "B")
         let c = w.addSpace(named: "C")
@@ -171,7 +171,7 @@ final class SpaceTests: XCTestCase {
     }
 
     func testEachSpaceKeepsItsOwnBookmarks() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         let client = w.addSpace(named: "Client")
         let url = try XCTUnwrap(URL(string: "https://linear.app/"))
@@ -186,7 +186,7 @@ final class SpaceTests: XCTestCase {
     }
 
     func testOnlyThePathsTrailingSlashIsTheSamePage() throws {
-        var w = Workspace.starting()
+        var w = Workspace.onFigma()
         let work = w.spaces[0].id
         func add(_ text: String) throws -> UUID? {
             w.addBookmark(try XCTUnwrap(URL(string: text)), title: text, in: work)
