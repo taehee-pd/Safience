@@ -32,6 +32,14 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var limits = LiveLimits()
     public var diagnostics = false
     public var engine = Destination.standardEngine
+    /// The engine's suggestions under the address as it is typed
+    /// (Autocomplete), which sends what is typed to the engine; on unless
+    /// turned off.
+    public var searchSuggestions = true
+    /// Apple Intelligence's on-device model finding tabs, bookmarks and
+    /// commands by what the words typed mean (Autocomplete), where the device
+    /// has it; on unless turned off. Nothing leaves the device for it.
+    public var intelligence = true
     /// Pages' own cursor images, drawn over the hidden system pointer.
     public var pageCursors = true
     /// Request Desktop Site or Request Mobile Site, by site (SiteMode.siteKey).
@@ -51,7 +59,7 @@ public struct Preferences: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case layout, address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync, cursorSpeed
-        case blocksContent, unblockedSites
+        case blocksContent, unblockedSites, searchSuggestions, intelligence
     }
 
     public init(from decoder: Decoder) throws {
@@ -64,6 +72,8 @@ public struct Preferences: Codable, Equatable, Sendable {
         limits = (try? c.decodeIfPresent(LiveLimits.self, forKey: .limits)) ?? LiveLimits()
         diagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .diagnostics)) ?? false
         engine = (try? c.decodeIfPresent(String.self, forKey: .engine)) ?? Destination.standardEngine
+        searchSuggestions = (try? c.decodeIfPresent(Bool.self, forKey: .searchSuggestions)) ?? true
+        intelligence = (try? c.decodeIfPresent(Bool.self, forKey: .intelligence)) ?? true
         pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
         siteModes = (try? c.decodeIfPresent([String: SiteMode].self, forKey: .siteModes)) ?? [:]
         iCloudSync = (try? c.decodeIfPresent(Bool.self, forKey: .iCloudSync)) ?? false

@@ -26,6 +26,8 @@ final class WindowModel: ObservableObject {
     /// it is called.
     @Published var showsAddress = false
     @Published var editingAddress = false
+    /// What the address bar offers under the address being typed.
+    let suggestions = Suggestions()
     @Published var banner: Banner?
     /// The colour along the top of the page, which the bars take on.
     @Published var siteColor: SiteColor?
@@ -124,6 +126,13 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var empty: UIHostingController<EmptySpace>?
     private var start: UIHostingController<StartPage>?
     private var diagnostics: UIHostingController<DiagnosticsView>?
+    /// The address bar's suggestions, over the page: under the field on
+    /// iPad, over the bar on a phone (placeSuggestions).
+    private var suggestionList: UIHostingController<SuggestionList>?
+    private var suggestionHeight: NSLayoutConstraint?
+    private var suggestionsUnderTabs: [NSLayoutConstraint] = []
+    private var suggestionsUnderAddress: [NSLayoutConstraint] = []
+    private var suggestionsOverBar: [NSLayoutConstraint] = []
     private var subscriptions: Set<AnyCancellable> = []
 
     var isConnected: Bool { connected }
@@ -165,6 +174,15 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         Session.shared.$preferences
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refreshChrome() }
+            .store(in: &subscriptions)
+        // A turn later, once the rows have changed rather than as they are about to.
+        model.suggestions.$rows
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.placeSuggestions() }
+            .store(in: &subscriptions)
+        // However typing ends (Return, Escape, another tab), its rows go with it.
+        model.$editingAddress
+            .sink { [weak self] editing in if !editing { self?.model.suggestions.end() } }
             .store(in: &subscriptions)
         // A window that turns phone-width (an iPhone, the Duo folding, a narrow
         // iPad window) moves its bars to the bottom, and back.
@@ -302,6 +320,34 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         focusEdge.isHidden = true
         stage.addSubview(focusEdge)
 
+        // Over everything else, the bars included.
+        let list = embed(SuggestionList(suggestions: model.suggestions) { [weak self] row in self?.act(.suggestion(row)) },
+                         inStack: false)
+        list.view.translatesAutoresizingMaskIntoConstraints = false
+        list.view.isHidden = true
+        // As tall as its rows, as far as the room goes.
+        let height = list.view.heightAnchor.constraint(equalToConstant: 0)
+        height.priority = .defaultHigh
+        let wide = list.view.widthAnchor.constraint(equalTo: safe.widthAnchor, constant: -24)
+        wide.priority = .defaultHigh
+        let padRoom = [
+            list.view.centerXAnchor.constraint(equalTo: safe.centerXAnchor),
+            list.view.widthAnchor.constraint(lessThanOrEqualToConstant: 640),
+            wide,
+            list.view.bottomAnchor.constraint(lessThanOrEqualTo: view.keyboardLayoutGuide.topAnchor, constant: -8),
+        ]
+        suggestionsUnderTabs = padRoom + [list.view.topAnchor.constraint(equalTo: top.view.bottomAnchor, constant: 2)]
+        suggestionsUnderAddress = padRoom + [list.view.topAnchor.constraint(equalTo: address.view.bottomAnchor, constant: 2)]
+        suggestionsOverBar = [
+            list.view.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 10),
+            list.view.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -10),
+            list.view.bottomAnchor.constraint(equalTo: phone.view.topAnchor, constant: -4),
+            list.view.topAnchor.constraint(greaterThanOrEqualTo: safe.topAnchor, constant: 8),
+        ]
+        height.isActive = true
+        suggestionHeight = height
+        suggestionList = list
+
         refreshChrome()
     }
 
@@ -398,6 +444,26 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         if model.blocking != blocking { model.blocking = blocking }
         showDiagnostics(preferences.diagnostics)
         applySiteColor()
+        placeSuggestions()
+    }
+
+    /// The suggestions while there are any and an address is typed: under
+    /// the row of tabs in the compact layout, under the address bar in the
+    /// separate one, over the bar on a phone.
+    private func placeSuggestions() {
+        guard let list = suggestionList else { return }
+        let rows = model.suggestions.rows.count
+        let shows = model.editingAddress && rows > 0
+        if list.view.isHidden == shows { list.view.isHidden = !shows }
+        guard shows else { return }
+        suggestionHeight?.constant = SuggestionList.height(rows: rows)
+        let wanted = model.phone ? suggestionsOverBar
+            : Session.shared.preferences.layout == .compact ? suggestionsUnderTabs : suggestionsUnderAddress
+        let others = (suggestionsOverBar + suggestionsUnderTabs + suggestionsUnderAddress).filter { constraint in
+            constraint.isActive && !wanted.contains { $0 === constraint }
+        }
+        NSLayoutConstraint.deactivate(others)
+        NSLayoutConstraint.activate(wanted.filter { !$0.isActive })
     }
 
     /// The bars and the strip under the status bar in the colour along the
@@ -904,9 +970,16 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             return (super.keyCommands ?? []) + [escape]
         }
         guard model.editingAddress else { return super.keyCommands }
-        let escape = UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(cancelAddress))
-        escape.wantsPriorityOverSystemBehavior = true
-        return (super.keyCommands ?? []) + [escape]
+        var keys = [(UIKeyCommand.inputEscape, #selector(cancelAddress))]
+        // ↑ and ↓ through the suggestions, ahead of the field's own start and end of line.
+        if !model.suggestions.rows.isEmpty {
+            keys += [(UIKeyCommand.inputUpArrow, #selector(suggestionUp)), (UIKeyCommand.inputDownArrow, #selector(suggestionDown))]
+        }
+        return (super.keyCommands ?? []) + keys.map { input, action in
+            let key = UIKeyCommand(input: input, modifierFlags: [], action: action)
+            key.wantsPriorityOverSystemBehavior = true
+            return key
+        }
     }
 
     @objc func browserCommand(_ sender: UICommand) {
@@ -921,6 +994,14 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
     @objc private func cancelAddress() {
         act(.cancelAddress)
+    }
+
+    @objc private func suggestionUp() {
+        model.suggestions.move(-1)
+    }
+
+    @objc private func suggestionDown() {
+        model.suggestions.move(1)
     }
 
     @objc private func closeTabsKey() {
@@ -1120,8 +1201,13 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             refreshChrome()
             focusPage()
         case .go(let text):
+            // Read before typing ends, which lets the rows go.
+            let chosen = model.suggestions.selected
             model.editingAddress = false
-            go(text)
+            if let chosen { take(chosen) } else { go(text) }
+        case .suggestion(let row):
+            model.editingAddress = false
+            take(row)
         case .open(let url):
             open(url)
         case .back: page?.view.goBack()
@@ -1357,6 +1443,25 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         editor.modalPresentationStyle = .formSheet
         editor.presentationController?.delegate = self
         present(editor, animated: true)
+    }
+
+    /// A row the address bar offered, chosen with Return or a tap.
+    private func take(_ row: Suggestion) {
+        switch row.action {
+        case .tab(let tab):
+            refreshChrome()
+            act(.select(tab))
+            focusPage()
+        case .open(let url):
+            open(url)
+        case .command(let command):
+            // The field is put away first: a command may open one again (New Tab).
+            refreshChrome()
+            perform(command)
+            focusPage()
+        case .go(let text):
+            go(text)
+        }
     }
 
     /// A typed line: an address, or a search with the chosen engine.

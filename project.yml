@@ -44,6 +44,9 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: Citrus Diazo Engineer Lilac Midnight Oxide Signal
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
+        # Apple Intelligence's on-device model (Intelligence.swift) is iOS 26's;
+        # linked weakly, the app still starts without it on iOS 17 and 18.
+        OTHER_LDFLAGS: ["$(inherited)", "-weak_framework", "FoundationModels"]
 schemes:
   Safience:
     build:

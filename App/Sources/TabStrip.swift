@@ -74,6 +74,10 @@ final class TabStripView: UIView {
         content.addSubview(divider)
         field.isHidden = true
         field.submitted = { [weak self] text in self?.act(.go(text)) }
+        field.typed = { [weak self] text in
+            guard let self else { return }
+            model.suggestions.typed(text, in: model)
+        }
         field.ended = { [weak self] in
             guard let self, model.editingAddress else { return }
             act(.cancelAddress)
@@ -241,6 +245,7 @@ final class TabStripView: UIView {
 
     private func openField() {
         layoutIfNeeded()
+        model.suggestions.begin(at: model.url)
         field.begin(url: model.url, insecure: model.insecure)
         field.isHidden = false
         field.alpha = 1
@@ -628,6 +633,8 @@ final class TabView: UIView, UIContextMenuInteractionDelegate, UIGestureRecogniz
 @MainActor
 final class AddressFieldView: UIView, UITextFieldDelegate {
     var submitted: ((String) -> Void)?
+    /// What the field holds, as it changes, for the suggestions under it.
+    var typed: ((String) -> Void)?
     var ended: (() -> Void)?
 
     private let glass: UIView
@@ -726,6 +733,7 @@ final class AddressFieldView: UIView, UITextFieldDelegate {
     }
 
     @objc private func changed() {
+        typed?(text.text ?? "")
         let empty = text.text?.isEmpty ?? true
         guard clear.isHidden != empty else { return }
         clear.isHidden = empty

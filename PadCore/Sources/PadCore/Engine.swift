@@ -36,6 +36,18 @@ enum Engine: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Where the engine's suggestions for words being typed come from, in
+    /// OpenSearch's JSON ([words, [suggestion, …]]), with %s where the words
+    /// go (Autocomplete); nil for an engine with none open to any app.
+    var suggestions: String? {
+        switch self {
+        case .google: return "https://suggestqueries.google.com/complete/search?client=firefox&ie=utf-8&oe=utf-8&q=%s"
+        case .duckduckgo: return "https://duckduckgo.com/ac/?type=list&q=%s"
+        case .bing: return "https://api.bing.com/osjson.aspx?query=%s"
+        case .ecosia, .startpage, .kagi, .brave, .qwant: return nil
+        }
+    }
+
     static func url(for text: String, template: String) -> URL? {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty,
