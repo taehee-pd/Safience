@@ -1,8 +1,9 @@
-"""App Store Connect, through its API: the product page's screenshots and previews,
+"""App Store Connect, through its API: the product page's text, screenshots and previews,
 the build on the version. Needs ASC_KEY_PATH (the .p8 of a team key with the App Manager
 role, kept in ~/.appstoreconnect/private_keys), ASC_KEY_ID and ASC_ISSUER_ID; PyJWT.
 The Duo sets are left alone (see the README).
     python3 asc.py state                 what the version has now
+    python3 asc.py text                  set the subtitle, promotional text, description and keywords from metadata.md
     python3 asc.py screenshots           replace the iPhone 6.9, 6.3 and iPad 13 sets
     python3 asc.py previews              replace the iPhone 6.9 and iPad 13 previews
     python3 asc.py build 8               wait for build 8 to process, then put it on the version
@@ -109,6 +110,42 @@ def state(lid):
             print('   ', a.get('fileName'), a.get('assetDeliveryState', {}).get('state'), a.get('fileSize'))
 
 
+def fields():
+    """metadata.md's fields by heading, "## Subtitle (30)" giving Subtitle and its limit of 30."""
+    out, name = {}, None
+    for line in open(os.path.join(ROOT, 'metadata.md')).read().split('\n'):
+        if line.startswith('## '):
+            title, _, limit = line[3:].partition(' (')
+            name = title.strip()
+            out[name] = {'limit': int(''.join(c for c in limit if c.isdigit()) or 0), 'lines': []}
+        elif name:
+            out[name]['lines'].append(line)
+    for f in out.values():
+        f['text'] = '\n'.join(f.pop('lines')).strip()
+    return out
+
+
+def text(vid, lid):
+    """The version's promotional text, description and keywords, and the app's subtitle, as metadata.md has them.
+    Each is checked against its limit first, so nothing goes up cut short."""
+    f = fields()
+    for name in ('Subtitle', 'Promotional Text', 'Description', 'Keywords'):
+        if len(f[name]['text']) > f[name]['limit']:
+            sys.exit(f'{name} is {len(f[name]["text"])} characters, over its {f[name]["limit"]}')
+    call('PATCH', f'/v1/appStoreVersionLocalizations/{lid}', {'data': {'type': 'appStoreVersionLocalizations', 'id': lid,
+         'attributes': {'promotionalText': f['Promotional Text']['text'], 'description': f['Description']['text'],
+                        'keywords': f['Keywords']['text']}}})
+    print('version text set:', ', '.join(f'{n} {len(f[n]["text"])}' for n in ('Promotional Text', 'Description', 'Keywords')))
+    # The subtitle is the app's, not the version's: on the app info that is still being edited.
+    infos = call('GET', f'/v1/apps/{APP}/appInfos')['data']
+    info = next(i for i in infos if i['attributes'].get('appStoreState') != 'READY_FOR_SALE')
+    locs = call('GET', f'/v1/appInfos/{info["id"]}/appInfoLocalizations')['data']
+    loc = next((l for l in locs if l['attributes']['locale'] == 'en-US'), locs[0])
+    call('PATCH', f'/v1/appInfoLocalizations/{loc["id"]}', {'data': {'type': 'appInfoLocalizations', 'id': loc['id'],
+         'attributes': {'subtitle': f['Subtitle']['text']}}})
+    print('subtitle set:', f['Subtitle']['text'])
+
+
 def build(number, vid):
     for _ in range(60):
         data = call('GET', f'/v1/builds?filter[app]={APP}&filter[version]={number}&sort=-uploadedDate&limit=1')['data']
@@ -128,6 +165,8 @@ if __name__ == '__main__':
     lid = localization(vid)
     if what == 'state':
         state(lid)
+    elif what == 'text':
+        text(vid, lid)
     elif what == 'screenshots':
         wanted = {display: sorted(os.path.join(ROOT, folder, f) for f in os.listdir(os.path.join(ROOT, folder)) if f.endswith('.png'))
                   for display, folder in SETS.items()}

@@ -20,7 +20,8 @@ for t in client["tabs"]:
     if "board.html" in (t.get("url") or ""): t["url"] = "http://board.localhost:8765/board.html?dark"
     if "notes.localhost" in (t.get("url") or ""): t["title"] = "Brand review · Margin"
     if "canvas.localhost" in (t.get("url") or ""): t["title"] = "Campaign · Forma"
-studio["tabs"] = [t for t in studio["tabs"] if t.get("url")]
+# Only the demo pages: a tab left open while testing (another port, a real site) stays out of the pictures.
+studio["tabs"] = [t for t in studio["tabs"] if ":8765/" in (t.get("url") or "")]
 studio["splits"] = []
 w["spaces"] = [studio, client, home]
 canvas, notes = tab(studio, "canvas.html"), tab(studio, "notes.html")

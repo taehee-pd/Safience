@@ -194,6 +194,23 @@ export function flatten(list, space, previous, parent = null, out = {}) {
 
 // The records to save and delete for `old` to become `next`, among the
 // given kinds.
+// Whether Chrome takes iCloud's bookmarks on this pull, and which deletions it
+// makes: when iCloud's copy changed, or when the last attempt did not finish
+// (`pending`, kept from it). The mirror and sync token move on before Chrome has
+// it all, so without the second a bookmark Chrome failed to make would be read,
+// on the next push, as one removed here, and deleted from iCloud.
+export function bookmarkPull(pending, differs, deleted) {
+  const all = new Set([...(pending?.deleted || []), ...deleted]);
+  return { apply: differs || !!pending, deleted: all };
+}
+
+// The pinned records to open as tabs here: those no tab shows, less those
+// unpinned or closed here and not yet sent (`deleting`), which would
+// otherwise open again before the deletion went out.
+export function pinsToOpen(wanted, map, deleting) {
+  return wanted.filter((pin) => !map[pin.id]?.tabId && !deleting.includes(pin.id));
+}
+
 export function changes(old, next, kinds = ['spaces', 'bookmarks', 'pinned']) {
   const save = []; const del = [];
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);

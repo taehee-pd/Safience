@@ -14,7 +14,7 @@ settings:
     # nothing in an app that is main-thread by nature.
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "7"
+    CURRENT_PROJECT_VERSION: "17"
 packages:
   PadCore:
     path: PadCore
@@ -40,6 +40,8 @@ targets:
         # App/Safience.icon, made with Icon Composer: Liquid Glass on iOS and
         # iPadOS 26 and later; Xcode draws flat pictures from it for earlier ones.
         ASSETCATALOG_COMPILER_APPICON_NAME: Safience
+        # The icons Settings › App icon offers, each an Icon Composer file in App/.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: Citrus Diazo Engineer Lilac Midnight Oxide Signal
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: NO
 schemes:

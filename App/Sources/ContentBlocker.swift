@@ -19,6 +19,20 @@ final class ContentBlocker: ObservableObject {
     private(set) var lists: [WKContentRuleList] = []
     /// What Settings and Diagnostics say about it.
     @Published private(set) var summary = "Getting the lists ready…"
+    /// What Settings lists, row by row: each list and the day it was made, and
+    /// the rules WebKit has. Nil until the lists are ready.
+    @Published private(set) var shown: Shown?
+
+    struct Shown: Equatable {
+        struct List: Equatable, Identifiable {
+            let name: String
+            let made: Date?
+            var id: String { name }
+        }
+        var lists: [List]
+        var rules: Int
+        var dropped: Int
+    }
 
     private let store = WKContentRuleListStore.default()
     private var saved = Saved()
@@ -145,6 +159,7 @@ final class ContentBlocker: ObservableObject {
             }
         }
         summary = "Getting the lists ready…"
+        shown = nil
         let texts = Self.texts()
         let (plan, converted) = await Task.detached(priority: .utility) {
             let converted = texts.map(FilterConverter.convert)
@@ -192,6 +207,7 @@ final class ContentBlocker: ObservableObject {
     /// Diagnostics say what there is.
     private func announce() {
         summary = Self.describe(saved)
+        shown = Self.shown(saved)
         for page in Session.shared.pages.live.values { page.blockingChanged() }
     }
 
@@ -204,6 +220,13 @@ final class ContentBlocker: ObservableObject {
         var text = "\(count) rules" + (dates.isEmpty ? "" : ", from " + dates.joined(separator: " and "))
         if saved.dropped > 0 { text += "; \(saved.dropped) of the lists couldn't be used" }
         return text
+    }
+
+    private static func shown(_ saved: Saved) -> Shown {
+        Shown(lists: ContentBlocking.lists.map { list in
+                  .init(name: list.name, made: saved.versions[list.id].flatMap(date(ofVersion:)))
+              },
+              rules: saved.rules, dropped: saved.dropped)
     }
 
     /// "202610080509": the list's version is when it was made, in UTC.
@@ -273,6 +296,7 @@ final class ContentBlocker: ObservableObject {
         if Session.shared.preferences.blocksContent {
             start()
             summary = lists.isEmpty ? "Getting the lists ready…" : Self.describe(saved)
+            shown = lists.isEmpty ? nil : Self.shown(saved)
         } else {
             summary = "Off"
         }

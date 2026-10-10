@@ -24,7 +24,7 @@ The Duo's are stand-ins, never seen on a Duo: Xcode 27.0 has no Duo simulator. X
 | `frame.html` | The frame: the copy, Apple's picture of the device, and the capture in the hole it leaves for the screen, from the frames file's parameters (`bezel`, its size `bw` and `bh`, the screen's `hole` x,y,w,h and `corner` radius in it, and `sw`, the screen's width on the picture) |
 | `frames.json`, `frames-iphone.json`, `frames-duo-inner.json`, `frames-duo-outer.json` | Each set's size, folder, and each shot's capture and line of copy |
 | `render.mjs` | Renders a set in WebKit into `Marketing/AppStore` |
-| `asc.py` | Puts the sets and the previews on the version in App Store Connect through its API, and the build once it has processed: `python3 asc.py state`, `screenshots`, `previews`, `build 8`, with `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID` set. App Store Connect's own uploader needs a file picker, which no browser here has |
+| `asc.py` | Puts the sets and the previews on the version in App Store Connect through its API, the text from `metadata.md` (subtitle, promotional text, description, keywords), and the build once it has processed: `python3 asc.py state`, `text`, `screenshots`, `previews`, `build 8`, with `ASC_KEY_PATH`, `ASC_KEY_ID` and `ASC_ISSUER_ID` set. App Store Connect's own uploader needs a file picker, which no browser here has |
 | `tighten.py` | Cuts the waiting out of a screen recording: stretches where nothing moves become a short hold |
 | `preview.sh` | A simulator recording as App Store Connect takes an app preview: the size, 30 frames a second, H.264, a silent stereo track |
 

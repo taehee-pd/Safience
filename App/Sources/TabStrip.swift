@@ -809,12 +809,9 @@ final class SiteIconUIView: UIView {
         super.init(frame: frame)
         clipsToBounds = true
         layer.cornerCurve = .continuous
-        // A thin outline, black in light and white in dark, gives every icon
-        // the same edge, whatever colour it is.
-        layer.borderWidth = 1
-        layer.borderColor = UIColor { traits in
-            UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0, alpha: 0.1)
-        }.cgColor
+        // No outline: a site's icon already has its own shape, often a
+        // rounded square or a mark on nothing, and a second edge around it
+        // reads as a frame.
         image.contentMode = .scaleAspectFit
         addSubview(image)
         letter.textAlignment = .center
@@ -835,13 +832,6 @@ final class SiteIconUIView: UIView {
         image.frame = bounds
         letter.frame = bounds
         letter.font = .systemFont(ofSize: size * 0.56, weight: .semibold).rounded
-    }
-
-    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
-        super.traitCollectionDidChange(previous)
-        layer.borderColor = UIColor { traits in
-            UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0, alpha: 0.1)
-        }.resolvedColor(with: traitCollection).cgColor
     }
 
     private func refresh() {

@@ -12,13 +12,13 @@
   "ct": "205",
   "cs": "88",
   "cp": "120",
-  "corner": "62"
+  "corner": "56"
  },
  "frames": [
   {
    "name": "01-hero",
    "params": {
-    "s": "Your trackpad and keyboard reach the page:<br>pinch, scroll and every shortcut.",
+    "s": "A trackpad pinch zooms the canvas,<br>and shortcuts like ⌘Z go to the web app.",
     "img": "raw/1-hero.png",
     "ring": "1250,420,1400"
    }
@@ -26,7 +26,7 @@
   {
    "name": "02-split",
    "params": {
-    "s": "A design and its notes in one window.<br>Drag the divider for room.",
+    "s": "Open a design and its notes<br>side by side in one window.",
     "img": "raw/2-split.png",
     "ring": "-520,600,1400"
    }
@@ -34,7 +34,7 @@
   {
    "name": "03-spaces",
    "params": {
-    "s": "Every space keeps its own sign-ins,<br>colour and bookmarks.",
+    "s": "Each space has its own<br>sign-ins and colour.",
     "img": "raw/3-client.png",
     "ring": "1230,540,1450"
    }
@@ -42,7 +42,7 @@
   {
    "name": "04-palette",
    "params": {
-    "s": "Tabs, spaces and commands<br>in one search.",
+    "s": "Type a few letters to find<br>a tab, a space or a command.",
     "img": "raw/5-palette.png",
     "ring": "-480,460,1350"
    }
@@ -50,7 +50,7 @@
   {
    "name": "05-bookmarks",
    "params": {
-    "s": "Bookmarks for every space, brought over<br>from Chrome, Firefox or Safari.",
+    "s": "Import bookmarks into a space<br>from Chrome, Firefox or Safari.",
     "img": "raw/4-start.png",
     "ring": "1230,1000,1400"
    }

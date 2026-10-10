@@ -19,13 +19,13 @@
   "bw": "1470",
   "bh": "3000",
   "hole": "75,66,1320,2868",
-  "corner": "232"
+  "corner": "184"
  },
  "frames": [
   {
    "name": "01-hero",
    "params": {
-    "s": "Your web apps at phone size,<br>with the bar under your thumb.",
+    "s": "The address bar is at the bottom,<br>within reach of your thumb.",
     "img": "raw-iphone/1-hero.png",
     "ring": "760,330,900"
    }
@@ -33,7 +33,7 @@
   {
    "name": "02-desktop-view",
    "params": {
-    "s": "Desktop View: the full-size page,<br>with a cursor you move like a trackpad.",
+    "s": "Use a site's desktop version<br>with the screen as a trackpad.",
     "img": "raw-iphone/7-desktop.png",
     "ring": "-340,420,900"
    }
@@ -41,7 +41,7 @@
   {
    "name": "03-spaces",
    "params": {
-    "s": "Every space keeps its own<br>sign-ins, colour and bookmarks.",
+    "s": "Each space has its own<br>sign-ins and colour.",
     "img": "raw-iphone/3-client.png",
     "ring": "740,420,940"
    }
@@ -49,7 +49,7 @@
   {
    "name": "04-palette",
    "params": {
-    "s": "Tabs, spaces and commands<br>in one search.",
+    "s": "Type a few letters to find<br>a tab, a space or a command.",
     "img": "raw-iphone/4-palette.png",
     "ring": "-320,360,880"
    }
@@ -57,7 +57,7 @@
   {
    "name": "05-bookmarks",
    "params": {
-    "s": "Bookmarks for every space,<br>synced through iCloud.",
+    "s": "Bookmarks for each space<br>sync through iCloud.",
     "img": "raw-iphone/5-start.png",
     "ring": "740,700,900"
    }

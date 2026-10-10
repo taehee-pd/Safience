@@ -115,7 +115,8 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
         collection.frame = CGRect(x: 0, y: Self.headerHeight, width: bounds.width, height: max(0, bounds.height - Self.headerHeight))
         let y = bounds.height - Self.barHeight + 10
         let docked = !dock.isHidden
-        dock.frame = CGRect(x: 12, y: bounds.height - Self.barHeight - PinnedDock.height + 2, width: bounds.width - 24,
+        // As wide as the bar's buttons reach, and as far above them as they are apart from its own edge.
+        dock.frame = CGRect(x: 16, y: bounds.height - Self.barHeight - PinnedDock.height, width: bounds.width - 32,
                             height: PinnedDock.height)
         // The grid's last row clears the dock, which floats over the grid
         // as it scrolls, with room to spare.
@@ -228,12 +229,22 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
                   let device = Sync.shared.elsewhere.first(where: { $0.id == id }) else { return }
             var content = UIListContentConfiguration.groupedHeader()
             content.text = "\(device.browser) · \(device.deviceName)"
-            content.image = UIImage(systemName: device.browser == "Safience" ? "iphone" : "laptopcomputer")
+            content.image = UIImage(systemName: Self.symbol(for: device))
             view.contentConfiguration = content
         }
         source.supplementaryViewProvider = { view, kind, path in
             view.dequeueConfiguredReusableSupplementary(using: heading, for: path)
         }
+    }
+
+    /// The device a list of tabs is on: Safience names it by UIDevice's model,
+    /// iPad or iPhone; another browser is on a computer.
+    private static func symbol(for device: SyncDeviceTabs) -> String {
+        guard device.browser == "Safience" else { return "laptopcomputer" }
+        let model = device.deviceName.lowercased()
+        if model.hasPrefix("ipad") { return "ipad" }
+        if model.hasPrefix("iphone") { return "iphone" }
+        return "ipad.and.iphone"
     }
 
     private var space: Space? {
@@ -666,17 +677,19 @@ final class WideButton: UIButton {
 
 // MARK: The dock
 
-/// The pinned tabs as the iPhone's dock has its apps: icons on tiles, on a
-/// pane of glass at the bottom, floating over the grid as it scrolls, the
-/// icons scrolling sideways when there are more than fit, centred when
-/// they all do. A dot under the tab on screen. A tap goes
-/// to it; a long press has its menu.
+/// The pinned tabs as the iPhone's dock has its apps: their icons on a capsule
+/// of glass at the bottom, floating over the grid as it scrolls, only as wide
+/// as the icons need and centred, scrolling sideways when there are more than
+/// fit. The tab on screen is ringed in the space's colour, as its card is. A
+/// tap goes to it; a long press has its menu.
 @MainActor
 final class PinnedDock: UIView {
-    static let height: CGFloat = 92
-    private static let tile: CGFloat = 60
-    private static let spacing: CGFloat = 18
-    private static let inset: CGFloat = 16
+    static let height: CGFloat = slot + inset * 2
+    private static let slot: CGFloat = 44
+    private static let spacing: CGFloat = 4
+    /// The same all round, so the capsule's corners follow the slots' circles:
+    /// 22 for a slot and 6 around it make the capsule's 28.
+    private static let inset: CGFloat = 6
 
     var chosen: ((UUID) -> Void)?
     var menu: ((TabRecord, UIView) -> UIMenu?)?
@@ -689,10 +702,10 @@ final class PinnedDock: UIView {
     override init(frame: CGRect) {
         if #available(iOS 26.0, *) {
             platter = UIVisualEffectView(effect: UIGlassEffect())
-            platter.cornerConfiguration = .corners(radius: .fixed(32))
+            platter.cornerConfiguration = .corners(radius: .fixed(Self.height / 2))
         } else {
             platter = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-            platter.layer.cornerRadius = 32
+            platter.layer.cornerRadius = Self.height / 2
             platter.layer.cornerCurve = .continuous
             platter.clipsToBounds = true
         }
@@ -741,45 +754,45 @@ final class PinnedDock: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        platter.frame = bounds
-        scroller.frame = platter.bounds
         let count = CGFloat(icons.count)
-        let row = count * Self.tile + max(count - 1, 0) * Self.spacing + Self.inset * 2
-        // Centred while they fit, as the dock's apps are; scrolling once they don't.
-        let start = max((bounds.width - row) / 2, 0) + Self.inset
+        let row = count * Self.slot + max(count - 1, 0) * Self.spacing + Self.inset * 2
+        let width = min(row, bounds.width)
+        platter.frame = CGRect(x: ((bounds.width - width) / 2).rounded(), y: 0, width: width, height: Self.height)
+        scroller.frame = platter.bounds
         for (index, icon) in icons.enumerated() {
-            icon.frame = CGRect(x: start + CGFloat(index) * (Self.tile + Self.spacing), y: 12, width: Self.tile, height: Self.tile + 14)
+            icon.frame = CGRect(x: Self.inset + CGFloat(index) * (Self.slot + Self.spacing), y: Self.inset,
+                                width: Self.slot, height: Self.slot)
         }
-        scroller.contentSize = CGSize(width: max(row, bounds.width), height: bounds.height)
+        scroller.contentSize = CGSize(width: row, height: Self.height)
+    }
+
+    /// Only the capsule takes touches: on either side of it the grid under it gets them.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        platter.frame.contains(point)
     }
 }
 
-/// One pinned tab in the dock: its site's icon on a tile with an app icon's
-/// corners, and a dot under it while it is the tab on screen.
+/// One pinned tab in the dock: its site's icon as the site draws it, with no
+/// tile or outline of the app's around it, and a ring in the space's colour
+/// while it is the tab on screen, its circle following the capsule's corners.
 @MainActor
 final class DockIcon: UIButton {
     private(set) var tab: TabRecord?
-    private let tile = UIView()
     private let icon = SiteIconUIView()
-    private let dot = UIView()
+    private let ring = UIView()
+    private var color: UIColor = .clear
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         var plain = UIButton.Configuration.plain()
         plain.contentInsets = .zero
         configuration = plain
-        tile.isUserInteractionEnabled = false
-        tile.backgroundColor = Palette.UI.card
-        tile.layer.cornerRadius = 60 * 0.225
-        tile.layer.cornerCurve = .continuous
-        tile.layer.borderWidth = 1
-        addSubview(tile)
-        icon.size = 34
+        ring.isUserInteractionEnabled = false
+        ring.layer.borderWidth = 2
+        addSubview(ring)
+        icon.size = 28
         icon.isUserInteractionEnabled = false
-        tile.addSubview(icon)
-        dot.isUserInteractionEnabled = false
-        dot.layer.cornerRadius = 2.5
-        addSubview(dot)
+        addSubview(icon)
         showsMenuAsPrimaryAction = false
         configurationUpdateHandler = { button in
             UIView.animate(springDuration: 0.3, bounce: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
@@ -787,7 +800,6 @@ final class DockIcon: UIButton {
             }
         }
         registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: DockIcon, _) in self.colours() }
-        colours()
     }
 
     required init?(coder: NSCoder) {
@@ -796,30 +808,31 @@ final class DockIcon: UIButton {
 
     func configure(tab: TabRecord, current: Bool, color: UIColor) {
         self.tab = tab
+        self.color = color
         icon.url = tab.url ?? tab.pinned
-        dot.backgroundColor = color
-        dot.isHidden = !current
+        ring.isHidden = !current
+        colours()
         accessibilityLabel = "\(tab.label), pinned"
         accessibilityTraits = current ? [.button, .selected] : .button
     }
 
     private func colours() {
-        tile.layer.borderColor = UIColor(white: traitCollection.userInterfaceStyle == .dark ? 1 : 0, alpha: 0.08).cgColor
+        ring.layer.borderColor = color.resolvedColor(with: traitCollection).cgColor
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        tile.frame = CGRect(x: 0, y: 0, width: 60, height: 60)
-        icon.frame = CGRect(x: 13, y: 13, width: 34, height: 34)
-        dot.frame = CGRect(x: 27.5, y: 66, width: 5, height: 5)
+        ring.frame = bounds
+        ring.layer.cornerRadius = bounds.width / 2
+        icon.frame = bounds.insetBy(dx: (bounds.width - 28) / 2, dy: (bounds.height - 28) / 2)
     }
 
-    /// The tile alone lifts for the menu, in its corners, not the dot under it.
+    /// The menu lifts the icon on a disc of its own, not the glass around it.
     override func contextMenuInteraction(_ interaction: UIContextMenuInteraction,
                                          previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
         let parameters = UIPreviewParameters()
-        parameters.visiblePath = UIBezierPath(roundedRect: tile.bounds, cornerRadius: 60 * 0.225)
-        parameters.backgroundColor = .clear
-        return UITargetedPreview(view: tile, parameters: parameters)
+        parameters.visiblePath = UIBezierPath(ovalIn: bounds)
+        parameters.backgroundColor = Palette.UI.card
+        return UITargetedPreview(view: self, parameters: parameters)
     }
 }
