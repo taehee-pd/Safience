@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Safience** for iPhone and iPad · Effective October 8, 2026
+**Safience** for iPhone and iPad · Effective October 10, 2026
 
 Safience is a web browser made by Taehee Jung. This policy says what the app does with your information. In short: **Safience collects nothing.** It has no account, no server, no analytics, no advertising and no tracking. What it keeps stays on your device, or in your own iCloud account if you turn on iCloud sync.
 
@@ -22,6 +22,7 @@ To work as a browser, the app keeps some things on your iPhone or iPad. They are
 | Ad-blocking lists, and the sites you allowed ads on | To block ads and trackers as pages load |
 | Files you download | Kept in a temporary folder until you choose where to save them |
 | Bookmarks you import | Read from the file you pick, on your device |
+| What you type in the address bar, with the names and sites of your tabs and bookmarks, when Apple Intelligence suggests from them | Read by Apple's model on your device (Settings › Search › Suggest with Apple Intelligence, on iOS and iPadOS 26 and later where Apple Intelligence is on), to find what you mean; not kept, and not sent anywhere |
 
 iOS and iPadOS may include the app's data in your device's backups, as they do for any app, under your backup settings.
 
@@ -31,6 +32,7 @@ Only what using a browser needs:
 
 - **The sites you visit.** Pages load from the sites you open, as in any browser. Those sites see your visits and may collect information under their own privacy policies.
 - **Your searches.** Words you type that aren't an address go to the search engine you choose in Settings (Google unless you change it), under that engine's privacy policy.
+- **Search suggestions.** With Settings › Search › Search engine suggestions on (it is unless you turn it off), what you type in the address bar goes to that search engine as you type, so it can suggest searches, if the engine offers them (Google, DuckDuckGo and Bing do). An address you type is never sent this way, and the requests carry no cookies or sign-ins. The suggestions from your tabs, bookmarks and the app's commands are made on your device and go nowhere.
 - **Sites' icons.** The app downloads the icon a page you visited names, without sending your cookies or sign-ins.
 - **Ad-blocking lists.** With ad blocking on (Settings › Ads and trackers, on unless you turn it off), the app downloads EasyList and EasyPrivacy from easylist.to at most once every four days, and only if they changed. The request carries no cookies and nothing about you or what you browse; like any server, easylist.to sees your device's IP address. The blocking itself happens on your device.
 - **Your spaces, bookmarks and tabs, if you turn on iCloud sync** (Settings › iCloud, off unless you turn it on). Each space's name, colour, icon, bookmarks and pinned tabs, and the addresses and titles of your open tabs, are kept in your own iCloud account by Apple (CloudKit's private database), under Apple's privacy policy, so they show on your other iPhones and iPads and in the Safience Sync extension for Chrome if you install it. The developer can't read them. Open tabs on sign-in pages, and addresses that carry a sign-in code or token, are left out. Your sign-ins, cookies, history and what sites store are never synced.

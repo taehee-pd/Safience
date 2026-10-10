@@ -16,6 +16,28 @@ struct SettingsView: View {
     /// rarely a keyboard. (An iPad in a narrow window keeps every setting:
     /// it widens again.)
     private let phone = UIDevice.current.userInterfaceIdiom == .phone
+    /// Apple Intelligence on this device, as Settings opens (Intelligence.swift).
+    private let intelligence = IntelligenceStatus.current
+
+    /// Where what is typed goes, and what Apple Intelligence makes of it here.
+    private var searchFooter: String {
+        var text = "As you type in the address bar, what you type goes to the search engine, without cookies, for "
+            + "the searches it suggests. An address you type never does. Google, DuckDuckGo and Bing have suggestions."
+        switch intelligence {
+        case .ready:
+            text += " Apple Intelligence also finds your tabs, bookmarks and commands by what your words mean, and "
+                + "suggests searches when the engine doesn't, on this \(Device.name): nothing is sent anywhere."
+        case .turnedOff:
+            text += " Turn on Apple Intelligence in the Settings app to find your tabs, bookmarks and commands by "
+                + "what your words mean, on this \(Device.name)."
+        case .preparing:
+            text += " Apple Intelligence is still getting ready on this \(Device.name); then it finds your tabs, "
+                + "bookmarks and commands by what your words mean."
+        case .unsupported:
+            break
+        }
+        return text + " Your tabs, bookmarks and commands are found by their letters either way, on this device."
+    }
 
     var body: some View {
         NavigationStack {
@@ -131,12 +153,20 @@ struct SettingsView: View {
                 }
                 }
 
-                Section("Search") {
+                Section {
                     Picker("Search engine", selection: $session.preferences.engine) {
                         ForEach(Destination.engines, id: \.id) { engine in
                             Text(engine.name).tag(engine.id)
                         }
                     }
+                    Toggle("Search engine suggestions", isOn: $session.preferences.searchSuggestions)
+                    if intelligence != .unsupported {
+                        Toggle("Suggest with Apple Intelligence", isOn: $session.preferences.intelligence)
+                    }
+                } header: {
+                    Text("Search")
+                } footer: {
+                    Text(searchFooter)
                 }
 
                 BlockingSection(session: session)

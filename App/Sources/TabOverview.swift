@@ -270,15 +270,21 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
         // As each card comes into view, so a space of many tabs never holds every picture.
         if previews[id] == nil, tab.url != nil, !asked.contains(id) {
             asked.insert(id)
+            // A picture already in memory comes back before preview returns,
+            // often while a snapshot is being applied: this card takes it
+            // below, as applying another snapshot inside that one crashes.
+            var returned = false
             session.pages.preview(for: id, width: Pages.previewWidth) { [weak self] image in
                 guard let self, let image else { return }
                 previews[id] = image
+                guard returned else { return }
                 var snapshot = source.snapshot()
                 if snapshot.itemIdentifiers.contains(.tab(id)) {
                     snapshot.reconfigureItems([.tab(id)])
                     source.apply(snapshot, animatingDifferences: false)
                 }
             }
+            returned = true
         }
         cell.configure(tab: tab, image: previews[id], current: id == window.tabID, color: spaceColor)
         cell.closed = { [weak self] in self?.act(.close(id)) }

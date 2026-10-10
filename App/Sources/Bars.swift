@@ -23,6 +23,8 @@ enum BarAction {
     case editAddress
     case cancelAddress
     case go(String)
+    /// A row the address bar offered (Suggestions).
+    case suggestion(Suggestion)
     case open(URL)
     case openInNewTab(URL)
     case back
@@ -427,6 +429,7 @@ struct AddressEditor: View {
         // when typing does as well as when it appears.
         .onAppear { if window.editingAddress { begin() } }
         .onChange(of: window.editingAddress) { _, now in if now { begin() } }
+        .onChange(of: text) { _, now in window.suggestions.typed(now, in: window) }
         .onChange(of: focused) { _, now in
             if !now && window.editingAddress { act(.cancelAddress) }
         }
@@ -434,6 +437,7 @@ struct AddressEditor: View {
 
     /// The tab's address, all of it selected (TypingField.selectsAll), with the keys.
     private func begin() {
+        window.suggestions.begin(at: window.url)
         text = window.url.map(Destination.editable) ?? ""
         focused = true
     }

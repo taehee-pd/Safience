@@ -156,3 +156,18 @@ On any site with links (a news site, GitHub), with the trackpad:
 - [ ] accounts.google.com: line 9 says "off here", and line 1 "hands-off, nothing injected".
 - [ ] Settings › Ads and trackers off: ads come back on every site from the next page; on again, they go.
 - [ ] After four days with the app opened, Settings shows lists dated within the last week.
+
+## 11. Address bar suggestions
+
+In a space with a few tabs, a pinned tab and bookmarks, on iPad in each layout (Settings › Window › Tabs) and on an iPhone:
+
+- [ ] Typing "fig" with figma.com open in a tab shows it first, "fig" plain and "ma.com…" in bold, its title under it and "Open Tab" at the end; Return goes to that tab rather than loading the page again.
+- [ ] A pinned tab says "Pinned Tab", a bookmark "Bookmark", and "new" offers New Tab and New Space as "Command", with their keys on iPad; choosing New Tab opens one, its address field open.
+- [ ] After a moment, Google's suggestions show under the first row, marked "Google"; choosing one searches for it. With Settings › Search engine set to DuckDuckGo or Bing they come from it and say so; with Kagi there are none.
+- [ ] ↓ from the field chooses the first row, ↑ from it goes back to the field, and Return with no row chosen sends what was typed, as before. A tap or a click on a row takes it.
+- [ ] Korean: typing 피그마 shows Google's suggestions while the last syllable is still being composed, and Return sends the whole word.
+- [ ] Typing figma.com/ sends nothing to Google (Web Inspector's Network tab on the app shows no suggestqueries request), and Settings › Search engine suggestions off sends nothing at all while tabs and bookmarks still show.
+- [ ] Escape, Cancel, a tap on the page, or going to another tab takes the rows away with the field. On iPhone the rows sit just above the bar and scroll when the keyboard leaves them little room.
+- [ ] With Apple Intelligence on (iOS or iPadOS 26): "put this on my home screen" offers Share Page…, "탭 고정" Pin or Unpin Tab, "광고 차단" Block or Allow Ads on This Site, and a few words about a tab's subject that share no word with its title (a Figma file's topic) offer that tab, each a moment after typing stops, with sparkles beside its source. Two letters, or figma.com, never wait on the model.
+- [ ] With Settings › Search engine suggestions off and Apple Intelligence on, searches marked Apple Intelligence show instead of Google's; with Airplane Mode on, they still do.
+- [ ] Settings › Suggest with Apple Intelligence off: no sparkles. With Apple Intelligence off in the Settings app, Safience's Settings says to turn it on; on iOS 18 or a device without it, the switch isn't there and the app starts as before.
