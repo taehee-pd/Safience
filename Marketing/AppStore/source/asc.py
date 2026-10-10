@@ -3,7 +3,7 @@ the build on the version. Needs ASC_KEY_PATH (the .p8 of a team key with the App
 role, kept in ~/.appstoreconnect/private_keys), ASC_KEY_ID and ASC_ISSUER_ID; PyJWT.
 The Duo sets are left alone (see the README).
     python3 asc.py state                 what the version has now
-    python3 asc.py text                  set the subtitle, promotional text, description and keywords from metadata.md
+    python3 asc.py text                  set the subtitle, promotional text, description, keywords and review notes from metadata.md
     python3 asc.py screenshots           replace the iPhone 6.9, 6.3 and iPad 13 sets
     python3 asc.py previews              replace the iPhone 6.9 and iPad 13 previews
     python3 asc.py build 8               wait for build 8 to process, then put it on the version
@@ -129,13 +129,18 @@ def text(vid, lid):
     """The version's promotional text, description and keywords, and the app's subtitle, as metadata.md has them.
     Each is checked against its limit first, so nothing goes up cut short."""
     f = fields()
-    for name in ('Subtitle', 'Promotional Text', 'Description', 'Keywords'):
+    for name in ('Subtitle', 'Promotional Text', 'Description', 'Keywords', 'Review Notes'):
         if len(f[name]['text']) > f[name]['limit']:
             sys.exit(f'{name} is {len(f[name]["text"])} characters, over its {f[name]["limit"]}')
     call('PATCH', f'/v1/appStoreVersionLocalizations/{lid}', {'data': {'type': 'appStoreVersionLocalizations', 'id': lid,
          'attributes': {'promotionalText': f['Promotional Text']['text'], 'description': f['Description']['text'],
                         'keywords': f['Keywords']['text']}}})
     print('version text set:', ', '.join(f'{n} {len(f[n]["text"])}' for n in ('Promotional Text', 'Description', 'Keywords')))
+    # What App Review reads before opening the app: that it is a browser, with no account to ask for.
+    detail = call('GET', f'/v1/appStoreVersions/{vid}/appStoreReviewDetail')['data']
+    call('PATCH', f'/v1/appStoreReviewDetails/{detail["id"]}', {'data': {'type': 'appStoreReviewDetails', 'id': detail['id'],
+         'attributes': {'notes': f['Review Notes']['text'], 'demoAccountRequired': False}}})
+    print('review notes set:', len(f['Review Notes']['text']))
     # The subtitle is the app's, not the version's: on the app info that is still being edited.
     infos = call('GET', f'/v1/apps/{APP}/appInfos')['data']
     info = next(i for i in infos if i['attributes'].get('appStoreState') != 'READY_FOR_SALE')

@@ -63,6 +63,28 @@ PRIVACY AND MEMORY
 
 browser,web apps,desktop,trackpad,keyboard,split view,tabs,spaces,profiles,bookmarks,icloud,sync
 
+## Review Notes (4,000)
+
+Safience is a general-purpose web browser built on WebKit. It has Apple's web browser entitlement (com.apple.developer.web-browser) and can be set as the default browser.
+
+NO ACCOUNT
+Safience has no sign-in, registration or account of its own, so there is no demo account to give. Every feature is available as soon as the app opens.
+
+WEB CONTENT
+Like Safari, Safience shows whatever site a person types or opens. A sign-in page, a "Continue with Google" button or a cookie banner on a page belongs to that website, not to Safience. Safience does not own or operate any website it shows.
+
+PRIVACY
+Safience collects no data and does not track. It has no analytics, advertising or third-party SDKs (it uses only Apple's frameworks). Its privacy manifest and its App Privacy answers declare no tracking and no collected data. It blocks ads and trackers on websites by default, with WebKit content rule lists (EasyList and EasyPrivacy).
+
+ICLOUD
+Sync is off by default. When turned on in Settings it uses the device's Apple Account through CloudKit, with no sign-in screen of its own.
+
+HOW TO REVIEW
+1. Open the app. A welcome sheet appears on first launch. Skip closes it.
+2. Type any address or search in the address field, for example apple.com.
+3. On iPad, the + button opens a tab and the space button at the top left has New Space. On iPhone, the bar is at the bottom and the page's menu (the ... button) has Desktop View.
+4. Settings is at the end of the page's menu on iPhone and of the current tab's menu on iPad, and in the command palette.
+
 ## Version
 
 1.0
