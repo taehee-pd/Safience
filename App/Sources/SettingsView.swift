@@ -131,12 +131,17 @@ struct SettingsView: View {
                 }
                 }
 
-                Section("Search") {
+                Section {
                     Picker("Search engine", selection: $session.preferences.engine) {
                         ForEach(Destination.engines, id: \.id) { engine in
                             Text(engine.name).tag(engine.id)
                         }
                     }
+                    Toggle("Search engine suggestions", isOn: $session.preferences.searchSuggestions)
+                } header: {
+                    Text("Search")
+                } footer: {
+                    Text("As you type in the address bar, what you type goes to the search engine, without cookies, for the searches it suggests. An address you type never does. Google, DuckDuckGo and Bing have suggestions. Your tabs, bookmarks and commands are suggested either way, from this device.")
                 }
 
                 BlockingSection(session: session)
