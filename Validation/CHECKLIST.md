@@ -285,8 +285,8 @@ On an iPhone, with the system in Dark Mode and again in Light Mode:
 
 On iPad with a keyboard, in a workspace with two spaces, a few tabs in each and bookmarks:
 
-- [ ] ⌘T makes a new tab and the command bar comes up over it, in the middle a little down from the top, empty, with rows under headings: Open Tabs, Tabs in Other Spaces, Spaces, Commands (each with its keys drawn as keys), Settings, Bookmarks. The + button does the same.
-- [ ] An address or a search typed there and Return loads in the new tab. ↓ to an open tab and Return goes to that tab, and the new, empty tab is gone from the row. A tab of another space goes to that space. Escape leaves the new tab, with the start page.
+- [ ] ⌘T makes a new tab and the command bar comes up over it, in the middle a little down from the top, empty, with rows under headings: Open Tabs, Spaces, Commands (each with its keys drawn as keys), Settings, Bookmarks. The + button does the same.
+- [ ] An address or a search typed there and Return loads in the new tab. ↓ to an open tab and Return goes to that tab, and the new, empty tab is gone from the row. Typing never brings up another space's tabs, history or bookmarks; another space's name goes to that space. Escape leaves the new tab, with the start page.
 - [ ] On a page, ⌘T, then "reload" and Reload Page: the page reloads and no empty tab is left. The same with Pin or Unpin Tab (the page's tab is pinned) and Settings (Settings opens over the page).
 - [ ] Typing narrows the rows; "tab" lists every command with Tab in its name before Google's suggestions; a command taken runs (Reload Page, Settings, Pin or Unpin Tab).
 - [ ] A click on the address in the tab on screen, and ⌃⌥L, open the bar holding the page's address, selected, with no rows; typing replaces it and Return loads in that tab. In the separate layout a click on the address bar does the same.

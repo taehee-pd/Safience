@@ -4,6 +4,8 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ## Unreleased
 
+- The command bar searches only the space you are in: another space's tabs no longer show there, as its history and bookmarks already didn't. Other spaces still show by name, to switch to.
+
 - On iPhone and iPad, website dialogs now reply safely when dismissed without a button tap or when they cannot be shown, preventing a WebKit crash.
 
 - Count and log history clearings that cannot be read from storage.

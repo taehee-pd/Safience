@@ -7,8 +7,6 @@ public struct Suggestion: Identifiable, Equatable, Sendable {
     public enum Source: Equatable, Sendable {
         case tab
         case pinnedTab
-        /// A tab of another space, by the space's name: taking it goes there.
-        case tabIn(String)
         /// A tab open on another device or in another browser (Sync), by
         /// which: "Chrome · MacBook".
         case device(String)
@@ -31,7 +29,6 @@ public struct Suggestion: Identifiable, Equatable, Sendable {
             switch self {
             case .tab: return "Open Tab"
             case .pinnedTab: return "Pinned Tab"
-            case .tabIn(let space): return "Tab in \(space)"
             case .device(let name): return name
             case .bookmark: return "Bookmark"
             case .history: return "History"
@@ -48,7 +45,7 @@ public struct Suggestion: Identifiable, Equatable, Sendable {
         /// space, a command, a part of Settings).
         public var isPage: Bool {
             switch self {
-            case .tab, .pinnedTab, .tabIn, .device, .bookmark, .history: return true
+            case .tab, .pinnedTab, .device, .bookmark, .history: return true
             case .searched, .space, .command, .setting, .engine, .intelligence: return false
             }
         }
@@ -416,13 +413,11 @@ public enum Autocomplete {
         }
     }
 
-    /// The space's tabs first, as the page is already open here; then the
-    /// other spaces' tabs, bookmarks, and tabs on other devices; then the
-    /// browser's own.
+    /// The space's tabs first, as the page is already open here; then
+    /// bookmarks, and tabs on other devices; then the browser's own.
     fileprivate static func weight(_ source: Suggestion.Source) -> Int {
         switch source {
         case .tab, .pinnedTab: return 4
-        case .tabIn: return 3
         case .bookmark: return 2
         case .device: return 1
         case .history, .searched, .space, .command, .setting, .engine, .intelligence: return 0
@@ -664,7 +659,7 @@ public enum Autocomplete {
     static func described(_ candidate: Candidate) -> String {
         let what: String
         switch candidate.source {
-        case .tab, .pinnedTab, .tabIn, .device: what = "Open tab"
+        case .tab, .pinnedTab, .device: what = "Open tab"
         case .bookmark: what = "Bookmark"
         case .history: what = "Page visited before"
         case .searched: what = "Search typed before"
@@ -885,7 +880,7 @@ public enum Autocomplete {
 
     private static func kind(_ source: Suggestion.Source) -> String {
         switch source {
-        case .tab, .tabIn: return "Open tab"
+        case .tab: return "Open tab"
         case .pinnedTab: return "Pinned tab"
         case .device: return "Tab on another device"
         case .bookmark: return "Bookmark"

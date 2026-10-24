@@ -161,9 +161,10 @@ final class Suggestions: ObservableObject {
     /// Everything there is to find from this window, in the order it is
     /// listed with nothing typed (the typed letters rank it otherwise): the
     /// space's tabs that have somewhere to go, the last seen first; the
-    /// other spaces' tabs, and those spaces; the commands this device has
-    /// and the parts of Settings; the space's tabs on other devices; and
-    /// its bookmarks, which a new tab shows anyway.
+    /// other spaces, to go to, but nothing in them: a search finds only
+    /// this space's tabs, history and bookmarks; the commands this device
+    /// has and the parts of Settings; the space's tabs on other devices;
+    /// and its bookmarks, which a new tab shows anyway.
     private func candidates(for window: WindowModel) -> [Autocomplete.Candidate] {
         let workspace = Session.shared.workspace
         let here = workspace.space(window.spaceID)
@@ -175,15 +176,6 @@ final class Suggestions: ObservableObject {
                 id: "tab-\(tab.id)", source: tab.isPinned ? .pinnedTab : .tab, action: .tab(tab.id),
                 title: tab.label, url: url, shown: tab.shown
             ))
-        }
-        for space in others {
-            for tab in space.tabs.sorted(by: { $0.shown > $1.shown }) {
-                guard let url = tab.url ?? tab.pinned else { continue }
-                list.append(Autocomplete.Candidate(
-                    id: "tab-\(tab.id)", source: .tabIn(space.name), action: .tab(tab.id), title: tab.label, url: url,
-                    shown: tab.shown
-                ))
-            }
         }
         for space in others {
             list.append(Autocomplete.Candidate(
@@ -279,7 +271,6 @@ struct SuggestionRows: View {
     private static func kind(_ source: Suggestion.Source) -> String {
         switch source {
         case .tab, .pinnedTab: return "Open Tabs"
-        case .tabIn: return "Tabs in Other Spaces"
         case .space: return "Spaces"
         case .command: return "Commands"
         case .setting: return "Settings"
@@ -367,11 +358,11 @@ private struct SuggestionRow: View {
     }
 
     /// Where the row came from, when the heading over it doesn't already
-    /// say: a tab's space and a device's name are the row's own.
+    /// say: a device's name is the row's own.
     private var showsSource: Bool {
         if named { return true }
         switch row.source {
-        case .tabIn, .device: return true
+        case .device: return true
         default: return false
         }
     }
@@ -423,7 +414,7 @@ private struct SuggestionRow: View {
 
     @ViewBuilder private var icon: some View {
         switch row.source {
-        case .tab, .pinnedTab, .tabIn, .device, .bookmark, .history:
+        case .tab, .pinnedTab, .device, .bookmark, .history:
             SiteIconView(url: row.url, size: 18)
         case .searched:
             symbol("clock.arrow.circlepath")
@@ -498,7 +489,7 @@ private struct SourceTag: View {
 
     private var symbol: String {
         switch source {
-        case .tab, .tabIn: return "square.on.square"
+        case .tab: return "square.on.square"
         case .pinnedTab: return "pin.fill"
         case .device: return "laptopcomputer.and.iphone"
         case .bookmark: return "star.fill"

@@ -185,20 +185,17 @@ final class AutocompleteTests: XCTestCase {
         XCTAssertTrue(SettingsAnchor.appIcon.isOffered(phone: true) && SettingsAnchor.appIcon.isOffered(phone: false))
     }
 
-    /// Another space is found by its name, and its tabs say which space
-    /// they are in; this space's tab comes before another's of the same fit,
-    /// and a tab on another device after a bookmark.
+    /// Another space is found by its name, though nothing in it is (the
+    /// command bar is given only this space's tabs); this space's tab comes
+    /// before a bookmark of the same fit, and a tab on another device after it.
     func testOtherSpacesAndDevices() {
-        let id = UUID()
-        let away = Autocomplete.Candidate(id: "tab-\(id)", source: .tabIn("Work"), action: .tab(id),
-                                          title: "Figma Board", url: url("https://figma.com/board/1"))
         let phone = Autocomplete.Candidate(id: "elsewhere-1", source: .device("Chrome · MacBook"),
                                            action: .open(url("https://figma.com/design/2")), title: "Figma Design",
                                            url: url("https://figma.com/design/2"))
-        let rows = Autocomplete.local([phone, bookmark("Figma Help", "https://help.figma.com"), away,
+        let rows = Autocomplete.local([phone, bookmark("Figma Help", "https://help.figma.com"),
                                        tab("Figma Files", "https://figma.com/files"), space("Figma team")], query: "figma")
-        XCTAssertEqual(rows.map(\.source), [.tab, .tabIn("Work"), .bookmark, .device("Chrome · MacBook"), .space])
-        XCTAssertEqual(rows.map(\.source.label), ["Open Tab", "Tab in Work", "Bookmark", "Chrome · MacBook", "Space"])
+        XCTAssertEqual(rows.map(\.source), [.tab, .bookmark, .device("Chrome · MacBook"), .space])
+        XCTAssertEqual(rows.map(\.source.label), ["Open Tab", "Bookmark", "Chrome · MacBook", "Space"])
         XCTAssertEqual(rows.last?.symbol, "briefcase")
         XCTAssertEqual(rows.last?.detail, "2 tabs")
         XCTAssertTrue(rows.dropLast().allSatisfy { $0.source.isPage })
