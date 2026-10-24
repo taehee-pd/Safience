@@ -48,6 +48,9 @@ final class HandoffJob {
     /// alone, by counting. Nor is it asked of a page with next to nothing
     /// to read (Handoff.leastToSum), which is known once the page is read.
     private(set) var asksModel: Bool
+    private(set) var modelNote: String?
+    @ObservationIgnored private weak var source: Page?
+    @ObservationIgnored private var sourceMind: PageMind?
     @ObservationIgnored private var drafting: Task<Void, Never>?
     @ObservationIgnored private var organising: Task<Void, Never>?
     @ObservationIgnored private var deadline: Task<Void, Never>?
@@ -84,11 +87,31 @@ final class HandoffJob {
         folder = Self.shelf.appendingPathComponent(UUID().uuidString, isDirectory: true)
         file = folder.appendingPathComponent(Handoff.fileName(title: title, url: url))
         asksModel = mind != nil
+        source = page
+        sourceMind = mind
+        if mind == nil {
+            modelNote = ProcessInfo.processInfo.isLowPowerModeEnabled
+                ? "Apple Intelligence is paused in Low Power Mode. Safience formats the file locally."
+                : "Apple Intelligence is unavailable for this page. Safience formats the file locally."
+        }
         let name = folder.lastPathComponent
         Self.live.withLock { _ = $0.insert(name) }
         drafting = Task { [weak page] in
             await self.draft(of: page, at: url, titled: title, mind: mind)
         }
+    }
+
+    func retry() {
+        guard case .failed = stage else { return }
+        stage = .reading
+        drafting = Task { [weak source] in
+            await self.draft(of: source, at: self.page, titled: self.pageTitle, mind: self.sourceMind)
+        }
+    }
+    func shareAddressOnly() {
+        asksModel = false
+        modelNote = "You chose to share only the page's address. Its content is not included."
+        stage = .addressOnly
     }
 
     /// Waits until there is a first file to give, or it is known there is none.
@@ -129,13 +152,20 @@ final class HandoffJob {
     /// Reads the page and writes the first file, organised for the kind
     /// the count tells, then has the model asked.
     private func draft(of page: Page?, at url: URL, titled title: String, mind: PageMind?) async {
-        let reading = await page?.markdown(limit: Handoff.limit)
+        let outcome = await page?.readingForHandoff(limit: Handoff.limit) ?? .failed
         read = Date()
         // Called off while the page was read: nothing is written.
         guard stage == .reading else { return }
-        guard let reading else {
-            stage = .wordsOnly
+        let reading: PageReading
+        switch outcome {
+        case .content(let content): reading = content
+        case .noReadableContent: asksModel = false; stage = .wordsOnly; return
+        case .protectedPage:
+            asksModel = false
+            modelNote = "This page is protected from reading. Only its address can be shared."
+            stage = .addressOnly
             return
+        case .failed: asksModel = false; stage = .failed(.reading); return
         }
         selected = reading.hasSelection
         let counted = Handoff.kind(of: reading, url: url)
@@ -143,13 +173,15 @@ final class HandoffJob {
         let written = await Self.write(text, to: file, in: folder, emptying: Self.shelf, but: Self.live)
         guard stage == .reading else { return }
         guard written else {
-            stage = .wordsOnly
+            asksModel = false
+            stage = .failed(.writing)
             return
         }
         // With next to nothing read the model has nothing to go by: what it wrote of such a page was the
         // page's description over again, or a guess, and it took its seconds over it.
         let mind = reading.facts.characters >= Handoff.leastToSum ? mind : nil
         asksModel = mind != nil
+        if mind == nil, sourceMind != nil { modelNote = "This page has too little text for Apple Intelligence. Safience formatted it locally." }
         // What is still to come: the model's answer, and what the site's own reader can add (a video's transcript).
         let adds = page?.adapter.reader.isEmpty == false
         guard mind != nil || adds else {
@@ -164,6 +196,8 @@ final class HandoffJob {
             try? await Task.sleep(for: adds ? Self.longPatience : Self.patience)
             guard !Task.isCancelled, self.stage.isOrganising else { return }
             self.organising?.cancel()
+            self.asksModel = false
+            self.modelNote = "Apple Intelligence or the site's reader did not finish in time. The file uses Safience's local format without a model summary."
             self.stage = .ready(counted)
         }
     }
@@ -198,6 +232,10 @@ final class HandoffJob {
         // Called off or out of time meanwhile: whichever it was has set the stage.
         guard !Task.isCancelled, stage.isOrganising else { return }
         deadline?.cancel()
+        if mind != nil, answer == nil {
+            asksModel = false
+            modelNote = "Apple Intelligence did not return a result. The file uses Safience's local format without a model summary."
+        }
         guard answer != nil || transcript != nil else {
             stage = .ready(counted)
             return
@@ -210,6 +248,10 @@ final class HandoffJob {
         // Asked again after the wait: it may have been called off while the file was written.
         guard stage.isOrganising else { return }
         transcribed = written && whole.spoken != nil
+        if !written {
+            asksModel = false
+            modelNote = "Additional context could not be saved. The original context file is still ready to share."
+        }
         stage = .ready(written ? kind : counted)
     }
 
@@ -373,7 +415,7 @@ struct HandoffGuide: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Handoff")
+                Text("Send Page to App")
                     .font(.title2.bold())
                     .tracking(-0.3)
                 Text("Give an assistant this page's context.")
@@ -393,8 +435,16 @@ struct HandoffGuide: View {
             }
             .padding(.horizontal, Self.indent)
             .padding(.bottom, 22)
+            if case .failed(let failure) = job.stage {
+                Text(failure.message).foregroundStyle(.red).padding(.bottom, 8)
+                Button("Try Again") { job.retry() }.padding(.bottom, 8)
+                Button("Share Address Only") { job.shareAddressOnly() }.padding(.bottom, 12)
+            }
+            if let note = job.modelNote {
+                Text(note).font(.callout).foregroundStyle(Palette.muted).padding(.bottom, 12)
+            }
             Button(action: go) {
-                Text("Share")
+                Text("Send to App")
                     .font(.headline)
                     .foregroundStyle(colour.ink)
                     .frame(maxWidth: .infinity, minHeight: 50)
@@ -599,7 +649,8 @@ private extension Handoff.Stage {
         case .ready(.media): "play.rectangle"
         case .ready(.job): "briefcase"
         case .ready(.other): "globe"
-        case .wordsOnly: "link"
+        case .wordsOnly, .addressOnly: "link"
+        case .failed: "exclamationmark.triangle"
         }
     }
 }

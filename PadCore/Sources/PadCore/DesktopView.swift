@@ -60,6 +60,18 @@ public struct DesktopView: Equatable, Sendable {
     public var visibleWidth: Double { viewWidth / zoom }
     public var visibleHeight: Double { max(viewHeight - covered, 1) / zoom }
 
+    /// Trackpad gestures do not replace native web accessibility. These
+    /// services use the regular browsing view and its semantic web controls.
+    public static func supportsTrackpad(voiceOver: Bool, switchControl: Bool) -> Bool {
+        !voiceOver && !switchControl
+    }
+
+    /// Returns to a readable fill scale without requiring a pinch gesture.
+    public mutating func resetZoom() {
+        let target = Self.fill(viewWidth: viewWidth, viewHeight: max(viewHeight - covered, 1))
+        zoom(by: target / zoom, aroundX: viewWidth / 2, y: max(viewHeight - covered, 1) / 2)
+    }
+
     // MARK: The cursor
 
     /// The finger moved `dx`, `dy` view points at `speed` view points a

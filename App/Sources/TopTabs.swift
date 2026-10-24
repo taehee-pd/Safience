@@ -16,6 +16,7 @@ struct TopTabs: View {
     let act: (BarAction) -> Void
     /// The row's width, of which the pinned tiles take their share (PinnedOverflow).
     @State private var width: CGFloat = 1000
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let space = session.workspace.space(window.spaceID)
@@ -110,12 +111,14 @@ struct TopTabs: View {
                         DispatchQueue.main.async { window.tabID.map { reader.scrollTo($0, anchor: .center) } }
                     }
                     .onChange(of: window.tabID) { _, tab in
-                        withAnimation(.bar) { tab.map { reader.scrollTo($0) } }
+                        withAnimation(reduceMotion ? nil : .bar) { tab.map { reader.scrollTo($0) } }
                     }
                 }
             }
-            .frame(height: Side.control)
+            .frame(height: Metrics.bar - 12)
             HStack(spacing: 2) {
+                AllTabsButton(count: space?.tabs.count ?? 0) { act(.showTabs) }
+                DownloadActivityButton { act(.downloads) }
                 SidePlainIcon("plus", label: "New Tab") { act(.command(.newTab)) }
                     .contextMenu {
                         if window.tabID.flatMap({ session.workspace.tab($0) }).map({ !$0.isPinned }) == true {
@@ -195,35 +198,51 @@ private struct TopTab: View {
         let inset: CGFloat = row.paired.contains(tab.id) ? 3 : 0
         let mark = RoundedRectangle(cornerRadius: Self.corner - inset, style: .continuous)
         HStack(spacing: 7) {
-            ZStack {
-                if selected, window.loading {
-                    ProgressView().controlSize(.mini)
-                } else if address, window.showsAddress, window.insecure {
-                    // Not private: said where the address is, as before.
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.unsafe)
-                } else {
-                    SiteIconView(url: tab.url, size: 16)
-                        // A page let go of until it is opened again is a little quieter, as the Mac's.
-                        .opacity(selected || Session.shared.pages.isLive(tab.id) ? 1 : 0.75)
+            Button { act(address ? .editAddress : .select(tab.id)) } label: {
+                HStack(spacing: 7) {
+                    ZStack {
+                        if selected, window.loading {
+                            ProgressView().controlSize(.mini)
+                        } else if address, window.showsAddress, window.insecure {
+                            // Not private: said where the address is, as before.
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Palette.unsafe)
+                        } else {
+                            SiteIconView(url: tab.url, size: 16)
+                                // A page let go of until it is opened again is a little quieter, as the Mac's.
+                                .opacity(selected || Session.shared.pages.isLive(tab.id) ? 1 : 0.75)
+                        }
+                    }
+                    .frame(width: 16, height: 16)
+                    if address {
+                        shownAddress
+                            .font(.subheadline)
+                            .lineLimit(1)
+                            // The end of the host is who you are talking to: it is the part kept.
+                            .truncationMode(.head)
+                    } else {
+                        Text(tab.label)
+                            .font(.subheadline.weight(selected ? .semibold : .regular))
+                            .foregroundStyle(selected ? Palette.ink : Palette.ink.opacity(0.85))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .frame(width: 16, height: 16)
-            if address {
-                shownAddress
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                    // The end of the host is who you are talking to: it is the part kept.
-                    .truncationMode(.head)
-            } else {
-                Text(tab.label)
-                    .font(.system(size: 13, weight: selected ? .medium : .regular))
-                    .foregroundStyle(selected ? Palette.ink : Palette.ink.opacity(0.85))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            .buttonStyle(.plain)
+            .accessibilityRepresentation {
+                Button {
+                    act(address ? .editAddress : .select(tab.id))
+                } label: {
+                    Text(address ? "Address, \(window.url.map(Destination.pretty) ?? "none")\(window.insecure ? ", Not secure" : "")" : tab.label)
+                }
+                .accessibilityHint(address ? "Type a new address or a search" : "")
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
-            Spacer(minLength: 0)
             // Always there, for a finger, which has no pointer to bring them out.
             if address {
                 SidePageMenu(window: window, act: act, inTab: true)
@@ -236,7 +255,7 @@ private struct TopTab: View {
         }
         .padding(.leading, 10)
         .padding(.trailing, 6)
-        .frame(width: width, height: Side.control)
+        .frame(width: width, height: Metrics.bar - 12)
         .background {
             if selected {
                 Color.clear.liquidGlass(reacting: false, in: mark, otherwise: Palette.card).padding(inset)
@@ -246,7 +265,6 @@ private struct TopTab: View {
         }
         .contentShape(shape)
         .onHover { inside in withAnimation(.easeOut(duration: 0.12)) { hovering = inside } }
-        .onTapGesture { act(address ? .editAddress : .select(tab.id)) }
         .contextMenu { TabMenuItems(window: window, tab: tab, row: row, others: others, act: act) }
         .draggable(TabDrop(id: tab.id)) {
             HStack(spacing: 8) {
@@ -263,9 +281,6 @@ private struct TopTab: View {
         }
         .animation(.bar, value: selected)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(address ? "Address, \(window.url.map(Destination.pretty) ?? "none")" : tab.label)
-        .accessibilityHint(address ? "Type a new address or a search" : "")
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     /// Where the page on screen is, as the address said it before

@@ -31,7 +31,7 @@ struct PageActions: View {
                     }
                     .background(AnchorView(anchor: shareAnchor))
                     if model.canHandoff {
-                        ActionTile("Handoff", symbol: Command.handoff.symbol) {
+                        ActionTile("Send to App", symbol: Command.handoff.symbol) {
                             close()
                             model.startHandoff()
                         }
@@ -45,7 +45,7 @@ struct PageActions: View {
                         close()
                     }
                     ActionRow(model.isBookmarked ? "Remove Bookmark" : "Bookmark This Page",
-                              symbol: model.isBookmarked ? "star.slash" : "star", keys: "⇧⌘D") {
+                              symbol: model.isBookmarked ? "star.slash" : "star", keys: "⌘D") {
                         model.toggleBookmark()
                         close()
                     }
@@ -83,12 +83,12 @@ struct PageActions: View {
     @ViewBuilder private var pinRow: some View {
         if let tab = model.tab {
             if tab.isPinned {
-                ActionRow("Unpin Tab", symbol: "pin.slash", keys: "⌘D") {
+                ActionRow("Unpin Tab", symbol: "pin.slash", keys: "⇧⌘D") {
                     model.togglePin()
                     close()
                 }
             } else if tab.url != nil {
-                ActionRow("Pin Tab", symbol: "pin", keys: "⌘D") {
+                ActionRow("Pin Tab", symbol: "pin", keys: "⇧⌘D") {
                     model.togglePin()
                     close()
                 }
@@ -279,7 +279,7 @@ struct HandoffPanel: View {
                 }
                 .buttonStyle(PlainIconStyle())
                 .help("Put Away")
-                .accessibilityLabel("Put Away Handoff")
+                .accessibilityLabel("Close Send to App")
             }
             .padding(.leading, corners.edge + 8)
             .padding(.trailing, 10)

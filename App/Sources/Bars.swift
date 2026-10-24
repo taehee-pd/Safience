@@ -22,11 +22,17 @@ enum BarAction {
     case pin(UUID)
     case unpin(UUID)
     case backToPinned(UUID)
+    case resetPinned(UUID)
     /// A pinned tab pinned anew at the page it is on.
     case repin(UUID)
     case editAddress
     case cancelAddress
     case go(String)
+    /// An explicit Go/Search button uses the text rather than the keyboard selection.
+    case goDirect(String)
+    case switchPane
+    case reviewPageDialog
+    case reviewExternalRequest
     /// A row the address bar offered (Suggestions).
     case suggestion(Suggestion)
     case open(URL)
@@ -53,6 +59,7 @@ enum BarAction {
     case swapSides(UUID)
     /// The space's tabs as a grid, from the phone bar.
     case showTabs
+    case downloads
     /// The iPhone's desktop view, in or out (DesktopPad).
     case desktopView
 }
@@ -87,7 +94,7 @@ struct BookmarksStrip: View {
     let window: WindowModel
     let act: (BarAction) -> Void
 
-    static let height: CGFloat = 40
+    static var height: CGFloat { max(56, UIFontMetrics(forTextStyle: .subheadline).scaledValue(for: 32) + 12) }
 
     var body: some View {
         let bookmarks = session.workspace.space(window.spaceID)?.bookmarks ?? []
@@ -95,7 +102,7 @@ struct BookmarksStrip: View {
             HStack(spacing: 2) {
                 if bookmarks.isEmpty {
                     Text("No bookmarks in this space yet. Star a page to keep it here.")
-                        .font(.system(size: 13))
+                        .font(.subheadline)
                         .foregroundStyle(Palette.muted)
                         .padding(.horizontal, 10)
                 }
@@ -149,14 +156,14 @@ private struct StripBookmark: View {
                 SiteIconView(url: item.url, size: 16)
             }
             Text(item.label)
-                .font(.system(size: 13))
+                .font(.subheadline)
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
                 .frame(maxWidth: 170, alignment: .leading)
                 .fixedSize()
         }
         .padding(.horizontal, 10)
-        .frame(height: 32)
+        .frame(minHeight: 44)
         .contentShape(Capsule())
         .contentShape(.hoverEffect, Capsule())
     }
@@ -236,15 +243,16 @@ struct SpaceFace: View {
     /// the name left to the menu, so the address keeps its room.
     var besideAddress = false
     @Environment(\.barScale) private var scale
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         let color = space?.color ?? .blue
-        if besideAddress {
+        if besideAddress || typeSize.isAccessibilitySize {
             Image(systemName: space?.symbol ?? "square.grid.2x2")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(color.ink)
-                .frame(width: scale.control, height: scale.control)
-                .liquidGlass(tint: color.color, in: Circle(), otherwise: color.color)
+                .frame(width: 44, height: 44)
+                .background(color.color, in: Circle())
                 .contentShape(Circle())
                 .animation(.bar, value: color)
         } else {
@@ -262,7 +270,7 @@ struct SpaceFace: View {
             Image(systemName: space?.symbol ?? "square.grid.2x2")
                 .font(.system(size: thumb ? 14 : 12, weight: .semibold))
             let name = Text(space?.name ?? "")
-                .font(.system(size: thumb ? 15 : 13, weight: .semibold))
+                .font((thumb ? Font.body : Font.subheadline).weight(.semibold))
                 .lineLimit(1)
             if thumb { name.frame(maxWidth: 100) } else { name }
             Image(systemName: "chevron.down")
@@ -274,7 +282,7 @@ struct SpaceFace: View {
         .foregroundStyle(color.ink)
         .padding(.horizontal, thumb ? 14 : 12)
         .frame(height: thumb ? 36 : Metrics.control)
-        .liquidGlass(tint: color.color, in: Capsule(), otherwise: color.color)
+        .background(color.color, in: Capsule())
         .frame(height: thumb ? 44 : Metrics.target)
         .contentShape(Rectangle())
         .contentShape(.hoverEffect, Capsule().inset(by: Metrics.ring))
@@ -333,17 +341,18 @@ struct MenuEntry {
     let title: String
     let symbol: String
     var destructive = false
+    var enabled = true
     let run: () -> Void
 
     /// Find, Share and Handoff, which act on the page as it is: side by side in one row.
     static func pageRow(_ window: WindowModel, act: @escaping (BarAction) -> Void) -> [MenuEntry] {
         guard window.url != nil else { return [] }
         var row = [
-            MenuEntry(title: "Find", symbol: "text.magnifyingglass") { act(.command(.find)) },
-            MenuEntry(title: "Share", symbol: "square.and.arrow.up") { act(.command(.share)) },
+            MenuEntry(title: BrowserText.localized("Find"), symbol: "text.magnifyingglass") { act(.command(.find)) },
+            MenuEntry(title: BrowserText.localized("Share"), symbol: "square.and.arrow.up") { act(.command(.share)) },
         ]
         if window.canHandoff {
-            row.append(MenuEntry(title: "Handoff", symbol: Command.handoff.symbol) { act(.command(.handoff)) })
+            row.append(MenuEntry(title: BrowserText.localized("Send to App"), symbol: Command.handoff.symbol) { act(.command(.handoff)) })
         }
         return row
     }
@@ -351,19 +360,34 @@ struct MenuEntry {
     /// The rest of the page's own: its address, its bookmark, its ads, its desktop view.
     static func page(_ window: WindowModel, act: @escaping (BarAction) -> Void) -> [MenuEntry] {
         var entries: [MenuEntry] = []
+        if !Session.shared.workspace.closed.isEmpty {
+            entries.append(MenuEntry(title: BrowserText.localized("Reopen Closed Tab"), symbol: "arrow.uturn.backward") { act(.command(.reopenTab)) })
+        }
+        if window.pendingPageDialog {
+            entries.append(MenuEntry(title: BrowserText.localized("Review Waiting Page Dialog"), symbol: "text.bubble") { act(.reviewPageDialog) })
+        }
+        if window.refusedExternalLink {
+            entries.append(MenuEntry(title: BrowserText.localized("Review Link to Another App"), symbol: "arrow.up.forward.app") { act(.reviewExternalRequest) })
+        }
         if window.url != nil {
-            entries.append(MenuEntry(title: "Copy Link", symbol: "doc.on.doc") { act(.command(.copyLink)) })
+            entries.append(MenuEntry(title: BrowserText.localized("Copy Link"), symbol: "doc.on.doc") { act(.command(.copyLink)) })
             entries.append(MenuEntry(title: window.bookmarked ? "Remove Bookmark" : "Bookmark This Page",
                                      symbol: window.bookmarked ? "star.slash" : "star") { act(.toggleBookmark) })
         }
         if let blocking = window.blocking {
             entries.append(MenuEntry(title: blocking ? "Allow Ads on This Site" : "Block Ads on This Site",
                                      symbol: blocking ? "shield.slash" : "shield") { act(.command(.contentBlocking)) })
+            if !blocking {
+                entries.append(MenuEntry(title: BrowserText.localized("Blocking Off for This Site"), symbol: "shield.slash", enabled: false) {})
+            }
+        } else if window.url != nil {
+            entries.append(MenuEntry(title: Session.shared.preferences.blocksContent ? "Blocking Unavailable on Protected Sign-in Pages" : "Content Blocking Off in Settings",
+                                     symbol: "shield.slash", enabled: false) {})
         }
         if window.canDesktopView || window.desktopView {
             // The page at an iPad's size, with a cursor the finger moves as on
             // a trackpad: a phone's, whichever bars its window has.
-            entries.append(MenuEntry(title: window.desktopView ? "Leave Desktop View" : "Desktop View",
+            entries.append(MenuEntry(title: window.desktopView ? "Exit Trackpad View" : "Use Trackpad View",
                                      symbol: window.desktopView ? "iphone" : "cursorarrow.rays") { act(.desktopView) })
         }
         return entries
@@ -376,12 +400,14 @@ struct MenuEntry {
         var entries: [MenuEntry] = []
         // A split made while the window was wide, one pane showing now (Browser.layoutPanes).
         if session.workspace.split(containing: tab.id) != nil {
-            entries.append(MenuEntry(title: "Separate Tabs", symbol: "rectangle") { act(.separate(tab.id)) })
+            entries.append(MenuEntry(title: BrowserText.localized("Switch Pane"), symbol: "rectangle.2.swap") { act(.switchPane) })
+            entries.append(MenuEntry(title: BrowserText.localized("Separate Tabs"), symbol: "rectangle") { act(.separate(tab.id)) })
         }
         if tab.isPinned {
-            entries.append(MenuEntry(title: "Unpin Tab", symbol: "pin.slash") { act(.unpin(tab.id)) })
+            entries.append(MenuEntry(title: BrowserText.localized("Reset Pinned Tab…"), symbol: "arrow.counterclockwise") { act(.resetPinned(tab.id)) })
+            entries.append(MenuEntry(title: BrowserText.localized("Unpin Tab"), symbol: "pin.slash") { act(.unpin(tab.id)) })
         } else if tab.url != nil {
-            entries.append(MenuEntry(title: "Pin Tab", symbol: "pin") { act(.pin(tab.id)) })
+            entries.append(MenuEntry(title: BrowserText.localized("Pin Tab"), symbol: "pin") { act(.pin(tab.id)) })
         }
         return entries
     }
@@ -390,8 +416,10 @@ struct MenuEntry {
     static func app(act: @escaping (BarAction) -> Void) -> [MenuEntry] {
         [
             MenuEntry(title: Command.everything.title, symbol: "command") { act(.command(.everything)) },
-            MenuEntry(title: "History", symbol: Command.history.symbol) { act(.command(.history)) },
-            MenuEntry(title: "Settings", symbol: "gearshape") { act(.command(.settings)) },
+            MenuEntry(title: BrowserText.localized("All Tabs"), symbol: "square.on.square") { act(.showTabs) },
+            MenuEntry(title: BrowserText.localized("Downloads"), symbol: "arrow.down.circle") { act(.downloads) },
+            MenuEntry(title: BrowserText.localized("History"), symbol: Command.history.symbol) { act(.command(.history)) },
+            MenuEntry(title: BrowserText.localized("Settings"), symbol: "gearshape") { act(.command(.settings)) },
         ]
     }
 
@@ -408,7 +436,7 @@ struct MenuEntry {
     private static func actions(_ entries: [MenuEntry]) -> [UIAction] {
         entries.map { entry in
             UIAction(title: entry.title, image: UIImage(systemName: entry.symbol),
-                     attributes: entry.destructive ? .destructive : []) { _ in entry.run() }
+                     attributes: entry.destructive ? .destructive : entry.enabled ? [] : .disabled) { _ in entry.run() }
         }
     }
 }
@@ -420,6 +448,7 @@ struct MenuButtons: View {
     var body: some View {
         ForEach(entries, id: \.title) { entry in
             Button(entry.title, systemImage: entry.symbol, role: entry.destructive ? .destructive : nil, action: entry.run)
+                .disabled(!entry.enabled)
         }
     }
 }
@@ -461,7 +490,7 @@ private struct AddressSummary: View {
                         .truncationMode(scale != .thumb ? .middle : window.url != nil ? .head : .tail)
                 }
             }
-            .font(.system(size: scale.text))
+            .font(scale == .thumb ? .body : .subheadline)
             .lineLimit(1)
             .truncationMode(.middle)
             .padding(.leading, TabFace.gap)
@@ -469,6 +498,7 @@ private struct AddressSummary: View {
         }
         .frame(maxHeight: .infinity)
         .contentShape(Rectangle())
+        .hoverEffect(.highlight)
         .onTapGesture { act(.editAddress) }
         .accessibilityElement(children: .ignore)
         // The warning the icon shows, said too: the icon's own label is folded in here.
@@ -663,7 +693,7 @@ struct AddressEditor: View {
 
     /// What an empty field says it takes: commands and settings too, now
     /// that it is the one place they are found.
-    static let placeholder = "Address, search or command"
+    static var placeholder: String { BrowserText.localized("Address, search or command") }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -821,18 +851,73 @@ struct AddressBar: View {
     var body: some View {
         HStack(spacing: 4) {
             // The sidebar put away: the way back to it.
-            if session.preferences.tabsPlacement == .sidebar {
-                BarButton(symbol: "sidebar.left", label: "Show Sidebar") { act(.command(.tabBar)) }
-            }
+            BarButton(symbol: session.preferences.tabsPlacement == .sidebar ? "sidebar.left" : "menubar.rectangle",
+                      label: session.preferences.tabsPlacement == .sidebar ? "Show Sidebar" : "Show Tabs") { act(.command(.tabBar)) }
             HistoryButtons(window: window, act: act)
             // Never typed in here: a click on it opens the command bar,
             // holding the address.
             AddressCapsule(window: window, editable: false, act: act)
+            DownloadActivityButton { act(.downloads) }
+            SpaceButton(session: session, window: window, act: act, besideAddress: true)
+            AllTabsButton(count: session.workspace.space(window.spaceID)?.tabs.count ?? 0) { act(.showTabs) }
         }
         .padding(.horizontal, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) { LoadingLine(window: window) }
         .animation(.bar, value: window.editingAddress)
         .ignoresSafeArea(.keyboard)
+    }
+}
+
+struct AllTabsButton: View {
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                Image(systemName: "square.on.square").font(.system(size: 14))
+                Text(count.formatted()).font(.caption2).monospacedDigit()
+            }
+            .foregroundStyle(Palette.ink)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScale())
+        .accessibilityLabel("All Tabs, \(count) tabs")
+    }
+}
+
+struct NarrowSplitControls: View {
+    let window: WindowModel
+    let act: (BarAction) -> Void
+
+    var body: some View {
+        if window.narrowSplit {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Split View: One Pane Visible").font(.caption).foregroundStyle(Palette.muted)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { actions }
+                    VStack(alignment: .leading, spacing: 8) { actions }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .background(Palette.ground)
+        }
+    }
+
+    private var actions: some View {
+        Group {
+            Button("Switch Pane", systemImage: "rectangle.2.swap") { act(.switchPane) }
+            Button("Exit Split", systemImage: "rectangle") {
+                if let tab = window.tabID { act(.separate(tab)) }
+            }
+        }
+        .font(.body)
+        .frame(minHeight: 44)
     }
 }
 
@@ -894,6 +979,7 @@ struct BannerBar: View {
                     Button("Go Back") { act(.back) }
                 case .exhausted, .failed:
                     Button("Reload") { act(.reload) }
+                    Button("Edit Address") { act(.editAddress) }
                 }
                 Button {
                     act(.dismissBanner)
@@ -908,12 +994,18 @@ struct BannerBar: View {
                 .foregroundStyle(Palette.muted)
                 .accessibilityLabel("Dismiss")
             }
-            .font(.system(size: 13))
+            .font(.footnote)
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Palette.wash)
+            .onAppear { announce(banner) }
+            .onChange(of: banner) { _, value in announce(value) }
         }
+    }
+
+    private func announce(_ banner: Banner) {
+        UIAccessibility.post(notification: .announcement, argument: message(banner))
     }
 
     private func message(_ banner: Banner) -> String {
@@ -945,8 +1037,8 @@ struct EmptySpace: View {
                 .foregroundStyle(Palette.muted)
             HStack(spacing: 10) {
                 // Keys only where there are keys to press (Device.keys): not on a phone without a keyboard.
-                Button("New Tab  \(Device.keys(for: .newTab) ?? "")") { act(.command(.newTab)) }
-                Button("\(Command.everything.title)  \(Device.keys(for: .everything) ?? "")") {
+                Button(Device.keys(for: .newTab).map { "New Tab  \($0)" } ?? "New Tab") { act(.command(.newTab)) }
+                Button(Device.keys(for: .everything).map { "\(Command.everything.title)  \($0)" } ?? Command.everything.title) {
                     act(.command(.everything))
                 }
             }

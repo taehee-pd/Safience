@@ -1,68 +1,105 @@
+import PadCore
+import SwiftUI
 import UIKit
-import WebKit
-import os
 
-/// Files a page hands over: an export from Figma, an attachment from Slack.
-/// Each is saved to a folder of the app's own, then the system's save sheet
-/// asks where in Files it should go.
-@MainActor
-final class Downloads: NSObject, WKDownloadDelegate {
-    static let shared = Downloads()
-    private static let log = Logger(subsystem: "net.taehee.safience", category: "Downloads")
-
-    private struct Running {
-        weak var page: Page?
-        var file: URL?
+extension Downloads {
+    func present(on presenter: UIViewController?) {
+        guard var owner = presenter else { return }
+        while let presented = owner.presentedViewController, !presented.isBeingDismissed { owner = presented }
+        let controller = UIHostingController(rootView: DownloadActivityView())
+        controller.modalPresentationStyle = .formSheet
+        owner.present(controller, animated: true)
     }
+}
 
-    private var running: [ObjectIdentifier: Running] = [:]
-
-    func adopt(_ download: WKDownload, for page: Page) {
-        download.delegate = self
-        running[ObjectIdentifier(download)] = Running(page: page, file: nil)
-    }
-
-    /// A page with a download going keeps its process (Page.mustStay).
-    func isDownloading(for page: Page) -> Bool {
-        running.values.contains { $0.page === page }
-    }
-
-    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String,
-                  completionHandler: @escaping @MainActor (URL?) -> Void) {
-        let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Downloads", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        } catch {
-            Self.log.error("No download folder: \(error.localizedDescription, privacy: .public)")
-            let failed = running.removeValue(forKey: ObjectIdentifier(download))
-            completionHandler(nil)
-            if let presenter = failed?.page?.host?.presenter {
-                Dialogs.notice(title: "The download couldn't start", message: error.localizedDescription, on: presenter)
-            }
-            return
+struct DownloadActivityButton: View {
+    @ObservedObject private var downloads = Downloads.shared
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: downloads.active ? "arrow.down.circle.fill" : "arrow.down.circle")
+                .frame(width: 44, height: 44)
+                .overlay(alignment: .topTrailing) {
+                    if downloads.activeCount > 0 {
+                        Text("\(downloads.activeCount)").font(.caption2.bold()).padding(3)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                }
         }
-        // The page names the file; only its last part is used, so a name
-        // with slashes can't reach outside the folder.
-        var name = URL(fileURLWithPath: suggestedFilename).lastPathComponent
-        if name.isEmpty || name == "/" || name == "." || name == ".." { name = "Download" }
-        let file = folder.appendingPathComponent(name)
-        running[ObjectIdentifier(download)]?.file = file
-        completionHandler(file)
+        .accessibilityLabel("Downloads, \(downloads.activeCount) active")
+        .accessibilityHint("Shows progress, cancellation, saved files, and retry options")
     }
+}
 
-    func downloadDidFinish(_ download: WKDownload) {
-        guard let done = running.removeValue(forKey: ObjectIdentifier(download)), let file = done.file,
-              let presenter = done.page?.host?.presenter ?? Session.shared.allBrowsers.first(where: \.isConnected)?.presenter
-        else { return }
+private struct DownloadActivityView: View {
+    @ObservedObject private var downloads = Downloads.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var exporting: DownloadRecord?
+    var body: some View {
+        NavigationStack {
+            List {
+                if let problem = downloads.storageProblem {
+                    Text(problem).foregroundStyle(.red)
+                    Button("Retry Saved Activity") { downloads.retryStorage() }
+                }
+                if downloads.items.isEmpty { Text("Downloaded files and their progress appear here.").foregroundStyle(.secondary) }
+                ForEach(downloads.items) { item in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(item.name).font(.headline)
+                        Text("\(Session.shared.workspace.space(item.space)?.name ?? "Removed Space") · \(item.source?.host ?? "Download")")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if item.phase == .downloading {
+                            ProgressView(value: item.fraction).accessibilityLabel("Download progress")
+                            Button("Cancel Download", role: .cancel) { downloads.cancel(item) }
+                        } else if item.finished {
+                            Text(item.exported ? "A copy was saved. The downloaded file is still available here." : "Downloaded. Save a copy to Files when you are ready.")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Button("Save to Files…") { exporting = item }
+                        } else {
+                            Text(item.problem ?? "The download stopped.").font(.callout).foregroundStyle(.secondary)
+                            if item.canResume || item.canRestart {
+                                Button(item.canResume ? "Resume" : "Try Again") { downloads.retry(item) }
+                            } else {
+                                Text("Return to its source page in the named space to start the download again.").font(.caption)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                if !downloads.items.isEmpty {
+                    Button("Clear Finished Activity") { downloads.clearFinished() }
+                    Text("Files not yet saved to Files remain in this list. Clearing activity does not delete files.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Downloads")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(item: $exporting) { item in
+                if let file = item.file { DownloadExporter(file: file, item: item.id) }
+            }
+        }
+    }
+}
+
+private struct DownloadExporter: UIViewControllerRepresentable {
+    let file: URL
+    let item: UUID
+    @Environment(\.dismiss) private var dismiss
+    func makeCoordinator() -> Coordinator { Coordinator(item: item, close: { dismiss() }) }
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(forExporting: [file], asCopy: true)
-        presenter.present(picker, animated: true)
+        picker.delegate = context.coordinator
+        return picker
     }
-
-    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-        guard let failed = running.removeValue(forKey: ObjectIdentifier(download)),
-              let presenter = failed.page?.host?.presenter else { return }
-        Dialogs.notice(title: "The download stopped", message: error.localizedDescription, on: presenter)
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let item: UUID
+        let close: () -> Void
+        init(item: UUID, close: @escaping () -> Void) { self.item = item; self.close = close }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { close() }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            if !urls.isEmpty { Downloads.shared.exported(item) }
+            close()
+        }
     }
 }

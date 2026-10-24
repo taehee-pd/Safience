@@ -14,6 +14,11 @@ final class Popup: UIViewController, PageHost {
     var closed: (() -> Void)?
     private let lock = UIImageView()
     private let address = UILabel()
+    private let status = UILabel()
+    private let progress = UIProgressView(progressViewStyle: .default)
+    private let recovery = UIButton(type: .system)
+    private let statusBox = UIStackView()
+    private var announced: String?
 
     init(opener: Page, configuration: WKWebViewConfiguration) {
         page = Page(tab: UUID(), space: opener.space, configuration: configuration)
@@ -39,7 +44,9 @@ final class Popup: UIViewController, PageHost {
 
         lock.contentMode = .scaleAspectFit
         lock.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 11)
-        address.font = .systemFont(ofSize: 13, weight: .medium)
+        lock.isAccessibilityElement = true
+        address.font = .preferredFont(forTextStyle: .footnote)
+        address.adjustsFontForContentSizeCategory = true
         address.textColor = Palette.UI.ink
         address.lineBreakMode = .byTruncatingMiddle
 
@@ -53,25 +60,36 @@ final class Popup: UIViewController, PageHost {
         let line = UIView()
         line.backgroundColor = Palette.UI.hairline
 
-        for part in [header, line, page.view] as [UIView] {
+        status.font = .preferredFont(forTextStyle: .footnote)
+        status.adjustsFontForContentSizeCategory = true
+        status.numberOfLines = 0
+        status.textColor = Palette.UI.ink
+        recovery.addAction(UIAction { [weak self] _ in
+            guard let self else { return }
+            if page.googleRefused, page.view.canGoBack { page.view.goBack() } else { page.reload() }
+        }, for: .primaryActionTriggered)
+        recovery.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        statusBox.axis = .vertical
+        statusBox.spacing = 4
+        statusBox.isLayoutMarginsRelativeArrangement = true
+        statusBox.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14)
+        [status, progress, recovery].forEach(statusBox.addArrangedSubview)
+        let content = UIStackView(arrangedSubviews: [header, line, statusBox, page.view])
+        content.axis = .vertical
+        for part in [content] as [UIView] {
             part.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(part)
         }
         let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: safe.topAnchor),
-            header.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: Metrics.bar),
+            content.topAnchor.constraint(equalTo: safe.topAnchor),
+            content.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            content.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            header.heightAnchor.constraint(greaterThanOrEqualToConstant: Metrics.bar),
             close.widthAnchor.constraint(equalToConstant: 44),
-            line.topAnchor.constraint(equalTo: header.bottomAnchor),
-            line.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            line.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            close.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             line.heightAnchor.constraint(equalToConstant: 1),
-            page.view.topAnchor.constraint(equalTo: line.bottomAnchor),
-            page.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            page.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            page.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         pageDidChange(page)
     }
@@ -79,6 +97,7 @@ final class Popup: UIViewController, PageHost {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         _ = page.view.becomeFirstResponder()
+        page.reviewPendingDialog()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -91,12 +110,27 @@ final class Popup: UIViewController, PageHost {
 
     func pageDidChange(_ page: Page) {
         guard isViewLoaded else { return }
-        let url = page.view.url
+        let url = page.displayURL
         address.text = url.map(Destination.pretty) ?? "Loading…"
-        let secure = page.view.hasOnlySecureContent
+        address.accessibilityLabel = url?.absoluteString ?? "Loading page"
+        let secure = url?.scheme == "https" && page.view.hasOnlySecureContent && page.failure == nil
         lock.image = UIImage(systemName: secure ? "lock.fill" : "exclamationmark.triangle")
         lock.tintColor = secure ? Palette.UI.safe : Palette.UI.unsafe
+        lock.accessibilityLabel = secure ? "Secure connection" : "Connection is not verified as secure"
         lock.isHidden = url == nil
+        let problem = page.googleRefused ? SignIn.fallback : page.failure
+            ?? (page.exhausted ? "This page stopped after repeated memory problems. Close another tab, then reload." : nil)
+        status.text = problem ?? (page.view.isLoading ? "Loading page…" : nil)
+        statusBox.isHidden = status.text == nil
+        progress.isHidden = !page.view.isLoading || problem != nil
+        progress.progress = Float(page.view.estimatedProgress)
+        recovery.isHidden = problem == nil
+        recovery.setTitle(page.googleRefused && page.view.canGoBack ? "Go Back" : "Reload", for: .normal)
+        if let problem, problem != announced {
+            announced = problem
+            UIAccessibility.post(notification: .announcement, argument: problem)
+        } else if problem == nil { announced = nil }
+
     }
 
     func isShowing(_ page: Page) -> Bool {

@@ -2,125 +2,112 @@ import AppKit
 import PadCore
 import SwiftUI
 
-/// Settings › Extensions: every extension, where it came from, what it may
-/// read, and its switch in each space, grouped as the spaces are; the daily
-/// update check; and the ways to add one (Docs/ExtensionsDesign.md, section 2).
 struct ExtensionSettings: View {
     @ObservedObject private var extensions = Extensions.shared
     @ObservedObject private var session = Session.shared
     @AppStorage(Extensions.checksKey) private var checksDaily = true
     @State private var checking = false
-    @State private var lastResult: String?
+    @State private var host: NSWindow?
+    @State private var result: ExtensionUpdateReport?
 
     var body: some View {
         Form {
-            if extensions.installed.isEmpty {
+            if let problem = extensions.listSaveProblem {
                 Section {
-                    Text("No extensions yet. A Chrome Web Store page has an Add to Safience button.")
-                        .foregroundStyle(.secondary)
+                    Text(problem).foregroundStyle(.orange)
+                    Button("Retry Saving Extensions") { extensions.retryListSave() }
                 }
+            }
+            if extensions.installed.isEmpty {
+                Section { Text("No extensions installed. Add one from the Chrome Web Store or a file.").foregroundStyle(.secondary) }
             }
             ForEach(extensions.installed) { item in
                 Section {
+                    Text(Self.source(of: item)).foregroundStyle(.secondary)
                     if extensions.isIncompatible(item.id) {
-                        // No switches for one that can't run here: what it is, and Remove.
-                        Label("Incompatible", systemImage: "exclamationmark.triangle.fill")
-                            .symbolRenderingMode(.multicolor)
-                            .help(extensions.incompatibility(item.id))
-                    } else {
+                        Label("Incompatible with this Mac", systemImage: "exclamationmark.triangle.fill")
+                        Text(extensions.incompatibility(item.id)).foregroundStyle(.secondary)
+                    }
                     Picker("Site access", selection: Binding(get: { item.siteAccess }, set: { extensions.setSiteAccess(item.id, $0) })) {
-                        Text("On All Sites It Asks For").tag(Extensions.Installed.SiteAccess.allSites)
-                        Text("When I Click It").tag(Extensions.Installed.SiteAccess.onClick)
+                        Text("On Requested Sites").tag(Extensions.Installed.SiteAccess.allSites)
+                        Text("Only When I Click It").tag(Extensions.Installed.SiteAccess.onClick)
+                    }
+                    DisclosureGroup("Capabilities and sites requested") {
+                        ForEach(extensions.accessDescriptions(item.id), id: \.self) { Text($0) }
+                        Text("Google's sign-in pages and cookie access remain blocked.").foregroundStyle(.secondary)
                     }
                     ForEach(session.workspace.spaces) { space in
-                        Toggle(isOn: Binding(get: { item.spaces.contains(space.id) },
-                                             set: { extensions.turn(item.id, on: $0, in: space.id) })) {
-                            HStack(spacing: 6) {
-                                Image(systemName: space.symbol).foregroundStyle(space.color.color)
-                                Text(space.name)
-                                if item.spaces.contains(space.id), let warning = extensions.warning(item.id, in: space.id) {
-                                    // A warning only when it doesn't work.
-                                    Text(warning.title).font(.caption).foregroundStyle(.orange)
-                                        .help(warning.lines.joined(separator: " "))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle(isOn: Binding(get: { item.spaces.contains(space.id) },
+                                                 set: { extensions.turn(item.id, on: $0, in: space.id) })) {
+                                Label(space.name, systemImage: space.symbol)
+                            }
+                            .disabled(extensions.isIncompatible(item.id) && !item.spaces.contains(space.id))
+                            if item.spaces.contains(space.id), let warning = extensions.warning(item.id, in: space.id) {
+                                Text(([warning.title] + warning.lines).joined(separator: " "))
+                                    .foregroundStyle(.orange).font(.callout)
+                            }
+                            if item.spaces.contains(space.id) {
+                                Button("Remove Data from \(space.name)…", role: .destructive) {
+                                    extensions.confirmRemoval(of: item.id, from: space.id, in: nil, host: host)
                                 }
                             }
                         }
                     }
-                    }
                     HStack {
-                        if item.source == .unpacked {
-                            Button("Reload") { extensions.reload(item.id) }
-                        }
-                        if extensions.saidLooksWrong(item.id) {
-                            Button("Show Its Warnings Again") { extensions.setLooksWrong(item.id, false) }
-                        } else if extensions.isWarned(item.id) {
-                            Button("This Looks Wrong") { extensions.setLooksWrong(item.id, true) }
-                        }
-                        Button("Report a Problem\u{2026}") { ExtensionReport.show(item.id, in: Self.browserWindow()) }
+                        Button("Move Up") { extensions.move(item.id, by: -1) }
+                            .disabled(extensions.installed.first?.id == item.id)
+                        Button("Move Down") { extensions.move(item.id, by: 1) }
+                            .disabled(extensions.installed.last?.id == item.id)
                         Spacer()
-                        Button("Remove from Safience\u{2026}", role: .destructive) {
-                            if let window = Self.browserWindow() { extensions.confirmRemoval(of: item.id, in: window) }
+                        if item.source == .unpacked { Button("Reload") { extensions.reload(item.id, host: host) } }
+                        Button("Report a Problem…") { ExtensionReport.show(item.id, in: nil, host: host) }
+                    }
+                    if extensions.saidLooksWrong(item.id) {
+                        Button("Show Warnings Again") { extensions.setLooksWrong(item.id, false) }
+                    } else if extensions.isWarned(item.id) {
+                        Button(extensions.isIncompatible(item.id) ? "Try This Version Again and Hide Its Warnings" : "Hide Warnings for This Version") {
+                            extensions.setLooksWrong(item.id, true)
                         }
+                    }
+                    Button("Remove from Safience…", role: .destructive) {
+                        extensions.confirmRemoval(of: item.id, in: nil, host: host)
                     }
                 } header: {
-                    HStack(spacing: 6) {
-                        Text(item.name)
-                        Text("\(item.version), \(Self.source(of: item))")
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("\(item.name) \(item.version)")
                 } footer: {
-                    Text("Each space keeps its own sign-in and data for it. Turned off, it keeps them; removed from a space (the puzzle button\u{2019}s list, \u{2026}), they go.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Each space keeps separate extension sign-ins and data. Turning it off keeps that data. Removing data cannot be undone. New spaces are not added automatically.")
                 }
             }
-            Section {
+            Section("Updates") {
                 Toggle("Check for updates daily", isOn: $checksDaily)
-                HStack {
-                    Button(checking ? "Checking\u{2026}" : "Check Now") {
-                        checking = true
-                        Task {
-                            let updated = await extensions.checkForUpdates(now: true)
-                            checking = false
-                            lastResult = updated == 0 ? "Everything is up to date." : "\(updated) updated."
+                Button(checking ? "Checking…" : "Check Again") {
+                    checking = true
+                    Task {
+                        result = await extensions.checkForUpdates(now: true, host: host)
+                        checking = false
+                    }
+                }
+                .disabled(checking || !extensions.installed.contains { $0.source == .store })
+                if let report = result ?? extensions.updateReport {
+                    Text(report.summary).textSelection(.enabled)
+                    ForEach(Array(report.entries.enumerated()), id: \.offset) { _, entry in
+                        if let detail = entry.detail {
+                            Text("\(entry.name): \(detail)").foregroundStyle(.secondary).textSelection(.enabled)
                         }
                     }
-                    .disabled(checking || !extensions.installed.contains { $0.source == .store })
-                    if let lastResult {
-                        Text(lastResult).foregroundStyle(.secondary)
-                    } else if let last = Extensions.lastChecked {
-                        Text("Last checked \(last.formatted(.relative(presentation: .named)))").foregroundStyle(.secondary)
-                    }
+                } else if let last = Extensions.lastChecked {
+                    Text("Last checked \(last.formatted(.relative(presentation: .named)))").foregroundStyle(.secondary)
                 }
-            } header: {
-                Text("Updates")
-            } footer: {
-                Text("The check names your Chrome Web Store extensions to Google, as Chrome's does.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("The check sends the IDs and installed versions of your Chrome Web Store extensions to Google.").foregroundStyle(.secondary)
             }
-            Section {
-                HStack {
-                    // In the browser window, brought in front of Settings, or a new one.
-                    Button("Chrome Web Store") {
-                        Session.shared.open([URL(string: "https://chromewebstore.google.com/category/extensions")!])
-                    }
-                    // The sheet that follows is on the window in front, brought forward.
-                    Button("Install from File\u{2026}") { extensions.addFromFile(in: Self.browserWindow()) }
-                    Button("Load Unpacked\u{2026}") { extensions.loadUnpacked(in: Self.browserWindow()) }
-                }
-            } header: {
-                Text("Add")
+            Section("Add") {
+                Button("Chrome Web Store") { Session.shared.open([URL(string: "https://chromewebstore.google.com/category/extensions")!]) }
+                Button("Install from File…") { extensions.addFromFile(in: nil, host: host) }
+                Button("Load Unpacked…") { extensions.loadUnpacked(in: nil, host: host) }
             }
         }
-    }
-
-    /// The browser window in front, brought in front of Settings, for what
-    /// asks in a sheet.
-    static func browserWindow() -> WindowModel? {
-        let window = Session.shared.frontWindow
-        window?.window?.makeKeyAndOrderFront(nil)
-        return window
+        .background(ExtensionSettingsWindowReader { host = $0 })
     }
 
     static func source(of item: Extensions.Installed) -> String {
@@ -129,6 +116,23 @@ struct ExtensionSettings: View {
         case .file: return "from a file, signed by its developer"
         case .unsigned: return "from a file, unsigned"
         case .unpacked: return "loaded from a folder"
+        }
+    }
+}
+
+/// Captures the Settings window, including when no browser window exists.
+private struct ExtensionSettingsWindowReader: NSViewRepresentable {
+    let found: (NSWindow?) -> Void
+    func makeNSView(context: Context) -> Reader { Reader(found: found) }
+    func updateNSView(_ view: Reader, context: Context) { view.found = found }
+    final class Reader: NSView {
+        var found: (NSWindow?) -> Void
+        init(found: @escaping (NSWindow?) -> Void) { self.found = found; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            let owner = window
+            DispatchQueue.main.async { [weak self] in self?.found(owner) }
         }
     }
 }

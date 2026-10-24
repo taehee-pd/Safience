@@ -24,12 +24,12 @@ struct PhoneBar: View {
 
     /// The address over a row of tools, each 44 points, with room between
     /// so the two rows read apart.
-    static let height: CGFloat = 6 + 44 + rowGap + 44
+    static var height: CGFloat { 6 + BarScale.thumb.control + rowGap + 44 }
     private static let rowGap: CGFloat = 10
     /// The address alone, over the keyboard.
-    static let typingHeight: CGFloat = 6 + 44 + 6
+    static var typingHeight: CGFloat { 6 + BarScale.thumb.control + 6 }
     /// The one row beside the iPhone Duo's strip, typing or not.
-    static let stripHeight: CGFloat = 6 + 44 + 6
+    static var stripHeight: CGFloat { 6 + BarScale.thumb.control + 6 }
 
     /// The bar's height when nothing is typed, which is how much of the
     /// page it covers: one row beside a strip, two anywhere else.
@@ -66,13 +66,14 @@ struct PhoneBar: View {
                     }
                     if typing {
                         Button("Cancel") { act(.cancelAddress) }
-                            .font(.system(size: 16))
+                            .font(.body)
                             .foregroundStyle(Palette.ink)
                             .padding(.horizontal, 4)
                             .frame(height: 44)
                             .contentShape(Rectangle())
                             .transition(beside)
                     } else if !strip {
+                        DownloadActivityButton { act(.downloads) }
                         PageMenu(session: session, window: window, act: act)
                             .transition(beside)
                     }
@@ -197,7 +198,6 @@ private struct PhoneTools: View {
             ToolIcon(symbol: "plus", label: "New Tab") {
                 // Felt as the tab is made: the page under the bar is another
                 // one at once, and the keyboard only comes a moment after.
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 act(.command(.newTab))
             }
             Spacer(minLength: 4)
@@ -246,6 +246,9 @@ private struct TabsButton: View {
         let ordinary = tabs.filter { !$0.isPinned }
         Menu {
             Button("New Tab", systemImage: "plus.square.on.square") { act(.command(.newTab)) }
+            if !Session.shared.workspace.closed.isEmpty {
+                Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { act(.command(.reopenTab)) }
+            }
             if let current, ordinary.contains(where: { $0.id == current }) {
                 Button("Close This Tab", systemImage: "xmark", role: .destructive) { act(.close(current)) }
             }
@@ -358,8 +361,6 @@ final class StripItems {
         let back = item("Back", "chevron.left") { act(.back) }
         let forward = item("Forward", "chevron.right") { act(.forward) }
         let newTab = item("New Tab", "plus") {
-            // As the phone bar's: felt as the tab is made.
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             act(.command(.newTab))
         }
         // A tap shows them; a hold has the phone bar's tabs menu (TabsButton).
@@ -368,6 +369,9 @@ final class StripItems {
             var items = [UIAction(title: "New Tab", image: UIImage(systemName: "plus.square.on.square")) { _ in
                 act(.command(.newTab))
             }]
+            if !session.workspace.closed.isEmpty {
+                items.append(UIAction(title: "Reopen Closed Tab", image: UIImage(systemName: "arrow.uturn.backward")) { _ in act(.command(.reopenTab)) })
+            }
             if let current = window.tabID, ordinary.contains(where: { $0.id == current }) {
                 items.append(UIAction(title: "Close This Tab", image: UIImage(systemName: "xmark"), attributes: .destructive) { _ in
                     act(.close(current))

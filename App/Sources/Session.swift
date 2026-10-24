@@ -17,9 +17,6 @@ final class Session: ObservableObject {
 
     @Published private(set) var workspace: Workspace
     @Published private(set) var workspaceProblem: WorkspaceFile.Failure?
-    /// The last workspace write failed: the workspace on screen is newer
-    /// than the one on disk until a write succeeds.
-    @Published private(set) var workspaceSaveFailed = false
     var canUseWorkspace: Bool { workspaceProblem == nil }
     @Published var preferences: Preferences {
         didSet {
@@ -53,13 +50,22 @@ final class Session: ObservableObject {
 
     let pages = Pages()
     private let browsers = NSHashTable<Browser>.weakObjects()
-    private let store = WorkspaceStore(folder: Session.folder, snapshots: Snapshots.folder) { Session.written($0) }
+    /// Opens, retries and restores the workspace's file; its writes are persistence's.
+    private let store = WorkspaceStore(folder: Session.folder, snapshots: Snapshots.folder)
+    lazy var persistence = WorkspacePersistence(file: Session.workspaceFile)
+    private var finishingWelcome = false
     private var leavingWatch: NSObjectProtocol?
 
     static let preferencesKey = "preferences"
 
     /// Asked from any thread: the filter lists are read and written away from the main one.
     nonisolated static var folder: URL {
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.environment["SAFIENCE_ISOLATED_QA"] == "1",
+           let path = ProcessInfo.processInfo.environment["SAFIENCE_DATA_ROOT"], !path.isEmpty, path.hasPrefix("/") {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        #endif
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return support.appendingPathComponent("Safience", isDirectory: true)
@@ -150,8 +156,13 @@ final class Session: ObservableObject {
         }
     }
 
-    func finishWelcome() {
+    func finishWelcome() async -> Bool {
+        guard !finishingWelcome else { return false }
+        finishingWelcome = true
+        defer { finishingWelcome = false }
+        guard await saveWorkspaceNow(), !persistence.state.isDirty else { return false }
         UserDefaults.standard.set("done", forKey: Session.welcomeKey)
+        return true
     }
 
     // MARK: The workspace
@@ -162,6 +173,7 @@ final class Session: ObservableObject {
     func change<T>(_ edit: (inout Workspace) -> T) -> T {
         var copy = workspace
         let result = edit(&copy)
+        Sync.shared.protectWorkspaceMutation(from: workspace, to: &copy)
         if Sync.shared.assigns { SyncPlan.assignIDs(&copy) }
         if canUseWorkspace, copy != workspace {
             let old = workspace
@@ -174,25 +186,30 @@ final class Session: ObservableObject {
 
     private func save() {
         guard canUseWorkspace else { return }
-        store.save(workspace)
+        persistence.changed(workspace)
+    }
+
+    func retryWorkspaceSave() {
+        guard canUseWorkspace else { return }
+        persistence.flush(workspace) { _ in }
+    }
+
+    /// A caller may proceed only after the current local revision is saved.
+    func saveWorkspaceNow() async -> Bool {
+        guard canUseWorkspace else { return false }
+        return await withCheckedContinuation { continuation in
+            persistence.flush(workspace) { continuation.resume(returning: $0) }
+        }
     }
 
     /// The waiting write, at once, with the time the system gives an app
     /// leaving the screen to finish it.
     private func saveNow() {
-        guard canUseWorkspace, store.isSaving else { return }
+        guard canUseWorkspace, persistence.state.isDirty else { return }
         let finishing = UIApplication.shared.beginBackgroundTask(withName: "Safience.workspace")
-        store.saveNow(workspace) {
-            DispatchQueue.main.async { UIApplication.shared.endBackgroundTask(finishing) }
+        persistence.flush(workspace) { _ in
+            UIApplication.shared.endBackgroundTask(finishing)
         }
-    }
-
-    /// After each workspace write: a failure is logged for Console and
-    /// marked in workspaceSaveFailed, which the next success clears.
-    private static func written(_ error: (any Error)?) {
-        if let error { log.error("Workspace not saved: \(error.localizedDescription, privacy: .public)") }
-        let failed = error != nil
-        if shared.workspaceSaveFailed != failed { shared.workspaceSaveFailed = failed }
     }
 
     /// What a page says about itself, its address and title, saved with
@@ -206,6 +223,7 @@ final class Session: ObservableObject {
     /// A tab closed: gone, or, when it is pinned, unloaded and back at its
     /// pinned page (Workspace.closeTab), when it may be the one to show.
     func closeTab(_ id: UUID) {
+        let pinned = workspace.tab(id)?.isPinned == true
         let next = change { $0.closeTab(id) }
         // A pane beside a tab on screen goes before its page does.
         for window in allBrowsers where window.partner?.tab == id { window.syncSplit() }
@@ -215,10 +233,10 @@ final class Session: ObservableObject {
                 let shower = browser(showing: tab)
                 return tab == id || shower == nil || shower === window ? tab : nil
             }
-            window.show(tab: shown, inSpace: window.model.spaceID)
+            window.show(tab: pinned && shown == id ? nil : shown, inSpace: window.model.spaceID)
         }
         // Its page goes once no window has it up.
-        pages.close(id)
+        if !pinned { pages.close(id) }
     }
 
     /// Several tabs closed: the ones no window shows first, so no window
@@ -236,58 +254,10 @@ final class Session: ObservableObject {
             // A pane beside a tab on screen goes before its page does.
             let gone = Set(off)
             for window in allBrowsers where window.partner.map({ gone.contains($0.tab) }) == true { window.syncSplit() }
-            for id in off { pages.close(id) }
+            for id in off where workspace.tab(id)?.isPinned != true { pages.close(id) }
         }
         for id in ids where shown.contains(id) {
             closeTab(id)
-        }
-    }
-
-    /// A bookmarks file into a space: an HTML export (Chrome's, Safari's,
-    /// Firefox's) or the ZIP of Safari's Export Browsing Data with one in it.
-    /// Returns what to tell the person who chose it.
-    ///
-    /// The file is read, unzipped and gone through away from the main
-    /// thread: a Chrome export is megabytes of icons written into it. `done`
-    /// hears the outcome on the main thread, with the file still readable
-    /// until then.
-    func importBookmarks(from file: URL, into space: UUID, then done: @escaping ((title: String, message: String)) -> Void) {
-        enum Read {
-            case unreadable, noBookmarksInside
-            case bookmarks(BookmarkImport)
-        }
-        Task {
-            let read = await Task.detached(priority: .userInitiated) { () -> Read in
-                guard let data = try? Data(contentsOf: file) else { return .unreadable }
-                var html = data
-                if ZipFile.isArchive(data) {
-                    guard let inside = ZipFile.file(in: data, matching: { $0.lowercased().hasSuffix("bookmarks.html") }) else {
-                        return .noBookmarksInside
-                    }
-                    html = inside
-                }
-                return .bookmarks(BookmarkFile.parse(html))
-            }.value
-            switch read {
-            case .unreadable:
-                done(("Couldn’t Read the File", "Choose the file again, or save a copy to On My \(Device.name) first."))
-            case .noBookmarksInside:
-                done(("No Bookmarks in This Archive",
-                      "In Settings › Apps › Safari › Export, choose Bookmarks, then import the ZIP it saves to Downloads."))
-            case .bookmarks(let read) where read.count == 0:
-                done(("No Bookmarks Found",
-                      "Export them from Chrome (Bookmark Manager › Export Bookmarks) or Safari, then choose that file."))
-            case .bookmarks(let read):
-                let added = change { $0.importBookmarks(read.items, into: space) }
-                SiteIcons.shared.adopt(read.icons)
-                let name = workspace.space(space)?.name ?? "this space"
-                if added > 0 {
-                    done(("Bookmarks Imported",
-                          "\(added) of \(read.count) bookmarks added to \(name). They show on every new tab in it."))
-                } else {
-                    done(("Already There", "Every bookmark in the file is in \(name) already."))
-                }
-            }
         }
     }
 
@@ -296,19 +266,51 @@ final class Session: ObservableObject {
         for tab in space.tabs { pages.close(tab.id) }
         change { _ = $0.removeSpace(id) }
         Stores.erase(id)
-        HistoryRecorder.shared.removeSpace(id)
+        HistoryRecorder.shared.removeSpace(id, cloudID: space.cloudID)
         for window in allBrowsers where window.model.spaceID == id {
             window.showSpace(workspace.firstSpace.id)
         }
     }
 
-    func moveTab(_ id: UUID, to space: UUID) {
-        guard change({ $0.moveTab(id, to: space) }) else { return }
-        // Signed in somewhere else now: the page loads again in that space's store.
-        pages.moved(id)
-        for window in allBrowsers where window.model.tabID == id {
-            window.show(tab: id, inSpace: space)
+    func moveTab(_ id: UUID, to space: UUID, from owner: Browser, before target: UUID? = nil,
+                 completion: @escaping @MainActor (UUID?) -> Void = { _ in }) {
+        guard canUseWorkspace, owner.isConnected,
+              let originalWindow = owner.viewIfLoaded?.window, !originalWindow.isHidden,
+              let presenter = owner.presenter, !(presenter is UIAlertController),
+              presenter.viewIfLoaded?.window === originalWindow, !presenter.isBeingDismissed,
+              let plan = TabMovePlan(workspace: workspace, tab: id, destination: space, before: target)
+        else { return completion(nil) }
+        let originalOwnerSpace = owner.model.spaceID
+        let live = pages.live[id]
+        let finish: @MainActor (TabMovePlan.Choice) -> Void = { [weak self, weak owner, weak originalWindow] choice in
+            guard let self else { return completion(nil) }
+            guard choice != .cancel else { return completion(nil) }
+            guard let owner, let originalWindow, owner.isConnected,
+                  owner.viewIfLoaded?.window === originalWindow,
+                  owner.model.spaceID == originalOwnerSpace else { return completion(nil) }
+            guard self.canUseWorkspace, plan.isValid(in: self.workspace), self.pages.live[id] === live else {
+                owner.moveRequestChanged()
+                return completion(nil)
+            }
+            guard let result = self.change({ plan.apply(choice, to: &$0) }) else { return completion(nil) }
+            if choice == .move {
+                // PR50 isolation: only the confirmed move discards the old space's page and snapshots.
+                self.pages.moved(id)
+                for window in self.allBrowsers where window.model.tabID == id {
+                    window.show(tab: id, inSpace: space)
+                }
+            } else {
+                owner.show(tab: result, inSpace: space)
+            }
+            completion(result)
         }
+        let alert = UIAlertController(title: plan.title, message: plan.message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: BrowserText.localized("Move Tab"), style: .destructive) { _ in finish(.move) })
+        let copy = UIAlertAction(title: BrowserText.localized("Open a Copy"), style: .default) { _ in finish(.copy) }
+        alert.addAction(copy)
+        alert.addAction(UIAlertAction(title: BrowserText.localized("Cancel"), style: .cancel) { _ in finish(.cancel) })
+        alert.preferredAction = copy
+        presenter.present(alert, animated: true)
     }
 
     // MARK: Windows

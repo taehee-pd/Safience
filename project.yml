@@ -16,6 +16,7 @@ settings:
     # warnings where it is turned on (the iOS app, PadCore), one step at a
     # time (Docs/iPhoneDuoPlan.md, Phase E).
     SWIFT_VERSION: "5.0"
+    SWIFT_EMIT_LOC_STRINGS: YES
     MARKETING_VERSION: "1.0.7"
     CURRENT_PROJECT_VERSION: "37"
 packages:

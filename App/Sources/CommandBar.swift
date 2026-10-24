@@ -65,6 +65,8 @@ private struct CommandBarTurn: View {
                     .frame(width: 22)
                 TypingField(text: $text, placeholder: AddressEditor.placeholder, fontSize: 17, focused: $focused,
                             selectsAll: !carried) { typed in act(.go(typed)) }
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                    .clipped()
                 if !text.isEmpty {
                     Button {
                         text = ""
@@ -72,17 +74,38 @@ private struct CommandBarTurn: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 17))
                             .foregroundStyle(Color.primary.opacity(0.3))
-                            .frame(width: 32, height: 40)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(PressScale())
                     .hoverEffect(.highlight)
                     .accessibilityLabel("Clear")
                 }
+                Button("Cancel") { act(.cancelAddress) }
+                    .font(.body)
+                    .frame(minHeight: 44)
+                    .keyboardShortcut(.cancelAction)
             }
             .padding(.leading, 16)
             .padding(.trailing, 10)
-            .frame(height: CommandBar.fieldHeight)
+            .frame(minHeight: CommandBar.fieldHeight)
+            if let destination = Destination.url(for: text, engine: session.preferences.engine), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button { act(.goDirect(text)) } label: {
+                    Label {
+                        if Destination.searchWords(in: destination, engine: session.preferences.engine) != nil {
+                            Text("Search \(Destination.engines.first(where: { $0.id == session.preferences.engine })?.name ?? "the web") for \(text)")
+                        } else {
+                            Text("Go to \(Destination.pretty(destination))")
+                        }
+                    } icon: { Image(systemName: "arrow.right.circle") }
+                    .font(.body)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
             if rows > 0 {
                 Rectangle()
                     .fill(Color.primary.opacity(0.08))
@@ -99,7 +122,9 @@ private struct CommandBarTurn: View {
         .floatingGlass(cornerRadius: 20, tint: spaceColor.opacity(scheme == .dark ? 0.34 : 0.3))
         .shadow(color: .black.opacity(scheme == .dark ? 0.4 : 0.16), radius: 30, y: 14)
         .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
         .accessibilityLabel("Command bar")
+        .accessibilityAction(.escape) { act(.cancelAddress) }
         .onAppear { if window.editingAddress && !window.phone { begin() } }
         .onChange(of: text) { _, now in
             if !window.phone { suggestions.typed(now, in: window) }

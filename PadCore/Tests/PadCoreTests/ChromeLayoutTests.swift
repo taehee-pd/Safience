@@ -28,9 +28,12 @@ struct ChromeLayoutTests {
         #expect(wide.topBar && wide.bookmarksBar && !wide.sidebar && !wide.addressBar)
     }
 
-    @Test func `the tab bar turned off still shows where an address must`() {
-        #expect(!layout(tabBar: false).topBar)
-        #expect(layout(tabBar: false, required: true).topBar)
+    @Test func `hiding top tabs retains navigation for ordinary and required addresses`() {
+        for required in [false, true] {
+            let hidden = layout(tabBar: false, required: required)
+            #expect(!hidden.topBar)
+            #expect(hidden.addressBar)
+        }
     }
 
     @Test func `a sidebar has the address and bookmarks itself, and put away leaves the address bar`() {

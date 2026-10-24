@@ -44,9 +44,10 @@ enum ExtensionReport {
     }
 
     /// The report in a sheet, editable, to copy or save.
-    static func show(_ id: String, in window: WindowModel?) {
+    static func show(_ id: String, in window: WindowModel?, host: NSWindow? = nil) {
+        let host = host ?? window?.window ?? NSApp.keyWindow
         guard let item = Extensions.shared.installed.first(where: { $0.id == id }),
-              (window?.window ?? NSApp.keyWindow ?? Session.shared.frontWindow?.window) != nil
+              host != nil
         else { return }
         let alert = NSAlert()
         alert.messageText = "Report a Problem with \u{201C}\(item.name)\u{201D}"
@@ -66,7 +67,7 @@ enum ExtensionReport {
         alert.addButton(withTitle: "Save\u{2026}")
         alert.addButton(withTitle: "Cancel")
         Task {
-            let answer = await Extensions.shared.present(alert, in: window)
+            let answer = await Extensions.shared.present(alert, in: window, host: host)
             let report = words.string
             switch answer {
             case .alertFirstButtonReturn:
@@ -76,15 +77,16 @@ enum ExtensionReport {
                 let panel = NSSavePanel()
                 panel.nameFieldStringValue = "\(item.name) report.txt"
                 panel.allowedContentTypes = [.plainText]
-                guard panel.runModal() == .OK, let url = panel.url else { return }
+                guard let host else { return }
+                let choice: NSApplication.ModalResponse = await withCheckedContinuation { continuation in
+                    panel.beginSheetModal(for: host) { continuation.resume(returning: $0) }
+                }
+                guard choice == .OK, let url = panel.url else { return }
                 do {
                     try report.write(to: url, atomically: true, encoding: .utf8)
                 } catch {
                     NSLog("Safience: the report on extension \(item.id) couldn't be saved: \(error.localizedDescription)")
-                    let failure = NSAlert()
-                    failure.messageText = "The report couldn't be saved."
-                    failure.informativeText = error.localizedDescription
-                    _ = await Extensions.shared.present(failure, in: window)
+                    Extensions.shared.tell(error, in: nil, host: host, title: "The report could not be saved.")
                 }
             default:
                 break

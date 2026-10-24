@@ -1,59 +1,59 @@
 {
- "w": 2064,
- "h": 2752,
- "out": "",
- "params": {
-  "bezel": "ipad13-silver.png",
-  "bw": "2300",
-  "bh": "3000",
-  "hole": "118,124,2064,2752",
-  "sw": "1560",
-  "top": "440",
-  "ct": "205",
-  "cs": "88",
-  "cp": "120",
-  "corner": "56"
- },
- "frames": [
-  {
-   "name": "01-hero",
-   "params": {
-    "s": "A trackpad pinch zooms the canvas,<br>and shortcuts like ⌘Z go to the web app.",
-    "img": "raw/1-hero.png",
-    "ring": "1250,420,1400"
-   }
+  "w": 2064,
+  "h": 2752,
+  "out": "",
+  "params": {
+    "bezel": "ipad13-silver.png",
+    "bw": "2300",
+    "bh": "3000",
+    "hole": "118,124,2064,2752",
+    "sw": "1560",
+    "top": "440",
+    "ct": "205",
+    "cs": "88",
+    "cp": "120",
+    "corner": "56"
   },
-  {
-   "name": "02-split",
-   "params": {
-    "s": "Open a design and its notes<br>side by side in one window.",
-    "img": "raw/2-split.png",
-    "ring": "-520,600,1400"
-   }
-  },
-  {
-   "name": "03-spaces",
-   "params": {
-    "s": "Each space has its own<br>sign-ins and colour.",
-    "img": "raw/3-client.png",
-    "ring": "1230,540,1450"
-   }
-  },
-  {
-   "name": "04-palette",
-   "params": {
-    "s": "Type a few letters to find<br>a tab, a space or a command.",
-    "img": "raw/5-palette.png",
-    "ring": "-480,460,1350"
-   }
-  },
-  {
-   "name": "05-bookmarks",
-   "params": {
-    "s": "Import bookmarks into a space<br>from Chrome, Firefox or Safari.",
-    "img": "raw/4-start.png",
-    "ring": "1230,1000,1400"
-   }
-  }
- ]
+  "frames": [
+    {
+      "name": "01-hero",
+      "params": {
+        "s": "Keep desktop web apps<br>in separate client spaces.",
+        "img": "raw-current/ipad/01-hero.png",
+        "ring": "1250,420,1400"
+      }
+    },
+    {
+      "name": "02-split",
+      "params": {
+        "s": "Open a design and its notes<br>side by side in one window.",
+        "img": "raw-current/ipad/02-split.png",
+        "ring": "-520,600,1400"
+      }
+    },
+    {
+      "name": "03-spaces",
+      "params": {
+        "s": "Each space has its own<br>sign-ins and colour.",
+        "img": "raw-current/ipad/03-spaces.png",
+        "ring": "1230,540,1450"
+      }
+    },
+    {
+      "name": "04-palette",
+      "params": {
+        "s": "Find a tab, a space or a command<br>from the address bar.",
+        "img": "raw-current/ipad/04-palette.png",
+        "ring": "-480,460,1350"
+      }
+    },
+    {
+      "name": "05-bookmarks",
+      "params": {
+        "s": "Keep bookmarks and folders<br>inside each space.",
+        "img": "raw-current/ipad/05-bookmarks.png",
+        "ring": "1230,1000,1400"
+      }
+    }
+  ]
 }

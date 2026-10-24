@@ -161,13 +161,17 @@ extension Page {
     /// of page it is, what it declares, and what the person had selected.
     /// markdown.js, run this once, in the app's own world, reading the
     /// page and changing nothing. Never on a hands-off page, bridge or no
-    /// bridge. Nil when there is nothing to read as text: a picture, a
+    /// bridge. Says why there is nothing to read as text: a picture, a
     /// PDF, a page that failed.
-    func markdown(limit: Int) async -> PageReading? {
-        guard !HandsOff.covers(view.url), !HandsOff.covers(committed) else { return nil }
-        let value = try? await view.callAsyncJavaScript(Scripts.markdownCall, arguments: ["limit": limit], in: nil,
-                                                        contentWorld: Page.world)
-        return (value as? [String: Any]).flatMap(PageReading.init)
+    func readingForHandoff(limit: Int) async -> Handoff.ReadOutcome {
+        guard !HandsOff.covers(view.url), !HandsOff.covers(committed) else { return .protectedPage }
+        if let mimeType, mimeType == "application/pdf" || mimeType.hasPrefix("image/") { return .noReadableContent }
+        do {
+            let value = try await view.callAsyncJavaScript(Scripts.markdownCall, arguments: ["limit": limit], in: nil,
+                                                           contentWorld: Page.world)
+            guard let said = value as? [String: Any], let reading = PageReading(said) else { return .failed }
+            return reading.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .noReadableContent : .content(reading)
+        } catch { return .failed }
     }
 
     /// What is said in the page's recording, where the site has a reader

@@ -1,6 +1,18 @@
 import Foundation
 
 extension Handoff {
+    public enum Failure: String, Equatable, Sendable {
+        case reading, writing
+        public var message: String {
+            switch self {
+            case .reading: return "The page could not be read. Try again after it finishes loading."
+            case .writing: return "The context file could not be saved. Check available storage and try again."
+            }
+        }
+    }
+    public enum ReadOutcome: Sendable {
+        case content(PageReading), noReadableContent, protectedPage, failed
+    }
     /// How far a handoff is. One value, so that what can't be at once can't
     /// be said at once: there is no file before the page is read, and no
     /// kind told by the model while it is still asked.
@@ -14,6 +26,9 @@ extension Handoff {
         case ready(PageKind)
         /// Nothing to read as text (a picture, a PDF): the words alone go.
         case wordsOnly
+        /// Explicitly chosen without claiming the page had no readable text.
+        case addressOnly
+        case failed(Failure)
         /// Called off before it came to anything.
         case stopped
 
@@ -21,7 +36,7 @@ extension Handoff {
         public var hasFile: Bool {
             switch self {
             case .organising, .ready: return true
-            case .reading, .wordsOnly, .stopped: return false
+            case .reading, .wordsOnly, .addressOnly, .failed, .stopped: return false
             }
         }
 
@@ -34,7 +49,7 @@ extension Handoff {
         /// Whether it has come to its end, which nothing changes after.
         public var isSettled: Bool {
             switch self {
-            case .ready, .wordsOnly, .stopped: return true
+            case .ready, .wordsOnly, .addressOnly, .failed, .stopped: return true
             case .reading, .organising: return false
             }
         }
@@ -48,9 +63,9 @@ extension Handoff {
             switch self {
             case .reading: atWork = .file
             case .organising: atWork = .organise
-            case .ready, .wordsOnly: atWork = .choose
+            case .ready, .wordsOnly, .addressOnly: atWork = .choose
             // Called off: the sheet is on its way out, and nothing is at work.
-            case .stopped: atWork = nil
+            case .stopped, .failed: atWork = nil
             }
             guard let atWork else { return .waiting }
             if step.rawValue < atWork.rawValue { return .done }
@@ -79,6 +94,9 @@ extension Handoff {
             case .ready(.job): return "This is a job posting"
             case .ready(.other): return "This page is ready"
             case .wordsOnly: return "Nothing to read here"
+            case .addressOnly: return "Share the page's address"
+            case .failed(.reading): return "The page could not be read"
+            case .failed(.writing): return "The file could not be saved"
             }
         }
 
@@ -104,6 +122,8 @@ extension Handoff {
             case .ready(.media): return "You'll share its description."
             case .ready(.job): return "You'll share the whole posting."
             case .wordsOnly: return "You'll share the page's address."
+            case .addressOnly: return "Its content is not included."
+            case .failed: return "Try again or share the address."
             }
         }
     }

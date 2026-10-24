@@ -22,7 +22,9 @@ struct TypingField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let field = UITextField()
         field.placeholder = placeholder
-        field.font = .systemFont(ofSize: fontSize)
+        field.clipsToBounds = true
+        field.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: fontSize))
+        field.adjustsFontForContentSizeCategory = true
         field.textColor = Palette.UI.ink
         field.keyboardType = .webSearch
         field.autocapitalizationType = .none
@@ -58,6 +60,11 @@ struct TypingField: UIViewRepresentable {
                 }
             }
         }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        return CGSize(width: width, height: max(44, uiView.intrinsicContentSize.height))
     }
 
     func makeCoordinator() -> Coordinator {

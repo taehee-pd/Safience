@@ -5,7 +5,7 @@ import UIKit
 /// What a new tab shows, as the Mac's does (StartTiles.swift): the space's
 /// mark and name, the way to an address where the bar isn't at the bottom,
 /// the space's bookmarks as tiles, one folder at a time, each space's its
-/// own (with none yet, the way to bring them over from Chrome or Safari),
+/// own (with none yet, the way to bring them over from Chrome, Firefox or Safari),
 /// and the pages last gone to, here and on the other devices; each part
 /// on or off from Customize at the foot.
 struct StartPage: View {
@@ -128,18 +128,19 @@ struct StartPage: View {
                 Spacer(minLength: 8)
                 if let keys = Device.keys(for: .address) {
                     Text(keys)
-                        .foregroundStyle(Palette.faint)
+                        .foregroundStyle(Palette.muted)
                 }
             }
-            .font(.system(size: 15))
+            .font(.body)
             .foregroundStyle(Palette.muted)
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
-            .frame(height: StartMetrics.field)
+            .frame(minHeight: StartMetrics.field)
             .contentShape(Capsule())
         }
         .buttonStyle(PressScale())
         .floatingGlass(cornerRadius: StartMetrics.field / 2, tint: nil)
+        .hoverEffect(.highlight)
         .accessibilityLabel(AddressEditor.placeholder)
     }
 
@@ -189,7 +190,7 @@ struct StartPage: View {
                 .accessibilityLabel("Back to \(folders.dropLast().last?.label ?? "Bookmarks")")
             }
             Text(folders.last?.label ?? "Bookmarks")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Palette.ink)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -212,14 +213,14 @@ struct StartPage: View {
             .accessibilityLabel("New Folder")
         }
         // As high in a folder, where the back button is, as at the top: the tiles don't move as one opens.
-        .frame(height: Metrics.target)
+        .frame(minHeight: Metrics.target)
     }
 
     private func empty(space: Space?, inFolder: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(inFolder ? "Nothing in this folder yet."
-                          : "No bookmarks in \(space?.name ?? "this space") yet. Bring them over from Chrome or Safari, or star the page you’re on\(Device.keys(for: .bookmark).map { " (\($0))" } ?? "").")
-                .font(.system(size: 13))
+                          : "No bookmarks in \(space?.name ?? "this space") yet. Bring them over from Chrome, Firefox or Safari, or star the page you’re on\(Device.keys(for: .bookmark).map { " (\($0))" } ?? "").")
+                .font(.subheadline)
                 .foregroundStyle(Palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
             if !inFolder {

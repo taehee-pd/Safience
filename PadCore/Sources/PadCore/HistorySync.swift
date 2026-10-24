@@ -57,6 +57,36 @@ public enum HistoryCloudRecord: Equatable, Hashable, Sendable {
     }
 }
 
+/// New account epochs write distinct day records, preserving older records
+/// rather than replacing their contents with a newly eligible subset.
+public enum HistoryUploadIdentity {
+    public static func writer(device: String, epoch: UUID) -> String { "\(device)-\(epoch.uuidString)" }
+
+    public static func orphanedRecords(_ mine: Set<String>, activeSpaces: Set<UUID>, currentWriter: String) -> Set<String> {
+        Set(mine.filter { name in
+            if case let .day(writer, space, _, _) = HistoryCloudRecord(name: name) {
+                return writer == currentWriter && !activeSpaces.contains(space)
+            }
+            return false
+        })
+    }
+
+    public static func recordsForRemovedSpace(_ mine: Set<String>, cloud: UUID, device: String) -> Set<String> {
+        Set(mine.filter { name in
+            if case let .day(writer, space, _, _) = HistoryCloudRecord(name: name) {
+                return space == cloud && owns(writer: writer, device: device)
+            }
+            return false
+        })
+    }
+
+    public static func owns(writer: String, device: String) -> Bool {
+        if writer == device { return true }
+        let prefix = device + "-"
+        return writer.hasPrefix(prefix) && UUID(uuidString: String(writer.dropFirst(prefix.count))) != nil
+    }
+}
+
 /// A space (this device's id for it) and a day (HistoryCloudDay): what a
 /// device's History record is of.
 public struct HistoryDayOfSpace: Hashable, Codable, Sendable {
@@ -84,6 +114,16 @@ public enum HistoryCloudDay {
     public static func key(for date: Date) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d%02d%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// Existing own records expire by retention, independent of when a new
+    /// account upload epoch began. A new boundary must not erase older days.
+    public static func expiredRecords(_ mine: Set<String>, retentionCutoff: Date?, now: Date = Date()) -> Set<String> {
+        let last = key(for: max(retentionCutoff ?? .distantPast, now.addingTimeInterval(-kept)))
+        return Set(mine.filter { name in
+            if case .day(_, _, let day, _) = HistoryCloudRecord(name: name) { return day < last }
+            return false
+        })
     }
 
     /// The day's first moment and its last.
@@ -147,4 +187,55 @@ public enum HistoryCloudPayload {
         if !current.isEmpty { chunks.append(current) }
         return chunks
     }
+}
+
+
+/// History metadata is usable only after it has been read and normalized for
+/// the currently approved account. A later storage retry must repeat this step.
+public struct HistoryAccountSession: Equatable, Sendable {
+    public enum LoadDecision: Equatable, Sendable {
+        case unavailable
+        case retain
+        case reset(uploadAfter: Date)
+    }
+
+    private var validatedAccount: String?
+    private var validatedEpoch: UUID?
+
+    public init() {}
+
+    public mutating func loaded(verified: String?, stored: String?, available: Bool,
+                                verifiedEpoch: UUID? = nil, storedEpoch: UUID? = nil,
+                                now: Date = Date()) -> LoadDecision {
+        revoke()
+        guard let verified, available else { return .unavailable }
+        if (stored != nil && stored != verified) || verifiedEpoch != storedEpoch {
+            return .reset(uploadAfter: now)
+        }
+        return .retain
+    }
+
+    /// Normalized account, epoch and cutoff must be acknowledged on disk first.
+    @discardableResult
+    public mutating func confirm(verified: String?, stored: String?, persisted: Bool,
+                                 verifiedEpoch: UUID? = nil, storedEpoch: UUID? = nil) -> Bool {
+        guard persisted, let verified, verified == stored, verifiedEpoch == storedEpoch else { revoke(); return false }
+        validatedAccount = verified
+        validatedEpoch = verifiedEpoch
+        return true
+    }
+
+    public func allows(verified: String?, stored: String?, verifiedEpoch: UUID? = nil, storedEpoch: UUID? = nil) -> Bool {
+        guard let verified else { return false }
+        return validatedAccount == verified && stored == verified
+            && validatedEpoch == verifiedEpoch && storedEpoch == verifiedEpoch
+    }
+
+    /// Captured when a local visit is created, never inferred when a queued
+    /// write is retried or a later account starts backfilling local history.
+    public func uploadEpoch(verified: String?, stored: String?, verifiedEpoch: UUID?, storedEpoch: UUID?) -> UUID? {
+        allows(verified: verified, stored: stored, verifiedEpoch: verifiedEpoch, storedEpoch: storedEpoch) ? verifiedEpoch : nil
+    }
+
+    public mutating func revoke() { validatedAccount = nil; validatedEpoch = nil }
 }

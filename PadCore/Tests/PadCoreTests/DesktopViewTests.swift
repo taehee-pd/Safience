@@ -6,6 +6,24 @@ final class DesktopViewTests: XCTestCase {
     private let upright = (width: 440.0, height: 760.0)
     private let sideways = (width: 874.0, height: 330.0)
 
+    func testAssistiveTechnologyUsesNativeBrowsingInsteadOfTheTrackpad() {
+        XCTAssertTrue(DesktopView.supportsTrackpad(voiceOver: false, switchControl: false))
+        XCTAssertFalse(DesktopView.supportsTrackpad(voiceOver: true, switchControl: false))
+        XCTAssertFalse(DesktopView.supportsTrackpad(voiceOver: false, switchControl: true))
+        XCTAssertFalse(DesktopView.supportsTrackpad(voiceOver: true, switchControl: true))
+    }
+
+    func testZoomResetFitsTheAvailableViewAndKeepsTheCursorVisible() {
+        var view = DesktopView(viewWidth: upright.width, viewHeight: upright.height)
+        view.cover(bottom: 300)
+        view.zoom(by: 4, aroundX: 300, y: 200)
+        view.resetZoom()
+        XCTAssertEqual(view.zoom, DesktopView.fill(viewWidth: upright.width, viewHeight: upright.height - 300), accuracy: 1e-9)
+        let point = view.viewPoint(x: view.cursorX, y: view.cursorY)
+        XCTAssertTrue((0...view.viewWidth).contains(point.x))
+        XCTAssertTrue((0...(view.viewHeight - view.covered)).contains(point.y))
+    }
+
     func testItFillsTheViewOneWayAndPansTheOther() {
         let up = DesktopView(viewWidth: upright.width, viewHeight: upright.height)
         XCTAssertEqual(up.zoom, 760.0 / 1032.0, accuracy: 1e-9, "all of the height upright")

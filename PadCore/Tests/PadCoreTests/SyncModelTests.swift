@@ -147,7 +147,7 @@ final class SyncModelTests: XCTestCase {
                        "browsing in a pinned tab writes nothing")
     }
 
-    func testJoiningMatchesSpacesByNameKeepsBothSetsAndDeletesNothing() throws {
+    func testJoiningKeepsSameNameSpacesSeparateAndDeletesNothing() throws {
         var w = Workspace(spaces: [
             Space(name: "Work", symbol: "briefcase", tabs: [TabRecord(url: URL(string: "https://figma.com"), pinned: URL(string: "https://figma.com"))],
                   bookmarks: [try link("Figma", "https://figma.com")]),
@@ -164,13 +164,47 @@ final class SyncModelTests: XCTestCase {
         let result = SyncPlan.join(&w, remote: remote)
         let work = try XCTUnwrap(w.spaces.first { $0.cloudID == theirs.spaces[0].cloudID })
         XCTAssertEqual(work.color, .teal, "iCloud's colour and icon")
-        XCTAssertEqual(Set(work.bookmarks.compactMap(\.url?.host)), ["linear.app", "figma.com"], "both sets of bookmarks")
-        XCTAssertEqual(work.tabs.filter(\.isPinned).count, 1, "the same pinned address is one pinned tab")
+        XCTAssertEqual(Set(work.bookmarks.compactMap(\.url?.host)), ["linear.app"], "remote bookmarks stay in their own space")
+        XCTAssertEqual(work.tabs.filter(\.isPinned).count, 1)
+        let local = try XCTUnwrap(w.spaces.first { $0.name == "Work" })
+        XCTAssertNotEqual(local.cloudID, work.cloudID)
+        XCTAssertEqual(local.color, .blue)
+        XCTAssertEqual(local.bookmarks.compactMap(\.url?.host), ["figma.com"])
+        XCTAssertEqual(w.spaces.count, 4, "same names do not imply the same client")
         XCTAssertNotNil(w.spaces.first { $0.name == "Home" }?.cloudID, "a space with no match comes in as new")
         XCTAssertNotNil(w.spaces.first { $0.cloudID == theirs.spaces[1].cloudID }, "iCloud's other space comes in")
         let changes = SyncPlan.changes(from: remote, to: result)
         XCTAssertEqual(changes.delete, [], "joining never deletes")
         XCTAssertTrue(changes.save.contains(try XCTUnwrap(w.spaces.first { $0.name == "Home" }?.cloudID?.uuidString)))
+    }
+
+    func testIdentityMatchSurvivesRenameAndRepeatedSyncEnablement() throws {
+        var local = try workspace()
+        var other = local
+        other.spaces[0].name = "Renamed Client"
+        let cloud = try XCTUnwrap(local.spaces[0].cloudID)
+        let localID = local.spaces[0].id
+        var remote = SyncPlan.records(of: other, keeping: SyncMirror())
+        for _ in 0..<3 { remote = SyncPlan.join(&local, remote: remote) }
+        XCTAssertEqual(local.spaces.count, 1)
+        XCTAssertEqual(local.spaces[0].id, localID)
+        XCTAssertEqual(local.spaces[0].cloudID, cloud)
+        XCTAssertEqual(local.spaces[0].name, "Renamed Client")
+    }
+
+    func testDuplicateSameNameRemoteSpacesNeverAdoptALocalClient() {
+        var local = Workspace.starting()
+        let localID = local.spaces[0].id
+        var remote = SyncMirror()
+        for _ in 0..<2 {
+            let id = UUID().uuidString
+            remote.spaces[id] = SyncSpace(id: id, name: " work ", symbol: "house", color: "pink")
+        }
+        let joined = SyncPlan.join(&local, remote: remote)
+        XCTAssertEqual(local.spaces.count, 3)
+        XCTAssertEqual(local.spaces.first { $0.id == localID }?.name, "Work")
+        XCTAssertEqual(Set(local.spaces.compactMap(\.cloudID)).count, 3)
+        XCTAssertTrue(SyncPlan.changes(from: remote, to: joined).delete.isEmpty)
     }
 
     func testSignInPagesAndCredentialsNeverLeaveTheDevice() throws {

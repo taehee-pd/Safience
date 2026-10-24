@@ -166,7 +166,6 @@ private struct UsePage: View {
                     RowLabel(symbol: "slider.horizontal.3", title: "Manage Extensions",
                              note: offers.isEmpty ? nil : "\(offers.count) to add", trailing: .onward)
                 }
-                .keyboardShortcut(",", modifiers: .command)
             }
             .padding(8)
         }
@@ -235,10 +234,12 @@ private struct UseTile: View {
         let _ = extensions.actionsChanged
         let action = extensions.action(for: item.id, in: model)
         let warning = extensions.warning(item.id, in: model.spaceID)
-        let enabled = action?.isEnabled != false
+        let unavailable = extensions.unavailableReason(item.id, in: model)
+        let enabled = unavailable == nil
         let label = (action?.label).flatMap { $0.isEmpty ? nil : $0 } ?? item.name
         let badge = (action?.badgeText).flatMap { $0.isEmpty ? nil : String($0.prefix(4)) }
         let shape = RoundedRectangle(cornerRadius: Self.corner, style: .continuous)
+        VStack(spacing: 4) {
         Button {
             model.extensionsShown = false
             extensions.run(item.id, in: model)
@@ -302,7 +303,19 @@ private struct UseTile: View {
         .help(warning.map { "\(label): \(([$0.title + "."] + $0.lines).joined(separator: " "))" } ?? label)
         .accessibilityLabel(label)
         .accessibilityValue([badge, warning?.title].compactMap { $0 }.joined(separator: ", "))
-        .accessibilityHint("Opens it")
+        .accessibilityHint(unavailable ?? "Opens the extension")
+        Menu("Options") {
+            ExtensionMenu(model: model, item: item, manage: manage)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .font(.caption)
+        .accessibilityLabel("Options for \(item.name)")
+        if unavailable != nil {
+            Text(action?.isEnabled == false ? "Unavailable on This Page" : "Not Ready in This Space").font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        }
     }
 }
 
@@ -391,11 +404,13 @@ private struct ManageRow: View {
                             .foregroundStyle(on && !incompatible ? .primary : .secondary)
                             .lineLimit(1)
                         if incompatible {
-                            Text("Incompatible")
+                            Text("Incompatible: " + extensions.incompatibility(item.id))
+                                .fixedSize(horizontal: false, vertical: true)
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
                         } else if let warning {
-                            Text(warning.title)
+                            Text(([warning.title] + warning.lines).joined(separator: " "))
+                                .fixedSize(horizontal: false, vertical: true)
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.orange)
                         }
@@ -488,15 +503,19 @@ private struct ExtensionMenu: View {
         if !incompatible {
             Toggle("Use in This Space", isOn: Binding(get: { on }, set: { extensions.turn(item.id, on: $0, in: model.spaceID) }))
         }
-        Button("Remove from This Space") { extensions.remove(item.id, from: model.spaceID) }
+        Button("Remove Data from This Space…") { extensions.confirmRemoval(of: item.id, from: model.spaceID, in: model) }
         Button("Remove from Safience\u{2026}") { extensions.confirmRemoval(of: item.id, in: model) }
         Divider()
         if extensions.saidLooksWrong(item.id) {
             Button("Show Its Warnings Again") { extensions.setLooksWrong(item.id, false) }
         } else if extensions.isWarned(item.id) {
-            Button("This Looks Wrong") { extensions.setLooksWrong(item.id, true) }
+            Button(extensions.isIncompatible(item.id) ? "Try Again and Hide Warnings" : "Hide Warnings for This Version") { extensions.setLooksWrong(item.id, true) }
         }
         Button("Report a Problem\u{2026}") { ExtensionReport.show(item.id, in: model) }
+        Button("Move Up") { extensions.move(item.id, by: -1) }
+            .disabled(extensions.installed.first?.id == item.id)
+        Button("Move Down") { extensions.move(item.id, by: 1) }
+            .disabled(extensions.installed.last?.id == item.id)
         Button("Manage Extension") { manage() }
     }
 }
@@ -601,7 +620,7 @@ private struct DetailPage: View {
                         }
                     } else if extensions.isWarned(id) {
                         PanelButton(action: { extensions.setLooksWrong(id, true) }) {
-                            RowLabel(symbol: "hand.raised", title: "This Looks Wrong")
+                            RowLabel(symbol: "hand.raised", title: incompatible ? "Try Again and Hide Warnings" : "Hide Warnings for This Version")
                         }
                     }
                     PanelButton(action: { ExtensionReport.show(id, in: model) }) {
@@ -612,8 +631,8 @@ private struct DetailPage: View {
                 Divider()
                 // Last, and apart: what takes what it kept.
                 VStack(spacing: 0) {
-                    PanelButton(action: { extensions.remove(id, from: model.spaceID) }) {
-                        RowLabel(symbol: "minus.circle", title: "Remove from This Space", role: .destructive)
+                    PanelButton(action: { extensions.confirmRemoval(of: id, from: model.spaceID, in: model) }) {
+                        RowLabel(symbol: "minus.circle", title: "Remove Data from This Space…", role: .destructive)
                     }
                     .help("Turns it off here and deletes what it kept in this space")
                     PanelButton(action: { extensions.confirmRemoval(of: id, in: model) }) {
@@ -746,7 +765,6 @@ private struct PageHeader: View {
                     .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(PressedIconStyle())
-            .keyboardShortcut("[", modifiers: .command)
             .help("Back")
             .accessibilityLabel("Back")
             Text(title)

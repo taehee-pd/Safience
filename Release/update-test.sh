@@ -18,7 +18,8 @@ cd "$(dirname "$0")/.."
 TEST_ID="net.taehee.safience.updatetest"
 # A port nothing else here is using, chosen now: the builds name it in their feed's address.
 PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
-WORK="build/update-test"
+WORK="$PWD/build/update-test"
+DATA_ROOT="$WORK/data"
 # Kept between runs, so a second run builds only what changed.
 BUILDS="build/update-test-builds"
 SPARKLE="build/sparkle-2.10.0"
@@ -27,14 +28,14 @@ TEAM="$(echo "$IDENTITY_LINE" | sed -E 's/.*\(([A-Z0-9]+)\)".*/\1/')"
 [[ -x "$SPARKLE/bin/sign_update" ]] || { echo "Sparkle's tools aren't in $SPARKLE: Release/mac.sh release fetches them." >&2; exit 1; }
 
 rm -rf "$WORK"
-mkdir -p "$WORK/feed"
+mkdir -p "$WORK/feed" "$DATA_ROOT"
 
 build() {
   local version="$1" number="$2"
   echo "Building $version ($number)…"
   xcodebuild build -quiet -project Safience.xcodeproj -scheme "Safience Mac Direct" -configuration Debug \
     -destination "generic/platform=macOS" -derivedDataPath "$BUILDS/dd-$number" -packageAuthorizationProvider netrc \
-    PRODUCT_BUNDLE_IDENTIFIER="$TEST_ID" MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$number" \
+    PRODUCT_BUNDLE_IDENTIFIER="$TEST_ID" SAFIENCE_DATA_ROOT="$DATA_ROOT" MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$number" \
     SPARKLE_FEED_URL="http://127.0.0.1:$PORT/appcast.xml" \
     CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Developer ID Application" DEVELOPMENT_TEAM="$TEAM" \
     MAC_ENTITLEMENTS=Config/SafienceMacDirect.entitlements >"$WORK/build-$number.log" 2>&1 \
@@ -63,6 +64,7 @@ cleanup() {
   pkill -f "$WORK/installed/Safience.app" 2>/dev/null || true
   rm -rf "$HOME/Library/Containers/$TEST_ID"
   defaults delete "$TEST_ID" >/dev/null 2>&1 || true
+  [[ "$DATA_ROOT" == "$WORK/data" ]] && rm -rf "$DATA_ROOT"
 }
 trap cleanup EXIT
 
@@ -75,8 +77,18 @@ curl -fsS "http://127.0.0.1:$PORT/appcast.xml" -o /dev/null || { echo "The feed 
 
 mkdir -p "$WORK/installed"
 cp -R "$OLD" "$APP"
-echo "Opening 1.0.2 (31) to update itself…"
-open -n -g "$APP" --args -updateTest YES
+# Both the first launch and Sparkle's replacement must use a dedicated data
+# root. The embedded path survives a relaunch that drops the environment.
+for candidate in "$APP" "$NEW"; do
+  embedded_id="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$candidate/Contents/Info.plist")"
+  embedded_root="$(/usr/libexec/PlistBuddy -c 'Print SAFIENCE_DATA_ROOT' "$candidate/Contents/Info.plist")"
+  [[ "$embedded_id" == "$TEST_ID" && "$embedded_root" == "$DATA_ROOT" && "$DATA_ROOT" == "$WORK/data" ]] || {
+    echo "Refusing to launch a test app without verified isolated storage: $candidate" >&2
+    exit 1
+  }
+done
+echo "Opening isolated 1.0.2 (31) to update itself…"
+open -n -g --env "SAFIENCE_DATA_ROOT=$DATA_ROOT" "$APP" --args -updateTest YES
 
 # Up to two minutes for it to find, fetch, check and install the update.
 for _ in {1..60}; do

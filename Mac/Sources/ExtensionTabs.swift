@@ -189,6 +189,25 @@ final class ExtensionTab: NSObject, WKWebExtensionTab {
         ExtensionPolicy.grantsOnClick(url(for: context))
     }
 
+    func detectWebpageLocale(for context: WKWebExtensionContext, completionHandler: @escaping (Locale?, (any Error)?) -> Void) {
+        guard let page = Session.shared.pages.live[id], page.space == space,
+              Session.shared.workspace.space(space)?.tabs.contains(where: { $0.id == id }) == true,
+              let url = page.view.url, !page.isHandsOff, context.hasAccess(to: url, in: self) else {
+            completionHandler(nil, nil)
+            return
+        }
+        Task { @MainActor in
+            do {
+                let result = try await ExtensionLanguage.webpage(isAllowed: {
+                    Session.shared.pages.live[self.id] === page && page.space == self.space &&
+                        Session.shared.workspace.space(self.space)?.tabs.contains(where: { $0.id == self.id }) == true &&
+                        page.view.url == url && !page.isHandsOff && context.hasAccess(to: url, in: self)
+                }, sample: { try await page.extensionLanguageText() })
+                completionHandler(result?.locale, nil)
+            } catch { completionHandler(nil, error) }
+        }
+    }
+
     func activate(for context: WKWebExtensionContext, completionHandler: @escaping ((any Error)?) -> Void) {
         let session = Session.shared
         let window = session.allWindows.first { $0.spaceID == space } ?? session.frontWindow

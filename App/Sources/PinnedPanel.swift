@@ -347,6 +347,7 @@ final class PinnedControl {
         let away: UIMenuElement.Attributes = tab.isAwayFromPinned ? [] : .disabled
         let act = act
         return [UIMenu(title: tab.pinnedAddress.map { "Pinned to \($0)" } ?? "", options: .displayInline, children: [
+            UIAction(title: "Reset Pinned Tab…", image: UIImage(systemName: "arrow.counterclockwise")) { _ in act(.resetPinned(tab.id)) },
             UIAction(title: "Back to Pinned Address", image: UIImage(systemName: "arrow.uturn.backward"), attributes: away) { _ in
                 act(.backToPinned(tab.id))
             },
@@ -366,6 +367,7 @@ final class PinnedControl {
         let replace = UIAlertAction(title: "Replace with Current Page", style: .default) { [act] _ in act(.repin(tab.id)) }
         back.isEnabled = tab.isAwayFromPinned
         replace.isEnabled = tab.isAwayFromPinned
+        sheet.addAction(UIAlertAction(title: "Reset Pinned Tab…", style: .destructive) { [act] _ in act(.resetPinned(tab.id)) })
         sheet.addAction(back)
         sheet.addAction(replace)
         sheet.addAction(UIAlertAction(title: "Unpin Tab", style: .default) { [act] _ in act(.unpin(tab.id)) })

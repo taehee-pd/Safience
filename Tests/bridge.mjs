@@ -76,6 +76,10 @@ try {
     + '\nreturn safienceHasDraft(handsOff);';
   const draftResult = await standalone.evaluate((source) => {
     const probe = new Function('handsOff', source);
+    const canvasApp = probe(['accounts.google.com']);
+    // The Figma stand-in has a real canvas. Remove it only for clean-page
+    // eligibility checks, then exercise a separate canvas-only draft below.
+    document.querySelector('canvas').remove();
     const globals = Reflect.ownKeys(window);
     const markup = document.documentElement.outerHTML;
     const addListener = EventTarget.prototype.addEventListener;
@@ -95,6 +99,18 @@ try {
       const richUnchanged = editor.innerHTML === '<p><strong>A Mac draft</strong></p>';
       editor.remove();
       const cleared = probe(['accounts.google.com']);
+      const canvas = document.createElement('canvas');
+      document.body.appendChild(canvas);
+      const blankCanvas = probe(['accounts.google.com']);
+      const privateDrawing = { points: [[2, 3], [5, 8]], saved: false };
+      const context = canvas.getContext('2d');
+      context.fillRect(...privateDrawing.points[0], 4, 4);
+      canvas.hidden = true;
+      const pixels = canvas.toDataURL();
+      const canvasDraft = probe(['accounts.google.com']);
+      const canvasUnchanged = canvas.toDataURL() === pixels && privateDrawing.saved === false;
+      canvas.remove();
+      const canvasRemoved = probe(['accounts.google.com']);
       const select = document.querySelectorAll;
       let selections = 0;
       document.querySelectorAll = function (...args) {
@@ -104,15 +120,20 @@ try {
       let handsOff;
       try { handsOff = probe([location.hostname]); }
       finally { document.querySelectorAll = select; delete document.querySelectorAll; }
-      return { clean, rich, cleared, unchanged, richUnchanged, listeners,
+      return { clean, rich, cleared, unchanged, richUnchanged, listeners, canvasApp,
+        blankCanvas, canvasDraft, canvasUnchanged, canvasRemoved,
         handsOff, selections, noBridge: !('__safience' in window),
         noGlobals: Reflect.ownKeys(window).length === globals.length
           && globals.every((key) => Object.prototype.hasOwnProperty.call(window, key)) };
     } finally { EventTarget.prototype.addEventListener = addListener; }
   }, draftCall);
+  check('the standalone Mac probe retains the canvas app fixture as unknown', draftResult.canvasApp === true);
   check('the standalone Mac probe lets a clean page freeze without a bridge', draftResult.clean === false && draftResult.noBridge);
   check('the standalone Mac probe protects a rich draft', draftResult.rich === true);
   check('the standalone Mac probe releases a page after its editor is removed', draftResult.cleared === false);
+  check('the standalone Mac probe retains a blank canvas as unknown', draftResult.blankCanvas === true);
+  check('the standalone Mac probe retains a hidden canvas draft unchanged', draftResult.canvasDraft === true && draftResult.canvasUnchanged);
+  check('the standalone Mac probe releases a page after its canvas is removed', draftResult.canvasRemoved === false);
   check('the standalone Mac probe adds no globals or listeners', draftResult.noGlobals && draftResult.listeners === 0);
   check('the standalone Mac probe leaves the document and draft unchanged', draftResult.unchanged && draftResult.richUnchanged);
   check('the standalone probe does not inspect a hands-off document', draftResult.handsOff === true && draftResult.selections === 0);

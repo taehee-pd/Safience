@@ -175,7 +175,7 @@ struct BookmarksBar: View {
         ScrollView(.horizontal) {
             HStack(spacing: 2) {
                 if bookmarks.isEmpty {
-                    Text("No bookmarks in this space yet. Bookmark a page with ⇧⌘D.")
+                    Text("No bookmarks in this space yet. Bookmark a page with ⌘D.")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 8)
@@ -274,36 +274,48 @@ private struct TopTab: View {
         let selected = model.tabID == tab.id
         let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
         HStack(spacing: 7) {
-            ZStack {
-                if selected, model.loading, model.page != nil {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    SiteIconView(url: tab.url, size: 16)
-                }
-            }
-            .frame(width: 16, height: 16)
-            if selected {
-                Group {
-                    if let url = model.url {
-                        addressText(url, engine: Session.shared.preferences.engine, quiet: .secondary)
-                            .foregroundStyle(Color.primary)
-                    } else {
-                        Text("Search or enter address")
-                            .foregroundStyle(.secondary)
+            Button {
+                if selected { model.commandBar = .here } else { model.select(tab.id) }
+            } label: {
+                HStack(spacing: 7) {
+                    ZStack {
+                        if selected, model.loading, model.page != nil {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            SiteIconView(url: tab.url, size: 16)
+                        }
                     }
+                    .frame(width: 16, height: 16)
+                    if selected {
+                        Group {
+                            if let url = model.url {
+                                addressText(url, engine: Session.shared.preferences.engine, quiet: .secondary)
+                                    .foregroundStyle(Color.primary)
+                            } else {
+                                Text("Search or enter address")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(.system(size: 12.5))
+                        .lineLimit(1)
+                        // The end of the host is who you are talking to: it is the part kept.
+                        .truncationMode(.head)
+                    } else {
+                        Text(tab.label)
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(Color.primary.opacity(0.8))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 0)
                 }
-                .font(.system(size: 12.5))
-                .lineLimit(1)
-                // The end of the host is who you are talking to: it is the part kept.
-                .truncationMode(.head)
-            } else {
-                Text(tab.label)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Color.primary.opacity(0.8))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(selected ? "Address, \(model.url.map(Destination.pretty) ?? tab.label)" : tab.label)
+            .accessibilityAddTraits(selected ? .isSelected : [])
             // Kept while its popover is open, which it stands under, and for Share… from the menu bar.
             if selected, hovering || model.pageActionsShown {
                 PageActionsButton(model: model, inTab: true)
@@ -329,9 +341,6 @@ private struct TopTab: View {
         }
         .contentShape(shape)
         .onHover { inside in withAnimation(.hover) { hovering = inside } }
-        .onTapGesture {
-            if selected { model.commandBar = .here } else { model.select(tab.id) }
-        }
         .draggable(TabDrag(tab: tab.id)) {
             HStack(spacing: 6) {
                 SiteIconView(url: tab.url, size: 16)
@@ -347,8 +356,7 @@ private struct TopTab: View {
         } isTargeted: { targeted = $0 }
         .contextMenu { TabMenu(model: model, tab: tab) }
         .help(selected ? "\(tab.url?.absoluteString ?? tab.label): click to type an address (⌘L)" : tab.url?.absoluteString ?? tab.label)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityElement(children: .contain)
     }
 
 }

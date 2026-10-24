@@ -77,7 +77,7 @@ final class PinnedTabTests: XCTestCase {
         XCTAssertNil(w.tab(empty)?.pinned)
     }
 
-    func testClosingAPinnedTabTakesItBackInsteadOfAway() throws {
+    func testClosingAPinnedTabPreservesItsCurrentPageInsteadOfResettingIt() throws {
         var w = Workspace.onFigma()
         let space = w.spaces[0].id
         let a = try XCTUnwrap(w.spaces[0].selected)
@@ -87,9 +87,9 @@ final class PinnedTabTests: XCTestCase {
         w.select(a)
         XCTAssertEqual(w.closeTab(a), b, "the neighbour is selected, as for any tab closed")
         XCTAssertEqual(w.spaces[0].tabs.map(\.id), [a, b], "but the pinned tab stays")
-        XCTAssertEqual(w.tab(a)?.url, figma)
-        XCTAssertEqual(w.tab(a)?.title, "")
-        XCTAssertTrue(w.closed.isEmpty, "nothing to reopen: it never went")
+        XCTAssertEqual(w.tab(a)?.url, elsewhere)
+        XCTAssertEqual(w.tab(a)?.title, "Product")
+        XCTAssertTrue(w.closed.isEmpty, "the existing pinned record remains the route back to its page")
     }
 
     func testThePinnedTabAloneStaysSelected() throws {

@@ -212,6 +212,110 @@ public struct BookmarkImport: Equatable, Sendable {
     }
 }
 
+/// A bookmark import's result, including recoverable failures. Parsed bookmarks
+/// stay available when the destination disappears during file reading.
+public struct BookmarkImportRetry: Equatable, Sendable {
+    public let bookmarks: BookmarkImport
+    public let destination: UUID
+
+    public init(bookmarks: BookmarkImport, destination: UUID) {
+        self.bookmarks = bookmarks
+        self.destination = destination
+    }
+}
+
+public enum BookmarkImportOutcome: Equatable, Sendable {
+    case imported(added: Int, total: Int, space: String)
+    case duplicates(total: Int, space: String)
+    case unreadable, archiveWithoutBookmarks, empty, cancelled
+    case destinationMissing(BookmarkImport)
+    case workspaceUnavailable
+    case notSaved(added: Int, total: Int, space: String, retry: BookmarkImportRetry? = nil)
+
+    public var isComplete: Bool {
+        switch self {
+        case .imported, .duplicates: return true
+        default: return false
+        }
+    }
+
+    public var canChooseFile: Bool {
+        switch self {
+        case .unreadable, .archiveWithoutBookmarks, .empty, .cancelled: return true
+        default: return false
+        }
+    }
+
+    public var parsed: BookmarkImport? {
+        if case .destinationMissing(let bookmarks) = self { return bookmarks }
+        return nil
+    }
+
+    public var needsSave: Bool {
+        if case .notSaved = self { return true }
+        return false
+    }
+
+    /// Recheck identity after an asynchronous save or before a retry. A matching
+    /// name is not enough to make a replacement space the import destination.
+    public func validatingDestination(in workspace: Workspace) -> Self {
+        guard case let .notSaved(added, total, _, retry?) = self else { return self }
+        guard let space = workspace.space(retry.destination) else { return .destinationMissing(retry.bookmarks) }
+        return .notSaved(added: added, total: total, space: space.name, retry: retry)
+    }
+
+    public func acknowledgingSave(_ saved: Bool, retry: BookmarkImportRetry? = nil) -> Self {
+        switch self {
+        case let .imported(added, total, space) where !saved: return .notSaved(added: added, total: total, space: space, retry: retry)
+        case let .duplicates(total, space) where !saved: return .notSaved(added: 0, total: total, space: space, retry: retry)
+        case let .notSaved(added, total, space, _) where saved:
+            return added > 0 ? .imported(added: added, total: total, space: space) : .duplicates(total: total, space: space)
+        default: return self
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .imported: return "Bookmarks Imported"
+        case .duplicates: return "Bookmarks Already Present"
+        case .unreadable: return "Could Not Read the File"
+        case .archiveWithoutBookmarks: return "No Bookmarks in This Archive"
+        case .empty: return "No Bookmarks Found"
+        case .cancelled: return "Import Cancelled"
+        case .destinationMissing: return "Choose Another Space"
+        case .workspaceUnavailable: return "Workspace Is Unavailable"
+        case .notSaved: return "Bookmarks Are Not Saved Yet"
+        }
+    }
+
+    public var message: String {
+        switch self {
+        case let .imported(added, total, space):
+            return "\(added) of \(total) bookmarks added to \(space). They appear in this space's bookmarks and on new tabs."
+        case let .duplicates(total, space): return "All \(total) bookmarks in the file are already in \(space)."
+        case .unreadable: return "Choose the file again, or save a local copy first. You can also import later in Settings."
+        case .archiveWithoutBookmarks: return "Choose an HTML bookmark export from Chrome, Firefox or Safari, or a Safari ZIP export that includes Bookmarks."
+        case .empty: return "Export bookmarks as HTML from Chrome, Firefox or Safari, then choose that file."
+        case .cancelled: return "No bookmarks were imported."
+        case .destinationMissing: return "The destination space was removed while the file was being read. The file has been read. Choose an existing space to import into."
+        case .workspaceUnavailable: return "Recover and save the workspace before importing bookmarks. The bookmark file is unchanged."
+        case let .notSaved(added, _, space, _):
+            return "\(added) bookmarks were added to \(space) in this session, but the workspace could not be saved. Keep Safience open and retry saving."
+        }
+    }
+}
+
+public enum BookmarkImportReadFailure: Error, Equatable, Sendable {
+    case archiveWithoutBookmarks, empty
+
+    public var outcome: BookmarkImportOutcome {
+        switch self {
+        case .archiveWithoutBookmarks: return .archiveWithoutBookmarks
+        case .empty: return .empty
+        }
+    }
+}
+
 /// The bookmarks file every browser exports, Chrome's, Safari's (on its own
 /// or inside the ZIP of Safari's Export Browsing Data), Firefox's and Edge's:
 /// Netscape's old format, links in nested <DL> lists under <H3> folder names.
@@ -220,6 +324,18 @@ public struct BookmarkImport: Equatable, Sendable {
 /// and a Chrome file can be megabytes of inline icons. Only web addresses are
 /// kept; javascript:, file: and browser-internal links are left out.
 public enum BookmarkFile {
+    public static func readExport(_ data: Data) -> Result<BookmarkImport, BookmarkImportReadFailure> {
+        var html = data
+        if ZipFile.isArchive(data) {
+            guard let inside = ZipFile.file(in: data, matching: { $0.lowercased().hasSuffix("bookmarks.html") }) else {
+                return .failure(.archiveWithoutBookmarks)
+            }
+            html = inside
+        }
+        let parsed = parse(html)
+        return parsed.count > 0 ? .success(parsed) : .failure(.empty)
+    }
+
     public static func parse(_ data: Data) -> BookmarkImport {
         var reader = Reader(bytes: [UInt8](data))
         return reader.read()

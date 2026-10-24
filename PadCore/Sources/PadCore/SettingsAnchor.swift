@@ -25,44 +25,44 @@ public enum SettingsAnchor: String, CaseIterable, Sendable {
     /// The section, as its row names it.
     public var title: String {
         switch self {
-        case .defaultBrowser: return "Default Browser"
-        case .sync: return "iCloud Sync"
-        case .appIcon: return "App Icon"
-        case .desktopView: return "Desktop View Cursor Speed"
-        case .addressBar: return "Address Bar"
-        case .window: return "Tabs and Address Bar"
-        case .spaces: return "Spaces and Bookmarks"
-        case .memory: return "Memory"
-        case .trackpad: return "Trackpad and Keyboard"
-        case .search: return "Search Engine"
-        case .history: return "History"
-        case .blocking: return "Ads and Trackers"
-        case .linkMenu: return "Link Menu"
-        case .handoff: return "Handoff"
-        case .diagnostics: return "Diagnostics"
-        case .shortcuts: return "Keyboard Shortcuts"
+        case .defaultBrowser: return BrowserText.localized("Default browser")
+        case .sync: return BrowserText.localized("iCloud")
+        case .appIcon: return BrowserText.localized("App icon")
+        case .desktopView: return BrowserText.localized("Trackpad View")
+        case .addressBar: return BrowserText.localized("The address bar shows")
+        case .window: return BrowserText.localized("Window")
+        case .spaces: return BrowserText.localized("Spaces and bookmarks")
+        case .memory: return BrowserText.localized("Memory")
+        case .trackpad: return BrowserText.localized("Trackpad and keyboard")
+        case .search: return BrowserText.localized("Search")
+        case .history: return BrowserText.localized("History")
+        case .blocking: return BrowserText.localized("Ads and trackers")
+        case .linkMenu: return BrowserText.localized("Link menu")
+        case .handoff: return BrowserText.localized("Send to App")
+        case .diagnostics: return BrowserText.localized("Developer diagnostics")
+        case .shortcuts: return BrowserText.localized("Shortcuts")
         }
     }
 
     /// What is changed there, for the line under the name.
     public var detail: String {
         switch self {
-        case .defaultBrowser: return "Open links from other apps here"
-        case .sync: return "Spaces, bookmarks and tabs on your devices"
-        case .appIcon: return "The Home Screen icon"
-        case .desktopView: return "How far the cursor goes"
-        case .addressBar: return "The page's address or its title"
-        case .window: return "Tabs along the top or in a sidebar"
-        case .spaces: return "Edit spaces, import bookmarks"
-        case .memory: return "Tabs kept open off screen"
-        case .trackpad: return "Scrolling, Tab and arrow keys, cursors"
-        case .search: return "The engine, suggestions, Apple Intelligence"
-        case .history: return "How long it is kept, clearing it"
-        case .blocking: return "The content blocker and its lists"
-        case .linkMenu: return "Sites with their own menus"
-        case .handoff: return "A page and a question, to another app"
-        case .diagnostics: return "The panel over the page"
-        case .shortcuts: return "Every command's keys"
+        case .defaultBrowser: return BrowserText.localized("Open links from other apps here")
+        case .sync: return BrowserText.localized("Spaces, bookmarks and pinned tabs on your devices")
+        case .appIcon: return BrowserText.localized("The Home Screen icon")
+        case .desktopView: return BrowserText.localized("How far the cursor goes")
+        case .addressBar: return BrowserText.localized("The page's address or its title")
+        case .window: return BrowserText.localized("Tabs along the top or in a sidebar")
+        case .spaces: return BrowserText.localized("Edit spaces, import bookmarks")
+        case .memory: return BrowserText.localized("Tabs kept open off screen")
+        case .trackpad: return BrowserText.localized("Scrolling, Tab and arrow keys, cursors")
+        case .search: return BrowserText.localized("The engine, suggestions, Apple Intelligence")
+        case .history: return BrowserText.localized("How long it is kept, clearing it")
+        case .blocking: return BrowserText.localized("The content blocker and its lists")
+        case .linkMenu: return BrowserText.localized("Sites with their own menus")
+        case .handoff: return BrowserText.localized("A page and a question, to another app")
+        case .diagnostics: return BrowserText.localized("The panel over the page")
+        case .shortcuts: return BrowserText.localized("Every command's keys")
         }
     }
 
@@ -112,6 +112,58 @@ public enum SettingsAnchor: String, CaseIterable, Sendable {
         case .desktopView, .addressBar: return phoneLayout
         case .window, .trackpad, .shortcuts: return padLayout
         default: return true
+        }
+    }
+}
+
+
+/// Settings categories and command-search destinations share one routing policy.
+public enum SettingsGroup: String, CaseIterable, Hashable, Sendable {
+    case general, spaces, browsing, privacy, input, shortcuts, diagnostics
+
+    public var title: String {
+        switch self {
+        case .general: return BrowserText.localized("General")
+        case .spaces: return BrowserText.localized("Spaces and iCloud")
+        case .browsing: return BrowserText.localized("Browsing")
+        case .privacy: return BrowserText.localized("Search and privacy")
+        case .input: return BrowserText.localized("Keyboard and trackpad")
+        case .shortcuts: return BrowserText.localized("Shortcuts")
+        case .diagnostics: return BrowserText.localized("Developer diagnostics")
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .general: return BrowserText.localized("Default browser and app icon")
+        case .spaces: return BrowserText.localized("Spaces, bookmarks, pinned tabs and sync")
+        case .browsing: return BrowserText.localized("Tabs, address bar, cursor, link menus and memory")
+        case .privacy: return BrowserText.localized("Search suggestions, history, ads and trackers")
+        case .input: return BrowserText.localized("Scrolling, keys and cursor styles")
+        case .shortcuts: return BrowserText.localized("Browser commands and system limitations")
+        case .diagnostics: return BrowserText.localized("Local troubleshooting information")
+        }
+    }
+
+    public func isOffered(padLayout: Bool, keyboard: Bool, diagnostics: Bool) -> Bool {
+        switch self {
+        case .input, .shortcuts: return padLayout || keyboard
+        case .diagnostics: return diagnostics
+        default: return true
+        }
+    }
+}
+
+public extension SettingsAnchor {
+    var group: SettingsGroup {
+        switch self {
+        case .defaultBrowser, .appIcon: return .general
+        case .sync, .spaces: return .spaces
+        case .desktopView, .addressBar, .window, .memory, .linkMenu: return .browsing
+        case .search, .history, .blocking, .handoff: return .privacy
+        case .trackpad: return .input
+        case .shortcuts: return .shortcuts
+        case .diagnostics: return .diagnostics
         }
     }
 }

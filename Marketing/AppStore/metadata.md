@@ -10,11 +10,11 @@ A browser for desktop web apps
 
 ## Promotional Text (170)
 
-Use desktop web apps on iPad with your trackpad and keyboard, and on iPhone in Desktop View. Keep a space for each client, synced through iCloud.
+Use desktop web apps on iPad with your trackpad and keyboard, and on iPhone in Trackpad View. Keep a space for each client, synced through iCloud.
 
 ## Description (4,000)
 
-Safience is a web browser for iPad and iPhone, made for working in web apps such as a design tool, a whiteboard, a project board or a CMS. On iPad, sites load in their desktop versions, and trackpad pinches, scrolling and ⌘ shortcuts go to the page as on a Mac. On iPhone, Desktop View shows the same desktop versions. With iCloud sync on, your spaces, bookmarks and tabs show on your other iPads and iPhones.
+Safience is a web browser for iPad and iPhone, made for working in web apps such as a design tool, a whiteboard, a project board or a CMS. On iPad, sites load in their desktop versions, and trackpad pinches, scrolling and ⌘ shortcuts go to the page as on a Mac. On iPhone, Trackpad View shows the same desktop versions. With iCloud sync on, your spaces, bookmarks and pinned tabs show on your other iPads and iPhones. Open tabs stay on each device.
 
 TRACKPAD AND KEYBOARD ON IPAD
 • A trackpad pinch and two-finger scrolling go to the page, so a design canvas zooms at the pointer.
@@ -24,8 +24,7 @@ TRACKPAD AND KEYBOARD ON IPAD
 
 ON IPHONE
 • The bar is at the bottom of the screen, and sites load their mobile versions, as in Safari. Swipe up on the bar for your tabs as cards, with your pinned tabs in a dock.
-• Desktop View, in the page's menu, lays out the page at the size of a 13-inch iPad Pro and turns the screen into a trackpad: one finger moves the cursor, a tap clicks, two fingers scroll. It shows hover styles, the page's cursors and a minimap of the whole page.
-• On an iPhone Duo, Safience uses the phone layout when folded and the desktop version when unfolded.
+• Trackpad View, in the page's menu, lays out the page at the size of a 13-inch iPad Pro and turns the screen into a trackpad: one finger moves the cursor, a tap clicks, two fingers scroll. It shows hover styles, the page's cursors and a minimap of the whole page.
 
 TABS ON IPAD
 • Tabs and the address share one row. Click the tab you're on to type a new address.
@@ -41,7 +40,7 @@ A SPACE FOR EVERY CLIENT
 
 SYNC WITH ICLOUD
 • Turn on iCloud sync in Settings, and your spaces, their bookmarks and pinned tabs show on every iPad and iPhone signed in to your Apple Account. Sync uses your private iCloud and no other server.
-• Each device's open tabs show on the others, in the tab overview and the command palette.
+• Open tabs stay on each device. With Sync history enabled, History and the address bar can show pages visited on your other devices.
 • Sign-ins, cookies and site data stay on each device.
 
 YOUR DEFAULT BROWSER
@@ -49,13 +48,13 @@ YOUR DEFAULT BROWSER
 • Sites can use passkeys, and Share Page has Add to Home Screen.
 • Choose from eight app icons in Settings.
 
-COMMAND PALETTE AND WINDOWS
-• The command palette (Control-Option-K) finds the tabs in every space, and your spaces, bookmarks and commands.
+COMMANDS AND WINDOWS
+• Open Commands from the address bar to find local tabs, spaces, bookmarks, settings and browser commands. Control-Option-K opens it with a keyboard. An optional Control shortcut profile is available for people who use VoiceOver.
 • On iPad, open several Safience windows side by side with Stage Manager.
 
 PRIVACY AND MEMORY
 • Safience blocks ads and trackers before they load, with WebKit's content blocker and the EasyList and EasyPrivacy lists. It's on by default; allow a site from its menu, or turn it off everywhere in Settings.
-• To save memory, Safience unloads heavy tabs you aren't using and loads them again when you open them.
+• To save memory, Safience can unload inactive pages and reload them when you return. It conservatively keeps pages with detected drafts or unknown editor state. A page URL cannot recover every editor after the operating system ends the app.
 • Safience collects no data and doesn't track you.
 
 ## Keywords (100)
@@ -79,10 +78,10 @@ ICLOUD
 Sync is off by default. When turned on in Settings it uses the device's Apple Account through CloudKit, with no sign-in screen of its own.
 
 HOW TO REVIEW
-1. Open the app. A welcome sheet appears on first launch. Skip closes it.
+1. Open the app. A welcome sheet appears on first launch. Skip Setup closes it.
 2. Type any address or search in the address field, for example apple.com.
-3. On iPad, the + button opens a tab and the space button at the top left has New Space. On iPhone, the bar is at the bottom and the page's menu (the ... button) has Desktop View.
-4. Settings is at the end of the page's menu on iPhone and of the current tab's menu on iPad, and in the command palette.
+3. On iPad, the + button opens a tab and the current space button near the end of the tab row has New Space. On iPhone, the bottom bar's ... menu has Use Trackpad View.
+4. Open Settings from the ... menu on iPhone or the gear at the end of the tab row on iPad. Settings groups General, Spaces and iCloud, Browsing, and Search and privacy.
 
 ## Version
 

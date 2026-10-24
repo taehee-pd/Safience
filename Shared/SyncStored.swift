@@ -10,6 +10,8 @@ extension Sync {
         var systemFields: [String: Data] = [:]
         var state: Data?
         var device = UUID().uuidString
+        /// The account whose mirror, pending records and engine state are stored here.
+        var account: String?
         /// This device's spaces have joined iCloud's.
         var joined = false
         /// The Mac's extensions as it last sent them (SyncPlan.publish);
@@ -30,6 +32,8 @@ extension Sync {
         /// this device's then (serverNow).
         var lastSave: Date?
         var lastSaveNoted: Date?
+        /// A server-confirmed fetch completed with no pending writes for this account.
+        var lastSuccessfulSync: Date?
         /// Spaces deleted from iCloud for good: what they held goes after
         /// them (SyncPlan.expired).
         var goneSpaces: Set<String>?
@@ -47,9 +51,10 @@ extension Sync {
         /// When iCloud saved each tombstone it holds (noteSaved).
         var tombstonesSaved: [String: Date]?
 
-        init(device: String = UUID().uuidString, clock: SyncClock? = nil) {
+        init(device: String = UUID().uuidString, clock: SyncClock? = nil, account: String? = nil) {
             self.device = device
             self.clock = clock
+            self.account = account
         }
 
         @MainActor static var file: URL {

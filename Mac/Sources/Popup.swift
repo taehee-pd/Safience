@@ -12,6 +12,13 @@ final class Popup: NSObject, PageHost, NSWindowDelegate {
 
     let page: Page
     private let panel: NSWindow
+    private let address = NSTextField(labelWithString: "Loading…")
+    private let security = NSImageView()
+    private let status = NSTextField(wrappingLabelWithString: "Loading page…")
+    private let progress = NSProgressIndicator()
+    private let recovery = NSButton(title: "Reload", target: nil, action: nil)
+    private let statusBox = NSStackView()
+    private var announced: String?
     /// The window it stands over closing: it closes too.
     private var parentClosing: NSObjectProtocol?
 
@@ -33,7 +40,7 @@ final class Popup: NSObject, PageHost, NSWindowDelegate {
         page.host = self
         panel.isReleasedWhenClosed = false
         panel.delegate = self
-        panel.contentView = page.view
+        makeContent()
         panel.title = "Loading…"
         if let parent {
             let frame = parent.frame
@@ -47,6 +54,51 @@ final class Popup: NSObject, PageHost, NSWindowDelegate {
             panel.center()
         }
         panel.makeKeyAndOrderFront(nil)
+    }
+
+    private func makeContent() {
+        let close = NSButton(title: "Close", target: self, action: #selector(closePopup))
+        security.imageScaling = .scaleProportionallyDown
+        security.setAccessibilityElement(true)
+        address.lineBreakMode = .byTruncatingMiddle
+        address.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let header = NSStackView(views: [security, address, close])
+        header.spacing = 8
+        header.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        statusBox.orientation = .vertical
+        statusBox.alignment = .leading
+        statusBox.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        statusBox.spacing = 6
+        recovery.target = self
+        recovery.action = #selector(recoverPage)
+        progress.style = .bar
+        progress.minValue = 0
+        progress.maxValue = 1
+        [status, progress, recovery].forEach(statusBox.addArrangedSubview)
+        let stack = NSStackView(views: [header, statusBox, page.view])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        let content = NSView()
+        panel.contentView = content
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: content.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            statusBox.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            page.view.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            progress.widthAnchor.constraint(equalTo: statusBox.widthAnchor, constant: -24),
+            security.widthAnchor.constraint(equalToConstant: 16),
+        ])
+    }
+
+    @objc private func closePopup() { panel.close() }
+    @objc private func recoverPage() {
+        if page.googleRefused, page.view.canGoBack { page.view.goBack() } else { page.reload() }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -63,8 +115,30 @@ final class Popup: NSObject, PageHost, NSWindowDelegate {
     }
 
     func pageDidChange(_ page: Page) {
+        let url = page.displayURL
         let title = page.view.title ?? ""
-        panel.title = title.isEmpty ? (page.view.url?.host ?? "") : title
+        panel.title = title.isEmpty ? (url?.host ?? "Loading…") : title
+        address.stringValue = url.map(Destination.pretty) ?? "Loading…"
+        address.setAccessibilityLabel(url?.absoluteString ?? "Loading page")
+        let secure = url?.scheme == "https" && page.view.hasOnlySecureContent && page.failure == nil
+        security.image = NSImage(systemSymbolName: secure ? "lock.fill" : "exclamationmark.triangle", accessibilityDescription: nil)
+        security.contentTintColor = secure ? .systemGreen : .systemOrange
+        security.setAccessibilityLabel(secure ? "Secure connection" : "Connection is not verified as secure")
+        security.isHidden = url == nil
+        let problem = page.googleRefused ? SignIn.fallback : page.failure
+            ?? (page.exhausted ? "This page stopped after repeated memory problems. Close another tab, then reload." : nil)
+        status.stringValue = problem ?? "Loading page…"
+        statusBox.isHidden = problem == nil && !page.view.isLoading
+        progress.isHidden = problem != nil || !page.view.isLoading
+        progress.doubleValue = page.view.estimatedProgress
+        recovery.isHidden = problem == nil
+        recovery.title = page.googleRefused && page.view.canGoBack ? "Go Back" : "Reload"
+        if let problem, problem != announced {
+            announced = problem
+            NSAccessibility.post(element: panel, notification: .announcementRequested,
+                                 userInfo: [.announcement: problem, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+        } else if problem == nil { announced = nil }
+
     }
 
     func isShowing(_ page: Page) -> Bool {

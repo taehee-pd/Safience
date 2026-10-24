@@ -41,15 +41,7 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     private var dragFrom: CGFloat = 0
     private var dragging = false
     /// The finger last moved it, rather than a button.
-    private var wasDragged = false
-    /// Whether letting go where the finger is would open it: a tick as that changes.
-    private var wouldOpen = false
     private var landed = false
-    /// Firm enough to feel through a case: a medium tap where letting go
-    /// changes what happens, a rigid knock as the sheet lands open.
-    private let tick = UIImpactFeedbackGenerator(style: .medium)
-    private let thud = UIImpactFeedbackGenerator(style: .rigid)
-    private let sink = UIImpactFeedbackGenerator(style: .light)
 
     /// The sheet's top corners, as a large sheet's are.
     private static let radius: CGFloat = 32
@@ -108,7 +100,6 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     // MARK: Moving it
 
     func open() {
-        thud.prepare()
         settle(to: 1, velocity: velocity, bouncy: false)
     }
 
@@ -129,14 +120,8 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     func beginDrag() {
         stop()
         dragging = true
-        wasDragged = true
         dragFrom = progress
-        // The line drag(up:) uses, so catching it on the way ticks only when it is crossed.
-        wouldOpen = progress > (dragFrom > 0.5 ? 1 - Self.commit : Self.commit)
         content.view.isUserInteractionEnabled = false
-        tick.prepare()
-        thud.prepare()
-        sink.prepare()
     }
 
     /// `up`: how far the finger has gone up since it took hold, in points.
@@ -145,11 +130,6 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
         let p = dragFrom + up / distance
         // Past open it gives less and less, as a scroll view's edge does.
         progress = p > 1 ? 1 + Throw.rubberband(p - 1, range: 0.06) : max(0, p)
-        let opens = progress > (dragFrom > 0.5 ? 1 - Self.commit : Self.commit)
-        if opens != wouldOpen {
-            wouldOpen = opens
-            tick.impactOccurred(intensity: opens ? 1 : 0.7)
-        }
         apply()
     }
 
@@ -180,7 +160,6 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
                 self.progress = end
                 self.apply()
             } completion: { _ in
-                if end == 1, !self.landed { self.thud.impactOccurred(intensity: 1) }
                 self.arrived()
             }
             return
@@ -208,12 +187,10 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
             velocity += (-stiffness * (progress - target) - friction * velocity) * h
             progress += velocity * h
         }
-        // The soft knock of the sheet arriving: the moment it gets there, and
-        // from then on the tabs answer a touch, not only once the spring's
-        // last quarter-second of settling is over.
+        // The tabs answer a touch once the sheet reaches its open position,
+        // before the last part of the spring settles.
         if target == 1, !landed, progress >= 0.99 {
             landed = true
-            thud.impactOccurred(intensity: 1)
             content.view.isUserInteractionEnabled = true
         }
         if abs(progress - target) < 0.0005, abs(velocity) < 0.005 {
@@ -232,9 +209,6 @@ final class TabSheet: UIViewController, UIGestureRecognizerDelegate {
     }
 
     private func arrived() {
-        // Back in the bar after a drag or a throw: a lighter knock than opening's.
-        if target == 0, wasDragged { sink.impactOccurred(intensity: 0.8) }
-        wasDragged = false
         if target == 1 {
             content.view.isUserInteractionEnabled = true
             UIAccessibility.post(notification: .screenChanged, argument: content.view)

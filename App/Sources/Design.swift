@@ -33,7 +33,7 @@ enum Palette {
         static let ground = pair(1.0, 0.11)
         static let ink = pair(0.09, 0.93)
         // 4.5:1 on white, the least for text under 18 points (0.55 was 3.4:1).
-        static let muted = pair(0.46, 0.58)
+        static let muted = pair(0.40, 0.66)
         static let faint = pair(0.83, 0.32)
         static let hairline = pair(0.91, 0.20)
         static let wash = pair(0.937, 0.175)
@@ -70,13 +70,13 @@ enum Palette {
 
 enum Metrics {
     /// The row of tabs, and the address bar under it when it shows. Tall
-    /// enough for 40-point hit areas with room above and below.
-    static let bar: CGFloat = 44
+    /// enough for nonoverlapping 44-point touch areas with room above and below.
+    static var bar: CGFloat { max(56, UIFontMetrics(forTextStyle: .subheadline).scaledValue(for: 44) + 12) }
     static let corner: CGFloat = 8
     /// What a control on a bar draws, and the area that answers a touch or
-    /// a click, which is never smaller than 40 points a side.
+    /// a click, which is never smaller than 44 points a side.
     static let control: CGFloat = 32
-    static let target: CGFloat = 40
+    static let target: CGFloat = 44
     /// The ring between the two, where a click answers but nothing is drawn.
     static let ring: CGFloat = (target - control) / 2
 }
@@ -89,13 +89,16 @@ enum BarScale {
     case thumb
 
     /// The address's height.
-    var control: CGFloat { self == .thumb ? 44 : Metrics.control }
+    var control: CGFloat {
+        self == .thumb ? max(44, UIFontMetrics(forTextStyle: .body).scaledValue(for: 32) + 12)
+            : max(32, UIFontMetrics(forTextStyle: .subheadline).scaledValue(for: 24) + 8)
+    }
     /// The area that answers: the drawn height, never under 40.
     var target: CGFloat { max(control, Metrics.target) }
     var text: CGFloat { self == .thumb ? 16 : 13 }
     var icon: CGFloat { self == .thumb ? 18 : 16 }
     /// The star's, reload's and clear's width.
-    var button: CGFloat { self == .thumb ? 44 : 30 }
+    var button: CGFloat { 44 }
     /// From the capsule's end to the icon's slot: a thumb-sized capsule's
     /// end curves further in.
     var lead: CGFloat { self == .thumb ? 8 : TabFace.lead }
@@ -136,17 +139,23 @@ extension SpaceColor {
         Color(uiColor: uiColor)
     }
 
-    /// Words on the colour: dark on the light ones, white on the rest.
+    /// Resolve the actual light/dark system colour before choosing its contrasting ink.
     var ink: Color {
         Color(uiColor: uiInk)
     }
 
     var uiInk: UIColor {
-        self == .yellow ? UIColor.black.withAlphaComponent(0.85) : .white
+        UIColor { traits in
+            let background = self.uiColor.resolvedColor(with: traits)
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            guard background.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return .label }
+            let colour = SiteColor(red: Double(red), green: Double(green), blue: Double(blue))
+            return colour.isDark ? .white : .black
+        }
     }
 
     var name: String {
-        rawValue.capitalized
+        BrowserText.localized(rawValue.capitalized)
     }
 }
 
@@ -248,10 +257,13 @@ extension Animation {
 /// A press that shows: the control gives a little, to 0.96, while held.
 /// Quick going down, so a short tap shows it at all; back up as the bars move.
 struct PressScale: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(configuration.isPressed ? .spring(duration: 0.12, bounce: 0) : .bar, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .opacity(configuration.isPressed && reduceMotion ? 0.7 : 1)
+            .animation(reduceMotion ? .easeOut(duration: 0.15) : configuration.isPressed ? .spring(duration: 0.12, bounce: 0) : .bar, value: configuration.isPressed)
     }
 }
 

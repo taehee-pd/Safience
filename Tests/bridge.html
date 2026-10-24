@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="description" content="Synthetic account B description that must stay out of unbound messages">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bridge tests</title>
 <link rel="icon" href="icon-16.png" sizes="16x16">
@@ -122,6 +123,9 @@
   const styles = Array.from(document.querySelectorAll('style')).map((s) => s.textContent).join('\n');
   check('the stylesheet is added', styles.includes('--safience-test'));
   check('hello names the adapter', __messages.some((m) => m.kind === 'hello' && m.adapter === 'test'));
+  await wait(350);
+  check('history descriptions never leave the bridge as unbound document messages',
+    !__messages.some((m) => m.kind === 'about' || (m.text || '').includes('Synthetic account B description')));
 
   // A canvas app, as Figma is: it takes every wheel, zooms on ctrl, pans
   // otherwise, and zooms by e^(-deltaY/100), Chrome's pinch convention.
@@ -428,7 +432,14 @@
   bridge.pointer(Object.assign({ type: 'context' }, middle(press)));
   check('two fingers are the right button, and a context menu', pressLog.some((l) => l.startsWith('contextmenu:1:2')) &&
     pressLog.some((l) => l.startsWith('mousedown:1:2')) && !pressLog.some((l) => l.startsWith('click')), pressLog.join());
+  check('a secondary click without a site menu reports no menu to the app',
+    __messages.filter((m) => m.kind === 'context').at(-1)?.kept === false);
   const stop = (e) => e.preventDefault();
+  press.addEventListener('contextmenu', stop);
+  outcome = bridge.pointer(Object.assign({ type: 'context' }, middle(press)));
+  check('a site menu reports handled secondary click to the app', outcome === 'handled' &&
+    __messages.filter((m) => m.kind === 'context').at(-1)?.kept === true);
+  press.removeEventListener('contextmenu', stop);
   press.addEventListener('pointerdown', stop);
   pressLog.length = 0;
   outcome = bridge.pointer(Object.assign({ type: 'click', detail: 1 }, middle(press)));
@@ -551,6 +562,23 @@
   check('read-only content alone does not hold the page', hasDraft() === false);
   draft.remove();
 
+  // A canvas can hold unsaved work only in private JavaScript state. Even
+  // a blank or hidden canvas is unknown, so neither probe may release it.
+  const drawing = document.createElement('canvas');
+  document.body.appendChild(drawing);
+  check('a blank canvas stays live because its saved state is unknown', hasDraft() === true);
+  const privateDrawing = { points: [[2, 3], [5, 8]], saved: false };
+  const context = drawing.getContext('2d');
+  context.fillStyle = '#123456';
+  context.fillRect(...privateDrawing.points[0], 4, 4);
+  const pixels = drawing.toDataURL();
+  check('a canvas-only draft stays live without changing its pixels or private state',
+    hasDraft() === true && drawing.toDataURL() === pixels && privateDrawing.saved === false);
+  drawing.hidden = true;
+  check('a hidden canvas-only draft stays live', hasDraft() === true);
+  drawing.remove();
+  check('removing the canvas makes the page eligible again', hasDraft() === false);
+
   const draftHost = document.createElement('div');
   document.body.appendChild(draftHost);
   const draftRoot = draftHost.attachShadow({ mode: 'open' });
@@ -573,6 +601,8 @@
   check('a hidden shadow editor keeps its rich content', hasDraft() === true && shadowDraft.textContent === 'Shadow draft');
   shadowDraft.contentEditable = 'false';
   check('a read-only shadow editor does not hold the page', hasDraft() === false);
+  nestedRoot.appendChild(document.createElement('canvas'));
+  check('a hidden canvas inside nested open shadow roots stays live', hasDraft() === true);
   draftHost.remove();
 
   const frameDocument = document.getElementById('frame').contentDocument;
@@ -594,6 +624,10 @@
   check('a designMode document in a same-origin frame stays live', hasDraft() === true);
   frameDocument.designMode = 'off';
   check('removing editors makes the page eligible again', hasDraft() === false);
+  const frameCanvas = frameDocument.createElement('canvas');
+  frameDocument.body.appendChild(frameCanvas);
+  check('a canvas in a same-origin frame stays live', hasDraft() === true);
+  frameCanvas.remove();
 
   const opaqueFrame = document.createElement('iframe');
   opaqueFrame.setAttribute('sandbox', '');

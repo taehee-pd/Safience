@@ -388,16 +388,50 @@ final class SyncCRDTTests: XCTestCase {
         }
     }
 
-    func testALastSpaceRemovedElsewhereStaysWithoutWhatWasRemoved() {
+    func testRemoteDeletionOfTheLastSpaceCreatesAFreshReplacementBeforeCleanup() throws {
         let pin = TabRecord(url: URL(string: "https://mail.example")!, title: "Mail", pinned: URL(string: "https://mail.example")!)
-        var space = Space(name: "Work", symbol: "briefcase", tabs: [pin, TabRecord(url: URL(string: "https://news.example")!)],
+        var space = Space(name: "Client", symbol: "briefcase", tabs: [pin],
                           bookmarks: [Bookmark(title: "Docs", url: URL(string: "https://docs.example")!)])
         space.cloudID = UUID()
-        SyncPlan.keepAsNew(&space)
-        XCTAssertNil(space.cloudID, "a new space, to get a new iCloud id")
-        XCTAssertTrue(space.bookmarks.isEmpty, "its bookmarks were removed with it")
-        XCTAssertEqual(space.tabs.count, 2, "open tabs stay open")
-        XCTAssertFalse(space.tabs.contains(where: \.isPinned), "but none pinned")
+        var workspace = Workspace(spaces: [space])
+        let cloud = try XCTUnwrap(space.cloudID?.uuidString)
+        let applied = SyncPlan.apply(SyncMirror(), to: &workspace, deleted: [cloud])
+        XCTAssertEqual(applied.removedSpaces, [space.id])
+        let replacement = try XCTUnwrap(applied.replacementSpace)
+        XCTAssertNotEqual(replacement, space.id)
+        XCTAssertNotEqual(workspace.space(replacement)?.tabs.first?.id, pin.id)
+        XCTAssertTrue(workspace.space(replacement)?.bookmarks.isEmpty == true)
+        XCTAssertNil(workspace.space(replacement)?.cloudID)
+        XCTAssertTrue(workspace.space(replacement)?.tabs.allSatisfy { $0.url == nil && !$0.isPinned } == true)
+        XCTAssertNil(SyncPlan.apply(SyncMirror(), to: &workspace, deleted: [cloud]).replacementSpace,
+                     "replayed delivery must not make another replacement")
+        XCTAssertTrue(workspace.removeSpace(space.id), "ordinary app cleanup can now remove the old identity")
+        XCTAssertNil(workspace.space(space.id))
+        XCTAssertEqual(workspace.spaces.map(\.id), [replacement])
+        XCTAssertTrue(SyncPlan.apply(SyncMirror(), to: &workspace, deleted: [cloud]).removedSpaces.isEmpty)
+        XCTAssertTrue(SyncPlan.records(of: workspace, keeping: SyncMirror()).spaces[cloud] == nil,
+                      "the removed identity is never republished")
+    }
+
+    func testOfflineRejoinCleansAllDeletedSpacesBeforeAssigningNewCloudIdentities() throws {
+        var workspace = Workspace.starting()
+        workspace.spaces[0].cloudID = UUID()
+        let second = workspace.addSpace(named: "Second")
+        let secondIndex = try XCTUnwrap(workspace.spaces.firstIndex { $0.id == second })
+        workspace.spaces[secondIndex].cloudID = UUID()
+        let oldIDs = Set(workspace.spaces.map(\.id))
+        let deleted = Set(workspace.spaces.compactMap { $0.cloudID?.uuidString })
+        let removals = SyncPlan.apply(SyncMirror(), to: &workspace, deleted: deleted)
+        XCTAssertEqual(Set(removals.removedSpaces), oldIDs)
+        let replacement = try XCTUnwrap(removals.replacementSpace)
+        for id in removals.removedSpaces { XCTAssertTrue(workspace.removeSpace(id)) }
+        var remote = SyncMirror()
+        for _ in 0..<3 {
+            remote = SyncPlan.join(&workspace, remote: remote)
+            XCTAssertTrue(SyncPlan.apply(SyncMirror(), to: &workspace, deleted: deleted).removedSpaces.isEmpty)
+        }
+        XCTAssertEqual(workspace.spaces.map(\.id), [replacement])
+        XCTAssertTrue(deleted.isDisjoint(with: remote.spaces.keys), "offline deletion cannot be republished during rejoin")
     }
 
     func testStampingTouchesOnlyWhatChanged() {

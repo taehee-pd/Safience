@@ -263,6 +263,7 @@ final class WindowModel: ObservableObject, PageHost {
         }
         for new in now where !lastOnScreen.contains(where: { $0 === new }) {
             new.cameOnScreen()
+            new.reviewPendingDialog()
         }
         lastOnScreen = now
     }
@@ -277,13 +278,13 @@ final class WindowModel: ObservableObject, PageHost {
     func refresh() {
         let record = tab
         let view = page?.view
-        url = view?.url ?? record?.url
+        url = page?.displayURL ?? record?.url
         title = view?.title.flatMap { $0.isEmpty ? nil : $0 } ?? record?.label ?? ""
         loading = view?.isLoading ?? false
         progress = view?.estimatedProgress ?? 0
         canGoBack = view?.canGoBack ?? false
         canGoForward = view?.canGoForward ?? false
-        secure = view.map { $0.hasOnlySecureContent } ?? (url?.scheme == "https")
+        secure = page?.failure == nil && url?.scheme == "https" && (view?.hasOnlySecureContent ?? true)
         failure = page?.failure
         window?.title = record == nil ? (space?.name ?? "Safience") : title
     }
@@ -418,7 +419,7 @@ final class WindowModel: ObservableObject, PageHost {
     /// Both tabs of the split close.
     func closeSplit() {
         guard let tab = tabID, let other = partner?.tab else { return }
-        withAnimation(.bar) { Session.shared.closeTabs([other, tab]) }
+        requestCloseTabs([other, tab])
     }
 
     /// With two pages up, a click in the one without the keys gives it them,
@@ -520,10 +521,7 @@ final class WindowModel: ObservableObject, PageHost {
     // MARK: Tabs
 
     func closeTab(_ id: UUID? = nil) {
-        guard let id = id ?? tabID else {
-            window?.performClose(nil)
-            return
-        }
+        guard let id = id ?? tabID else { return }
         withAnimation(.bar) { Session.shared.closeTab(id) }
         focusPage()
     }
@@ -531,7 +529,41 @@ final class WindowModel: ObservableObject, PageHost {
     /// Arc's Clear: every tab of the space that isn't pinned.
     func clearTabs() {
         let ids = space?.tabs.filter { !$0.isPinned }.map(\.id) ?? []
-        withAnimation(.bar) { Session.shared.closeTabs(ids) }
+        requestCloseTabs(ids)
+    }
+
+    func requestCloseTabs(_ ids: [UUID]) {
+        let plan = TabClosePlan(workspace: Session.shared.workspace, requested: ids)
+        guard !plan.ids.isEmpty else { return }
+        guard plan.needsConfirmation else { Session.shared.closeTabs(plan.ids); return }
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = plan.title
+        alert.informativeText = plan.message
+        alert.addButton(withTitle: plan.actionTitle)
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { answer in
+            if answer == .alertFirstButtonReturn { Session.shared.closeTabs(plan.ids) }
+        }
+    }
+
+    func resetPinnedTab(_ id: UUID) {
+        guard Session.shared.workspace.tab(id)?.isPinned == true, let window else { return }
+        let alert = NSAlert()
+        alert.messageText = BrowserText.localized("Reset Pinned Tab?")
+        alert.informativeText = BrowserText.localized("This discards the page's unsaved changes and reloads its pinned address. The pinned shortcut stays.")
+        alert.addButton(withTitle: BrowserText.localized("Reset Pinned Tab"))
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        alert.beginSheetModal(for: window) { [weak self] answer in
+            guard answer == .alertFirstButtonReturn else { return }
+            let session = Session.shared
+            guard session.change({ $0.resetPinnedTab(id) }) else { return }
+            if let live = session.pages.live[id], let url = session.workspace.tab(id)?.pinned { live.load(url) }
+            else { session.pages.close(id) }
+            self?.focusPage()
+        }
     }
 
     func reopenTab() {
@@ -596,25 +628,34 @@ final class WindowModel: ObservableObject, PageHost {
     }
 
     func move(_ id: UUID, to space: UUID) {
-        withAnimation(.bar) { Session.shared.moveTab(id, to: space) }
+        Session.shared.moveTab(id, to: space, from: self)
     }
 
-    /// A tab dragged to another place in the sidebar: among the pinned
-    /// tabs, pinning it, or among the others, unpinning it; before `target`,
-    /// or at the end of its part of the row. A tab from another space (or
-    /// another window's) comes to this one first.
+    /// Same-space drops reorder immediately; cross-space drops wait for an explicit choice.
     func place(_ id: UUID, pinned: Bool, before target: UUID?) {
         let session = Session.shared
-        guard let from = session.workspace.spaceID(of: id) else { return }
+        let destination = spaceID
+        guard let from = session.workspace.spaceID(of: id),
+              target.map({ session.workspace.spaceID(of: $0) == destination }) ?? true else { return }
+        if from != destination {
+            session.moveTab(id, to: destination, from: self, before: target) { [weak self] moved in
+                guard let self, let moved, self.spaceID == destination else { return }
+                self.placeMovedTab(moved, pinned: pinned, before: target, in: destination)
+            }
+        } else {
+            placeMovedTab(id, pinned: pinned, before: target, in: destination)
+        }
+    }
+
+    private func placeMovedTab(_ id: UUID, pinned: Bool, before target: UUID?, in destination: UUID) {
+        let session = Session.shared
+        guard session.workspace.spaceID(of: id) == destination,
+              target.map({ session.workspace.spaceID(of: $0) == destination }) ?? true else { return }
         withAnimation(.bar) {
-            if from != spaceID { session.moveTab(id, to: spaceID) }
             session.change { workspace in
                 guard let isPinned = workspace.tab(id)?.isPinned else { return }
-                // A tab that has gone nowhere has no address to pin.
                 if pinned != isPinned, !(pinned ? workspace.pin(id) : workspace.unpin(id)) { return }
-                guard let tabs = workspace.space(spaceID)?.tabs else { return }
-                // Dropped before itself: it stays where it is.
-                guard target != id else { return }
+                guard let tabs = workspace.space(destination)?.tabs, target != id else { return }
                 let others = tabs.filter { $0.id != id }
                 let index = target.flatMap { t in others.firstIndex { $0.id == t } }
                     ?? (pinned ? others.filter(\.isPinned).count : others.count)
@@ -832,7 +873,9 @@ final class WindowModel: ObservableObject, PageHost {
         case .share: pageActionsShown = true
         case .copyLink: copyLink()
         case .splitTab: if split != nil { separate() } else { splitWithNewTab() }
-        case .diagnostics, .siteMode, .importBookmarks, .linkMenu: break
+        case .importBookmarks:
+            if let window { Session.shared.chooseBookmarksFile(into: spaceID, in: window) }
+        case .diagnostics, .siteMode, .linkMenu: break
         }
     }
 
@@ -860,10 +903,10 @@ final class WindowModel: ObservableObject, PageHost {
         case .previousSpace: return "⌥⌘←"
         case .newWindow: return "⌘N"
         case .closeWindow: return "⇧⌘W"
-        case .tabBar: return "⌘S"
+        case .tabBar: return "⌃⌘S"
         case .settings: return "⌘,"
-        case .pinTab: return "⌘D"
-        case .bookmark: return "⇧⌘D"
+        case .pinTab: return "⇧⌘D"
+        case .bookmark: return "⌘D"
         case .find: return "⌘F"
         case .history: return "⌘Y"
         case .copyLink: return "⇧⌘C"
@@ -902,6 +945,7 @@ final class WindowModel: ObservableObject, PageHost {
 
     func isShowing(_ page: Page) -> Bool {
         (page === self.page || page === partner) && window?.isVisible == true
+            && page.view.window === window && !page.view.isHiddenOrHasHiddenAncestor
     }
 
     func page(_ page: Page, open configuration: WKWebViewConfiguration, for action: WKNavigationAction,

@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "사용 중인 사이트에서 화상 통화 등의 용도로 카메라 사용을 요청합니다.";
+"NSMicrophoneUsageDescription" = "사용 중인 사이트에서 통화 등의 용도로 마이크 사용을 요청합니다.";
+"NSPhotoLibraryAddUsageDescription" = "페이지에서 선택한 사진을 사진 앱에 저장합니다.";

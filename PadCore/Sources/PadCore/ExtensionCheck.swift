@@ -323,3 +323,59 @@ public struct ExtensionVerdict: Equatable, Sendable {
         }
     }
 }
+
+/// A failed start applies only to the runtime that actually tried it.
+/// Legacy version-only markers cannot establish failure on a newer engine.
+public struct ExtensionCheckEnvironment: Equatable, Sendable {
+    public var system: String
+    public var application: String
+    public var shim: String
+
+    public init(system: String, application: String, shim: String) {
+        self.system = system
+        self.application = application
+        self.shim = shim
+    }
+
+    public func stamp(for version: String) -> String {
+        [version, system, application, shim].joined(separator: "|")
+    }
+
+    public func currentFailures(_ failures: [String: String], installed: [String: String]) -> [String: String] {
+        failures.filter { id, held in installed[id].map { held == stamp(for: $0) } ?? false }
+    }
+}
+
+/// WebKit's error array retains and consolidates old errors. Its historical
+/// failure can request one restart, but only that restart's own failed
+/// completion establishes repeated failure. Deferred attempts prove nothing.
+public struct ExtensionWorkerRecovery: Sendable {
+    public enum Action: Equatable, Sendable { case ignore, restart, incompatible }
+    public private(set) var attempt: UUID?
+    private var sawHistoricalFailure = false
+    private var restarting = false
+    private var completed = false
+
+    public init() {}
+
+    public mutating func beganAttempt(restarting: Bool) -> UUID {
+        let token = UUID()
+        attempt = token
+        self.restarting = restarting
+        completed = false
+        return token
+    }
+
+    public mutating func noticedHistoricalFailure() -> Action {
+        guard !sawHistoricalFailure else { return .ignore }
+        sawHistoricalFailure = true
+        return restarting ? .ignore : .restart
+    }
+
+    public mutating func finished(_ token: UUID, failed: Bool) -> Action {
+        guard token == attempt, !completed else { return .ignore }
+        completed = true
+        guard failed else { return .ignore }
+        return restarting ? .incompatible : noticedHistoricalFailure()
+    }
+}

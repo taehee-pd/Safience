@@ -756,6 +756,13 @@
         if (message.__safienceCall) {
           if (!background) { setTimeout(silent, 15000); return answer; }
           const { space, method, args } = message.__safienceCall;
+          // Language detection accepts supplied text only. Content scripts may
+          // use it without gaining access to any page, tab or native API.
+          if (space === "i18n" && method === "detectLanguage") {
+            Promise.resolve().then(() => native("i18n.detectLanguage", args))
+              .then((value) => respond({ value }), (e) => respond({ error: String(e && e.message || e) }));
+            return answer;
+          }
           const own = (() => { try { return new URL(sender.url).origin === location.origin; } catch (e) { return false; } })();
           if (!own) { respond({ error: "chrome." + space + " isn't available to content scripts" }); return answer; }
           if (space === "tabs" && method === "getCurrent") { respond({ value: sender.tab }); return answer; }
@@ -972,6 +979,27 @@
     // gathered too, only when listened to.
     gather(rt && rt.onMessage, ns === chrome, true);
     gather(rt && rt.onMessageExternal, ns === chrome, false);
+  }
+
+  // Google Translate uses this API in its worker, popup and content script.
+  // WebKit exposes i18n without detectLanguage. The native answer performs
+  // bounded on-device language recognition and receives only this string.
+  if (chrome.i18n && typeof chrome.i18n.detectLanguage !== "function") {
+    const detect = (text, callback) => {
+      const answer = (async () => {
+        if (typeof text !== "string") throw new TypeError("i18n.detectLanguage requires a string");
+        if (!inContent && !embedded) return native("i18n.detectLanguage", [text]);
+        const reply = await runtime.sendMessage({ __safienceCall: { space: "i18n", method: "detectLanguage", args: [text] } });
+        if (!reply) throw new Error("i18n.detectLanguage had no answer from the extension's background");
+        if (reply.error) throw new Error(reply.error);
+        return reply.value;
+      })();
+      if (typeof callback !== "function") return answer;
+      answer.then((value) => callback(value), (error) => withLastError(error, callback));
+    };
+    put(chrome.i18n, "detectLanguage", detect);
+    if (root.browser && root.browser !== chrome && root.browser.i18n
+        && typeof root.browser.i18n.detectLanguage !== "function") put(root.browser.i18n, "detectLanguage", detect);
   }
 
   if (inContent) {

@@ -551,9 +551,26 @@ public enum Autocomplete {
 
     // MARK: Asking the engine
 
-    /// Where the engine's suggestions for `typed` come from; nil when it
-    /// offers none, or when `typed` is an address: an address typed goes
-    /// nowhere but where it is sent.
+    /// The current provider can receive partial typing only after explicit consent.
+    public static func suggestionsURL(for typed: String, preferences: Preferences) -> URL? {
+        guard preferences.allowsRemoteSuggestions(for: preferences.engine) else { return nil }
+        return suggestionsURL(for: typed, engine: preferences.engine)
+    }
+
+    public static func offersSuggestions(engine: String) -> Bool {
+        (Engine(rawValue: engine) ?? Engine.standard).suggestions != nil
+    }
+
+    public static func suggestionsDisclosure(engine: String) -> String {
+        let provider = engineName(engine)
+        guard offersSuggestions(engine: engine) else {
+            return "\(provider) does not provide remote suggestions in Safience. Tabs, bookmarks and history are still suggested on this device."
+        }
+        return "When turned on, \(provider) receives partial text typed into the address bar, including text that later becomes a private address. Requests omit cookies; the provider can still receive your IP address. Tabs, bookmarks and history are still suggested on this device when this is off."
+    }
+
+    /// Builds a provider endpoint for non-address text. A partial private
+    /// address can look like search words; callers must enforce consent.
     public static func suggestionsURL(for typed: String, engine: String) -> URL? {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= 100, Address.url(from: text) == nil,

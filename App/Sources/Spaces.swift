@@ -6,6 +6,7 @@ import SwiftUI
 /// sheet, and from Settings › Spaces.
 struct SpaceEditor: View {
     @ObservedObject var session: Session
+    @ObservedObject private var sync = Sync.shared
     let spaceID: UUID
     /// Given when shown as a sheet of its own.
     var done: (() -> Void)?
@@ -26,11 +27,15 @@ struct SpaceEditor: View {
                             .background(space.color.color, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .animation(.bar, value: space.color)
                         TextField("Name", text: $name)
-                            .font(.system(size: 17, weight: .medium))
+                            .font(.body.weight(.medium))
                             .submitLabel(.done)
                             .onSubmit(save)
                     }
                     .padding(.vertical, 2)
+                    if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("Enter a name. This space is still named \(space.name) until a valid name is entered.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Colour") {
@@ -49,7 +54,7 @@ struct SpaceEditor: View {
                     Section {
                         Button("Remove Space…", role: .destructive) { confirming = true }
                     } footer: {
-                        Text("Its tabs close, and its sign-ins and its bookmarks are erased.")
+                        Text(sync.spaceRemovalDescription(space))
                     }
                 }
             }
@@ -63,6 +68,7 @@ struct SpaceEditor: View {
                         save()
                         done()
                     }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -74,7 +80,7 @@ struct SpaceEditor: View {
                 if let done { done() } else { dismiss() }
             }
         } message: {
-            Text("Its \(space?.tabs.count ?? 0) tabs close, and its sign-ins and bookmarks are erased from this \(Device.name).")
+            if let space { Text(sync.spaceRemovalDescription(space)) }
         }
     }
 
@@ -146,7 +152,7 @@ struct IconGrid: View {
                         .animation(.bar, value: chosen)
                 }
                 .buttonStyle(PressScale())
-                .accessibilityLabel(symbol.replacingOccurrences(of: ".", with: " "))
+                .accessibilityLabel(SpaceIconNames.label(for: symbol))
                 .accessibilityAddTraits(chosen ? .isSelected : [])
             }
         }
@@ -154,10 +160,31 @@ struct IconGrid: View {
     }
 }
 
+private enum SpaceIconNames {
+    static func label(for symbol: String) -> String {
+        let labels = [
+            "briefcase": "Briefcase", "paintpalette": "Paint Palette", "building.2": "Office Buildings",
+            "person.2": "People", "sparkles": "Sparkles", "lightbulb": "Light Bulb", "hammer": "Hammer",
+            "book": "Book", "house": "House", "heart": "Heart", "leaf": "Leaf", "star": "Star",
+            "folder": "Folder", "doc.text": "Document", "pencil.and.ruler": "Pencil and Ruler",
+            "paintbrush": "Paintbrush", "camera": "Camera", "film": "Film", "music.note": "Music",
+            "gamecontroller": "Game Controller", "cart": "Shopping Cart", "creditcard": "Payment Card",
+            "chart.bar": "Bar Chart", "globe": "Globe", "airplane": "Airplane", "graduationcap": "Graduation Cap",
+            "flame": "Flame", "bolt": "Lightning Bolt", "cloud": "Cloud", "moon": "Moon", "sun.max": "Sun",
+            "flag": "Flag", "tag": "Tag", "bell": "Bell", "gift": "Gift", "cup.and.saucer": "Coffee Cup",
+            "laptopcomputer": "Laptop", "wrench.and.screwdriver": "Tools", "cube": "Cube",
+            "puzzlepiece": "Puzzle Piece", "mountain.2": "Mountains", "pawprint": "Paw Print"
+        ]
+        return BrowserText.localized(labels[symbol] ?? "Space Icon")
+    }
+}
+
 /// Settings › Spaces: every space, in the order ⌃⌥↑ and ⌃⌥↓ step through,
 /// to reorder (Edit) and to open.
 struct SpaceList: View {
     @ObservedObject var session: Session
+    @State private var creating = false
+    @State private var newName = ""
 
     var body: some View {
         List {
@@ -188,7 +215,21 @@ struct SpaceList: View {
             }
         }
         .navigationTitle("Spaces")
-        .toolbar { EditButton() }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { Button("New Space", systemImage: "plus") { creating = true } }
+            ToolbarItem(placement: .secondaryAction) { EditButton() }
+        }
+        .alert("New Space", isPresented: $creating) {
+            TextField("Space Name", text: $newName)
+            Button("Create") {
+                session.change { $0.addSpace(named: newName) }
+                newName = ""
+            }
+            .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) { newName = "" }
+        } message: {
+            Text("Give each client or account a separate space for its sign-ins, tabs and bookmarks.")
+        }
     }
 }
 

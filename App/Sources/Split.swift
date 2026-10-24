@@ -15,13 +15,17 @@ final class SplitDivider: UIView {
     var moved: ((CGFloat) -> Void)?
     var ended: (() -> Void)?
     var centered: (() -> Void)?
+    var adjusted: ((Int) -> Void)?
+    var ratio = 0.5 {
+        didSet { accessibilityValue = "Left page \(Int(ratio * 100)) percent" }
+    }
 
     private let grip = UIView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
-        grip.backgroundColor = Palette.UI.faint
+        grip.backgroundColor = Palette.UI.muted
         grip.layer.cornerCurve = .continuous
         grip.isUserInteractionEnabled = false
         addSubview(grip)
@@ -35,6 +39,7 @@ final class SplitDivider: UIView {
         addGestureRecognizer(UIHoverGestureRecognizer(target: self, action: #selector(hovered(_:))))
         isAccessibilityElement = true
         accessibilityLabel = "Split divider"
+        accessibilityTraits = .adjustable
         accessibilityHint = "Double-tap to make the two pages even"
         isHidden = true
     }
@@ -65,7 +70,7 @@ final class SplitDivider: UIView {
         guard state != shown else { return }
         shown = state
         let change = {
-            self.grip.backgroundColor = state == .rest ? Palette.UI.faint : Palette.UI.muted
+            self.grip.backgroundColor = Palette.UI.muted
             self.setNeedsLayout()
             self.layoutIfNeeded()
         }
@@ -104,7 +109,7 @@ final class SplitDivider: UIView {
     /// The gap is narrow for a finger: ten points into each page take the
     /// drag too, at their very edges.
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        bounds.insetBy(dx: -10, dy: 0).contains(point)
+        bounds.insetBy(dx: -(44 - bounds.width) / 2, dy: 0).contains(point)
     }
 
     @objc private func dragged(_ pan: UIPanGestureRecognizer) {
@@ -133,6 +138,9 @@ final class SplitDivider: UIView {
         centered?()
         return true
     }
+
+    override func accessibilityIncrement() { adjusted?(1) }
+    override func accessibilityDecrement() { adjusted?(-1) }
 }
 
 /// Where a tab dragged from the row along the top or the sidebar can go on

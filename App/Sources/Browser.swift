@@ -136,6 +136,10 @@ final class WindowModel {
     /// A tab of the row along the top or of the sidebar, while it is
     /// dragged (iOS 27): the page shows where it can go beside it (SplitDrop).
     var draggedTab: UUID?
+    /// The split exists but the window is too narrow to show both pages.
+    var narrowSplit = false
+    var pendingPageDialog = false
+    var refusedExternalLink = false
     /// The space's bookmarks are out over the sidebar's list, as a popover
     /// is (SideBookmarksPanel), till one is chosen or they are put away.
     var bookmarksOpen = false
@@ -297,6 +301,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var empty: UIHostingController<EmptySpace>?
     private var start: UIHostingController<StartPage>?
     private var diagnostics: UIHostingController<DiagnosticsView>?
+    private var pendingBookmarkImport: BookmarkImportOutcome?
     /// The hinge, heard while the diagnostics panel shows (iPhone Duo).
     private var hingeWatch: UIInteraction?
     /// The address bar's suggestions on a phone, over the bar
@@ -317,6 +322,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     private var commandBar: UIHostingController<CommandBar>?
     private var commandBarTop: NSLayoutConstraint?
     private var commandBarShown = false
+    private weak var addressDismissTap: UITapGestureRecognizer?
+    private var topBarHeight: NSLayoutConstraint?
+    private var addressBarHeight: NSLayoutConstraint?
+    private var bookmarksBarHeight: NSLayoutConstraint?
     /// The new tab the command bar is open for (⌘T, +) and the tab it was
     /// opened from, until typing ends: the new tab goes again if the row
     /// taken wasn't an address for it (leave).
@@ -389,6 +398,12 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
             .sink { [weak self] _ in self?.keyboardStarted() }
             .store(in: &subscriptions)
+        for notification in [UIAccessibility.voiceOverStatusDidChangeNotification, UIAccessibility.switchControlStatusDidChangeNotification] {
+            NotificationCenter.default.publisher(for: notification)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.desktopAccessibilityChanged() }
+                .store(in: &subscriptions)
+        }
         // A turn later, once the rows have changed rather than as they are about to.
         model.suggestions.$rows
             .receive(on: DispatchQueue.main)
@@ -407,7 +422,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         }
         // A window that turns phone-width (an iPhone, the Duo folding, a narrow
         // iPad window) moves its bars to the bottom, and back.
-        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _: UITraitCollection) in
+        registerForTraitChanges([UITraitHorizontalSizeClass.self, UITraitPreferredContentSizeCategory.self]) { (self: Self, _: UITraitCollection) in
+            self.topBarHeight?.constant = Metrics.bar
+            self.addressBarHeight?.constant = Metrics.bar
+            self.bookmarksBarHeight?.constant = BookmarksStrip.height
+            self.shownLayout = nil
             self.refreshChrome()
         }
         // And one that gains or loses the iPhone Duo's vertical bar, or has it on the other side.
@@ -422,6 +441,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         resumeWelcomeIfNeeded()
+        if let pendingBookmarkImport { showBookmarkImport(pendingBookmarkImport) }
     }
 
     /// Only one window welcomes, however many open at a first launch.
@@ -430,19 +450,24 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     /// The first launch's welcome (Welcome.swift), over the first window. It
     /// can't be swiped away by accident; Skip and its last button end it.
     func resumeWelcomeIfNeeded() {
+        if !Session.shared.needsWelcome { page?.reviewPendingDialog() }
         guard connected, Session.shared.needsWelcome, Browser.welcomeOwner == nil,
               viewIfLoaded?.window?.windowScene?.activationState == .foregroundActive,
               presentedViewController == nil else { return }
         Browser.welcomeOwner = self
         let welcome = UIHostingController(rootView: Welcome(session: Session.shared, spaceID: model.spaceID) { [weak self] in
             guard let self, Browser.welcomeOwner === self else { return }
-            Session.shared.finishWelcome()
-            self.dismiss(animated: true) { [weak self] in
+            Task { [weak self] in
                 guard let self else { return }
-                if Browser.welcomeOwner === self { Browser.welcomeOwner = nil }
-                self.focusPage()
+                guard await Session.shared.finishWelcome(), Browser.welcomeOwner === self else { return }
+                self.dismiss(animated: true) { [weak self] in
+                    guard let self else { return }
+                    if Browser.welcomeOwner === self { Browser.welcomeOwner = nil }
+                    self.focusPage()
+                    self.page?.reviewPendingDialog()
+                }
             }
-        })
+        }.safeAreaInset(edge: .top, spacing: 0) { WorkspaceSaveStatusView() })
         welcome.modalPresentationStyle = .formSheet
         welcome.preferredContentSize = CGSize(width: 520, height: 680)
         welcome.isModalInPresentation = true
@@ -501,18 +526,31 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         side.view.isHidden = true
         chromeConstraints.pinSidebar(side.view, to: safe, stack: stack)
         sideTabs = side
+        let saveStatus = embed(WorkspaceSaveStatusView())
+        saveStatus.sizingOptions = .intrinsicContentSize
+        saveStatus.view.isHidden = session.persistence.state.failure == nil
+        session.persistence.$state.sink { [weak saveStatus] state in
+            saveStatus?.view.isHidden = state.failure == nil
+        }.store(in: &subscriptions)
         let top = embed(TopBar(session: session, window: model) { [weak self] in self?.act($0) })
-        top.view.heightAnchor.constraint(equalToConstant: Metrics.bar).isActive = true
+        topBarHeight = top.view.heightAnchor.constraint(equalToConstant: Metrics.bar)
+        topBarHeight?.isActive = true
         topBar = top
 
         let address = embed(AddressBar(session: session, window: model) { [weak self] in self?.act($0) })
-        address.view.heightAnchor.constraint(equalToConstant: Metrics.bar).isActive = true
+        addressBarHeight = address.view.heightAnchor.constraint(equalToConstant: Metrics.bar)
+        addressBarHeight?.isActive = true
         addressBar = address
 
         let strip = embed(BookmarksStrip(session: session, window: model) { [weak self] in self?.act($0) })
-        strip.view.heightAnchor.constraint(equalToConstant: BookmarksStrip.height).isActive = true
+        bookmarksBarHeight = strip.view.heightAnchor.constraint(equalToConstant: BookmarksStrip.height)
+        bookmarksBarHeight?.isActive = true
         strip.view.isHidden = true
         bookmarksStrip = strip
+
+        let splitStatus = embed(NarrowSplitControls(window: model) { [weak self] in self?.act($0) })
+        splitStatus.sizingOptions = .intrinsicContentSize
+        splitStatus.view.setContentHuggingPriority(.required, for: .vertical)
 
         let banner = embed(BannerBar(window: model) { [weak self] in self?.act($0) })
         banner.sizingOptions = .intrinsicContentSize
@@ -553,13 +591,15 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         phone.view.addGestureRecognizer(swipe)
         barSwipe = swipe
         // A touch on the page while an address is typed puts the typing
-        // away, as in Safari; the touch itself stays the page's.
+        // away, as in Safari, and is only that: it never also presses what
+        // is under it on the page (the command bar has its own Cancel).
         let away = UITapGestureRecognizer(target: self, action: #selector(touchedPage))
-        away.cancelsTouchesInView = false
+        away.cancelsTouchesInView = true
         away.delaysTouchesBegan = false
         away.delaysTouchesEnded = false
         away.delegate = self
         stage.addGestureRecognizer(away)
+        addressDismissTap = away
 
         // A click in the pane beside gives it the keys, and the bars.
         let landing = TouchDown(target: nil, action: nil)
@@ -606,6 +646,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         divider.centered = { [weak self] in
             guard let tab = self?.model.tabID else { return }
             Session.shared.change { $0.setSplitRatio(tab, to: 0.5) }
+        }
+        divider.adjusted = { [weak self] direction in
+            guard let self, let tab = model.tabID, let split = Session.shared.workspace.split(containing: tab) else { return }
+            Session.shared.change { $0.setSplitRatio(tab, to: split.ratio + Double(direction) * 0.1) }
+            layoutPanes()
         }
         stage.addSubview(divider)
         focusRing.isUserInteractionEnabled = false
@@ -754,7 +799,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             shownColour = colour
             traitOverrides.spaceColor = colour
         }
-        let url = page?.view.url ?? model.tabID.flatMap { session.workspace.tab($0)?.url }
+        let url = page?.displayURL ?? model.tabID.flatMap { session.workspace.tab($0)?.url }
+        model.set(\.pendingPageDialog, to: page?.hasPendingDialog ?? false)
+        model.set(\.refusedExternalLink, to: page?.refusedAppLink != nil)
         let signIn = page?.passwordField ?? false
         let failed = page?.failure != nil
         // Typing an address brings no bar out on iPad: it is typed in the
@@ -908,6 +955,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         let shows = model.editingAddress && !model.phone
         guard shows != commandBarShown else { return }
         commandBarShown = shows
+        bar.accessibilityViewIsModal = shows
+        for background in [stage, topBar?.view, addressBar?.view, sideTabs?.view, bookmarksStrip?.view].compactMap({ $0 }) {
+            background.accessibilityElementsHidden = shows
+        }
         if shows {
             // From where it is when it was still going (⌘T with the bar
             // already open puts it away and brings it back in one turn).
@@ -1095,9 +1146,10 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             hingeWatch = watch
         }
         let hud = UIHostingController(rootView: DiagnosticsView(page: { [weak self] in self?.page },
-                                                                window: { [weak self] in self?.view }))
+                                                                window: { [weak self] in self?.view },
+                                                                close: { Session.shared.preferences.diagnostics = false }))
         hud.view.backgroundColor = .clear
-        hud.view.isUserInteractionEnabled = false
+        hud.view.isUserInteractionEnabled = true
         hud.sizingOptions = .intrinsicContentSize
         addChild(hud)
         hud.view.translatesAutoresizingMaskIntoConstraints = false
@@ -1209,6 +1261,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     /// A touch or a click landed on the stage: in the pane beside, that pane
     /// gets the keys. The touch itself goes on to the page.
     private func landed(at point: CGPoint) {
+        guard !model.editingAddress else { return }
         guard let partner, !partner.view.isHidden, partner.view.frame.contains(point) else { return }
         show(tab: partner.tab, inSpace: model.spaceID)
     }
@@ -1271,6 +1324,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         var cards: [CGRect]?
         let split = model.tabID.flatMap { Session.shared.workspace.split(containing: $0) }
         let area = splitArea(in: bounds)
+        let narrow = split != nil && area.width < Self.splitWidth
+        if model.narrowSplit != narrow { model.narrowSplit = narrow }
+        if let split { divider.ratio = split.ratio }
         if let page, let partner, let split, split.contains(partner.tab), area.width >= Self.splitWidth {
             let (left, right) = halves(of: area, ratio: dragRatio ?? split.ratio)
             let onLeft = split.left == page.tab
@@ -1546,6 +1602,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         stage.insertSubview(page.view, at: 0)
         empty?.view.isHidden = true
         self.page = page
+        page.reviewPendingDialog()
         if thawed, let image = Session.shared.pages.picture(for: page.tab) {
             picture.image = image
             picture.alpha = 1
@@ -1626,13 +1683,13 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         let clear = page.standsClear && desktopPad?.page !== page && phoneCovered > 0
         if clear != laidClear { layoutPanes() }
         if laidClear { stage.backgroundColor = page.footColor?.uiColor ?? view.underPageBackgroundColor }
-        model.set(\.url, to: view.url ?? Session.shared.workspace.tab(page.tab)?.url)
+        model.set(\.url, to: page.displayURL ?? Session.shared.workspace.tab(page.tab)?.url)
         model.set(\.title, to: view.title ?? "")
         model.set(\.loading, to: view.isLoading)
         if model.load.fraction != view.estimatedProgress { model.load.fraction = view.estimatedProgress }
         model.set(\.canGoBack, to: view.canGoBack)
         model.set(\.canGoForward, to: view.canGoForward)
-        model.set(\.secure, to: view.hasOnlySecureContent)
+        model.set(\.secure, to: page.failure == nil && page.displayURL?.scheme?.lowercased() == "https" && view.hasOnlySecureContent)
         model.set(\.signIn, to: page.isSignIn)
         model.set(\.siteColor, to: page.siteColor)
         model.set(\.mobileSite, to: page.mode == .mobile)
@@ -1655,7 +1712,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     func isShowing(_ page: Page) -> Bool {
-        connected && (page === self.page || page === partner)
+        connected && viewIfLoaded?.window?.windowScene?.activationState == .foregroundActive &&
+            !page.view.isHidden && (page === self.page || page === partner)
     }
 
     func page(_ page: Page, open configuration: WKWebViewConfiguration, for action: WKNavigationAction,
@@ -1778,6 +1836,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         guard command.action == #selector(browserCommand(_:)), let raw = command.propertyList as? String,
               let browserCommand = Command(rawValue: raw)
         else { return }
+        command.title = model.title(for: browserCommand)
         if Device.offers(browserCommand, in: model) {
             command.attributes.remove(.hidden)
         } else {
@@ -1831,6 +1890,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer === addressDismissTap { return model.editingAddress }
         guard let swipe = barSwipe, gestureRecognizer === swipe else { return true }
         // A swipe about to begin has none before it still going.
         endBarGesture()
@@ -1856,7 +1916,11 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         // in the desktop view, whose page is laid out by its own trackpad,
         // nor while the tabs are out or sinking back into the bar. A slide
         // still settling is caught where it is, and the finger goes on with it.
-        guard model.phone, desktopPad == nil, tabSheet == nil, presentedViewController == nil,
+        if desktopPad != nil {
+            toast(ActionToast(symbol: "square.on.square", text: "Use Tabs to switch in Trackpad View"))
+            return false
+        }
+        guard model.phone, tabSheet == nil, presentedViewController == nil,
               pageSlide.gesture == .idle || pageSlide.gesture == .settling
         else { return false }
         return pageSlide.begin()
@@ -1934,7 +1998,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             act(.editAddress)
         case .newTab: newTab()
         case .closeTab:
-            if let tab = model.tabID { session.closeTab(tab) }
+            if let tab = model.tabID { closeTab(tab) }
         case .reopenTab:
             if let tab = session.change({ $0.reopen() }) { show(tab: tab, inSpace: model.spaceID) }
         case .reload: page?.reload()
@@ -2070,7 +2134,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
     private func removeSpace(_ id: UUID) {
         guard let space = Session.shared.workspace.space(id), Session.shared.workspace.spaces.count > 1 else { return }
-        Dialogs.confirmRemoval(of: space.name, tabs: space.tabs.count, on: presenter ?? self) { sure in
+        Dialogs.confirmRemoval(of: space, on: presenter ?? self) { sure in
             if sure { Session.shared.removeSpace(id) }
         }
     }
@@ -2080,27 +2144,26 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         let session = Session.shared
         switch action {
         case .select(let tab): show(tab: tab, inSpace: session.workspace.spaceID(of: tab) ?? model.spaceID)
-        case .close(let tab): session.closeTab(tab)
-        case .closeTabs(let tabs): session.closeTabs(tabs)
+        case .close(let tab): closeTab(tab)
+        case .closeTabs(let tabs): requestCloseTabs(tabs)
         case .arrangeTabs(let arrangement): session.change { $0.arrangeTabs(in: model.spaceID, by: arrangement) }
         case .command(let command): perform(command)
         case .switchSpace(let space): showSpace(space)
         case .spaceInNewWindow(let space): session.openWindow(space: space, tab: nil)
         case .spaceSettings(let space): openSpaceSettings(space)
         case .removeSpace(let space): removeSpace(space)
-        case .moveTab(let tab, let space): session.moveTab(tab, to: space)
+        case .moveTab(let tab, let space): session.moveTab(tab, to: space, from: self)
         case .placeTab(let tab, let target):
-            // A tab dragged from another window's space comes into this one's first, as the Mac's does.
-            if let from = session.workspace.spaceID(of: tab), from != model.spaceID {
-                session.moveTab(tab, to: model.spaceID)
+            let destination = model.spaceID
+            guard session.workspace.spaceID(of: target) == destination else { return }
+            if let from = session.workspace.spaceID(of: tab), from != destination {
+                session.moveTab(tab, to: destination, from: self, before: target) { [weak self] moved in
+                    guard let self, let moved, self.model.spaceID == destination else { return }
+                    self.placeMovedTab(moved, before: target, in: destination)
+                }
+            } else {
+                placeMovedTab(tab, before: target, in: destination)
             }
-            // Where the target is once the dragged tab (and a split's other half) is out of the way.
-            guard let space = session.workspace.space(model.spaceID) else { return }
-            let moving = space.split(containing: tab).map { [$0.left, $0.right] } ?? [tab]
-            guard !moving.contains(target),
-                  let index = space.tabs.filter({ !moving.contains($0.id) }).firstIndex(where: { $0.id == target })
-            else { return }
-            session.change { $0.moveTab(tab, toIndex: index) }
         case .tabInNewWindow(let tab):
             // A tab goes to a window of its own alone; the pane beside it stays here.
             let beside = session.workspace.split(containing: tab)?.partner(of: tab)
@@ -2138,6 +2201,9 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             let made = madeForBar
             model.editingAddress = false
             take(row, leaving: made)
+        case .goDirect(let text):
+            model.editingAddress = false
+            go(text)
         case .open(let url):
             open(url)
         case .back: page?.view.goBack()
@@ -2151,6 +2217,7 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .unpin(let tab): session.change { _ = $0.unpin(tab) }
         case .repin(let tab): session.change { _ = $0.repin(tab) }
         case .backToPinned(let tab): backToPinned(tab)
+        case .resetPinned(let tab): resetPinnedTab(tab)
         case .openInNewTab(let url):
             guard let tab = session.change({ $0.openTab(url, in: model.spaceID, after: model.tabID) }) else { return }
             show(tab: tab, inSpace: model.spaceID)
@@ -2161,6 +2228,13 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         case .moveBookmark(let id, let folder): session.change { $0.moveBookmark(id, into: folder, in: model.spaceID) }
         case .importBookmarks: chooseBookmarksFile()
         case .showTabs: showTabs()
+        case .downloads: Downloads.shared.present(on: presenter ?? self)
+        case .switchPane:
+            if let tab = model.tabID, let other = session.workspace.split(containing: tab)?.partner(of: tab) {
+                show(tab: other, inSpace: model.spaceID)
+            }
+        case .reviewPageDialog: page?.reviewPendingDialog()
+        case .reviewExternalRequest: page?.reviewExternalRequest()
         case .desktopView: toggleDesktopView()
         case .splitWith(let other): split(with: other)
         case .splitWithNewTab: splitWithNewTab()
@@ -2171,6 +2245,51 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     }
 
     // MARK: Pinned tabs and bookmarks
+
+    func moveRequestChanged() {
+        toast(ActionToast(symbol: "exclamationmark.triangle", text: BrowserText.localized("The tab or space changed. Try moving it again.")))
+    }
+
+    private func placeMovedTab(_ tab: UUID, before target: UUID, in destination: UUID) {
+        let session = Session.shared
+        guard session.workspace.spaceID(of: tab) == destination,
+              session.workspace.spaceID(of: target) == destination,
+              let space = session.workspace.space(destination) else { return }
+        let moving = space.split(containing: tab).map { [$0.left, $0.right] } ?? [tab]
+        guard !moving.contains(target),
+              let index = space.tabs.filter({ !moving.contains($0.id) }).firstIndex(where: { $0.id == target }) else { return }
+        session.change { $0.moveTab(tab, toIndex: index) }
+    }
+
+    private func closeTab(_ id: UUID) {
+        let pinned = Session.shared.workspace.tab(id)?.isPinned == true
+        Session.shared.closeTab(id)
+        if pinned { toast(ActionToast(symbol: "pin", text: BrowserText.localized("Pinned Tab Hidden"))) }
+    }
+
+    private func requestCloseTabs(_ ids: [UUID]) {
+        let plan = TabClosePlan(workspace: Session.shared.workspace, requested: ids)
+        guard !plan.ids.isEmpty else { return }
+        guard plan.needsConfirmation else { Session.shared.closeTabs(plan.ids); return }
+        let alert = UIAlertController(title: plan.title, message: plan.message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: plan.actionTitle, style: .destructive) { _ in Session.shared.closeTabs(plan.ids) })
+        (presenter ?? self).present(alert, animated: true)
+    }
+
+    private func resetPinnedTab(_ id: UUID) {
+        guard Session.shared.workspace.tab(id)?.isPinned == true else { return }
+        let alert = UIAlertController(title: BrowserText.localized("Reset Pinned Tab?"), message: BrowserText.localized("This discards the page's unsaved changes and reloads its pinned address. The pinned shortcut stays."), preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: BrowserText.localized("Reset Pinned Tab"), style: .destructive) { [weak self] _ in
+            let session = Session.shared
+            guard session.change({ $0.resetPinnedTab(id) }) else { return }
+            if let record = session.workspace.tab(id), let live = session.pages.live[id], let url = record.pinned { live.load(url) }
+            else { session.pages.close(id) }
+            self?.toast(ActionToast(symbol: "arrow.counterclockwise", text: BrowserText.localized("Loading Pinned Address")))
+        })
+        (presenter ?? self).present(alert, animated: true)
+    }
 
     /// A pinned tab at the page it was pinned with: loaded there when it is
     /// live, its frozen picture of where it had gone let go when it isn't.
@@ -2231,10 +2350,41 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
             return
         }
         guard Device.phone, page.view.url != nil, !page.isHandsOff else { return }
+        guard DesktopView.supportsTrackpad(voiceOver: UIAccessibility.isVoiceOverRunning, switchControl: UIAccessibility.isSwitchControlRunning) else {
+            showTrackpadAlternative()
+            return
+        }
         page.desktopView = true
         if page.mode != .desktop { page.reload(as: .desktop) }
         showDesktopPad()
         refreshChrome()
+        if !UserDefaults.standard.bool(forKey: "desktopHelpSeen") {
+            UserDefaults.standard.set(true, forKey: "desktopHelpSeen")
+            showDesktopHelp()
+        }
+    }
+
+    private func desktopAccessibilityChanged() {
+        guard page?.desktopView == true,
+              !DesktopView.supportsTrackpad(voiceOver: UIAccessibility.isVoiceOverRunning, switchControl: UIAccessibility.isSwitchControlRunning) else { return }
+        leaveDesktopView()
+        showTrackpadAlternative()
+    }
+
+    private func showTrackpadAlternative() {
+        guard presentedViewController == nil else { return }
+        let alert = UIAlertController(title: "Use Normal Browsing", message: "Trackpad View does not support VoiceOver or Switch Control. Normal browsing keeps the page's native accessible controls available. Request Desktop Site remains available from the page menu.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Continue Browsing", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func showDesktopHelp() {
+        guard presentedViewController == nil else { return }
+        let message = "Trackpad View loads the desktop site and uses your screen as a trackpad. Request Desktop Site changes site rendering without adding a trackpad.\n\nMove one finger: move cursor\nTap: click at cursor\nDouble tap: double-click\nHold, then move: drag\nMove two fingers: scroll\nTap two fingers: secondary click, only where the site provides a menu\nPinch: zoom\nTap minimap: move view; drag it: move minimap\n\nUse the controls below for zoom, keyboard, help and Exit. Click a text field before opening the keyboard. Minimap position and visibility are kept in Help and Options."
+        let alert = UIAlertController(title: "Trackpad View Help", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Continue", style: .default))
+        alert.addAction(UIAlertAction(title: "Use Normal Browsing", style: .cancel) { [weak self] _ in self?.leaveDesktopView() })
+        present(alert, animated: true)
     }
 
     private func leaveDesktopView() {
@@ -2254,6 +2404,8 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
         if desktopPad?.page === page { return }
         hideDesktopPad()
         let pad = DesktopPad(page: page, size: stage.bounds.size)
+        pad.exitRequested = { [weak self] in self?.leaveDesktopView() }
+        pad.helpRequested = { [weak self] in self?.showDesktopHelp() }
         stage.addSubview(pad)
         desktopPad = pad
         layoutPanes()
@@ -2270,6 +2422,17 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
     /// the bar turns into them, as a swipe up on it does.
     private func showTabs() {
         guard presentedViewController == nil else { return }
+        if !model.phone {
+            let overview = TabOverviewController(session: .shared, window: model, act: { [weak self] in self?.act($0) }, done: { [weak self] action in
+                self?.dismiss(animated: true) { [weak self] in
+                    if let action { self?.act(action) } else { self?.focusPage() }
+                }
+            })
+            overview.modalPresentationStyle = .formSheet
+            overview.preferredContentSize = CGSize(width: 800, height: 700)
+            present(overview, animated: true)
+            return
+        }
         makeTabSheet()?.open()
     }
 
@@ -2510,14 +2673,52 @@ final class Browser: UIViewController, PageHost, UIAdaptivePresentationControlle
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let file = urls.first else { return }
+        controller.dismiss(animated: true) { [weak self] in
+            if let pending = self?.pendingBookmarkImport { self?.showBookmarkImport(pending) }
+        }
         Session.shared.importBookmarks(from: file, into: model.spaceID) { [weak self] outcome in
             // The picker's copy, done with once it has been read.
             try? FileManager.default.removeItem(at: file)
             guard let self else { return }
-            let alert = UIAlertController(title: outcome.title, message: outcome.message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in self?.focusPage() })
-            present(alert, animated: true)
+            self.showBookmarkImport(outcome)
         }
+    }
+
+    private func showBookmarkImport(_ outcome: BookmarkImportOutcome) {
+        pendingBookmarkImport = outcome
+        guard presentedViewController == nil, viewIfLoaded?.window != nil else { return }
+        pendingBookmarkImport = nil
+        let alert = UIAlertController(title: outcome.title, message: outcome.message, preferredStyle: .alert)
+        if let parsed = outcome.parsed {
+            for space in Session.shared.workspace.spaces {
+                alert.addAction(UIAlertAction(title: "Import into \(space.name)", style: .default) { [weak self] _ in
+                    self?.afterBookmarkAlert {
+                        Session.shared.importBookmarks(parsed, into: space.id) { [weak self] next in self?.showBookmarkImport(next) }
+                    }
+                })
+            }
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        } else if outcome.needsSave {
+            alert.addAction(UIAlertAction(title: "Retry Saving", style: .default) { [weak self] _ in
+                self?.afterBookmarkAlert {
+                    Session.shared.retryBookmarkImport(outcome) { [weak self] next in
+                        self?.showBookmarkImport(next)
+                    }
+                }
+            })
+            alert.addAction(UIAlertAction(title: "Keep Open", style: .cancel))
+        } else {
+            if outcome.canChooseFile || outcome.isComplete {
+                alert.addAction(UIAlertAction(title: outcome.isComplete ? "Import Another File…" : "Choose Another File…", style: .default) { [weak self] _ in self?.afterBookmarkAlert { self?.chooseBookmarksFile() } })
+            }
+            alert.addAction(UIAlertAction(title: "Done", style: .cancel) { [weak self] _ in self?.focusPage() })
+        }
+        present(alert, animated: true)
+    }
+
+    private func afterBookmarkAlert(_ action: @escaping () -> Void) {
+        if presentedViewController != nil { dismiss(animated: true, completion: action) }
+        else { action() }
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {

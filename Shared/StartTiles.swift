@@ -49,8 +49,8 @@ struct SpaceMark: View {
                 .frame(width: 52, height: 52)
                 .background(space.color.color, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             Text(space.name)
-                .font(.system(size: 24, weight: .bold))
-                .lineLimit(1)
+                .font(.title2.weight(.bold))
+                .lineLimit(2)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -81,7 +81,7 @@ struct BookmarkFace: View {
             }
             .frame(width: StartMetrics.square, height: StartMetrics.square)
             Text(item.label)
-                .font(.system(size: 12))
+                .font(.caption)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
         }
@@ -210,7 +210,7 @@ struct RecentPages: View {
             if let entries {
                 if entries.isEmpty {
                     Text(emptyText)
-                        .font(.system(size: 13))
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,16 +238,16 @@ struct RecentPages: View {
     private var heading: some View {
         HStack {
             Text(section.title)
-                .font(.system(size: 15, weight: .semibold))
-                .lineLimit(1)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
             Spacer(minLength: 8)
             if entries?.isEmpty == false {
                 Button("Show All", action: showAll)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.subheadline.weight(.medium))
                     .buttonStyle(.borderless)
             }
         }
-        .frame(height: headingHeight)
+        .frame(minHeight: headingHeight)
     }
 
     /// Where the list is empty: why, in a sentence.
@@ -292,10 +292,10 @@ private struct RecentRow: View {
                     .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: Self.corner, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(page.title.isEmpty ? site : page.title)
-                        .font(.system(size: 14, weight: .medium))
-                        .lineLimit(1)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(2)
                     Text("\(site) · \(when)")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -335,10 +335,10 @@ struct StartCustomize: View {
             }
         } label: {
             Label("Customize", systemImage: "slider.horizontal.3")
-                .font(.system(size: 13, weight: .medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
-                .frame(height: 32)
+                .frame(minHeight: 44)
                 .contentShape(Capsule())
         }
         .menuStyle(.button)

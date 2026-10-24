@@ -32,25 +32,23 @@ extension Extensions {
         return clock
     }
 
-    /// The store asked whether anything installed from it has a newer
-    /// version; each one fetched, checked as at install, and put in place.
-    /// One that asks for more than it was allowed is asked about first.
-    /// `now`: Check Now, whatever the time or the switch. The number of
-    /// extensions updated.
+    private static let declinedUpdatesKey = "extensionDeclinedUpdates"
+
+    /// Explicit checks retry a declined version. Automatic checks leave that
+    /// choice alone until the store offers a different version.
     @discardableResult
-    func checkForUpdates(now: Bool = false) async -> Int {
-        guard now || Self.checksForUpdates else { return 0 }
-        guard now || Date().timeIntervalSince(Self.lastChecked ?? .distantPast) > 20 * 60 * 60 else { return 0 }
-        // One check at a time: two would try the same version in the same place.
-        guard !checkingUpdates else { return 0 }
+    func checkForUpdates(now: Bool = false, host: NSWindow? = nil) async -> ExtensionUpdateReport {
+        guard now || Self.checksForUpdates else { return ExtensionUpdateReport(status: .disabled) }
+        guard now || Date().timeIntervalSince(Self.lastChecked ?? .distantPast) > 20 * 60 * 60 else { return ExtensionUpdateReport(status: .notDue) }
+        guard !checkingUpdates else { return ExtensionUpdateReport(status: .busy) }
         checkingUpdates = true
         defer { checkingUpdates = false }
-        let items = installed.filter { $0.source == .store }.compactMap { item in
-            ExtensionVersion(item.version).map { (id: item.id, version: $0) }
-        }
-        guard !items.isEmpty else { return 0 }
-        var updated = 0
+        let original = installed.filter { $0.source == .store }
+        let items = original.compactMap { item in ExtensionVersion(item.version).map { (id: item.id, version: $0) } }
+        guard !items.isEmpty else { return ExtensionUpdateReport(status: .empty) }
+        let owner = host ?? (now ? NSApp.keyWindow : nil)
         let urls = ExtensionStore.updateCheckURLs(for: items)
+        var replies: [String: ExtensionUpdate] = [:]
         var answered = 0
         for url in urls {
             var request = URLRequest(url: url)
@@ -58,60 +56,96 @@ extension Extensions {
             guard let (data, response) = try? await URLSession.shared.data(for: request),
                   (response as? HTTPURLResponse)?.statusCode == 200 else { continue }
             answered += 1
-            for update in ExtensionUpdateReply.parse(data) where update.status == .newer {
-                if await apply(update) { updated += 1 }
+            for update in ExtensionUpdateReply.parse(data) { replies[update.id] = update }
+        }
+        var report = ExtensionUpdateReport()
+        for item in original {
+            guard let update = replies[item.id] else {
+                report.entries.append(.init(id: item.id, name: item.name, outcome: .failed,
+                                            detail: "The store did not answer for this extension. Check your connection and try again."))
+                continue
+            }
+            switch update.status {
+            case .current:
+                report.entries.append(.init(id: item.id, name: item.name, outcome: .current))
+            case .refused(let reason):
+                report.entries.append(.init(id: item.id, name: item.name, outcome: .failed, detail: "The store could not supply this extension: \(reason)."))
+            case .newer:
+                report.entries.append(await apply(update, retryDeclined: now, host: owner))
             }
         }
-        // Checked once the store has answered for every one of them: a
-        // request that failed (offline, one of several) is tried again within the hour.
-        if answered == urls.count { UserDefaults.standard.set(Date(), forKey: Self.checkedKey) }
-        return updated
+        if answered == urls.count && report.entries.allSatisfy({ $0.outcome != .failed }) {
+            UserDefaults.standard.set(Date(), forKey: Self.checkedKey)
+        }
+        updateReport = report
+        return report
     }
 
-    private func apply(_ update: ExtensionUpdate) async -> Bool {
-        guard let item = installed.first(where: { $0.id == update.id && $0.source == .store }),
-              let current = ExtensionVersion(item.version), let offered = update.version, offered > current else { return false }
+    private func apply(_ update: ExtensionUpdate, retryDeclined: Bool, host: NSWindow?) async -> ExtensionUpdateReport.Entry {
+        let item = installed.first { $0.id == update.id && $0.source == .store }
+        let name = item?.name ?? update.id
+        let result = { (outcome: ExtensionUpdateReport.Outcome, detail: String?) in
+            ExtensionUpdateReport.Entry(id: update.id, name: name, outcome: outcome, detail: detail)
+        }
+        guard let item, let current = ExtensionVersion(item.version), let offered = update.version else {
+            return result(.deferred, "The installed extension changed during the check. Check again.")
+        }
+        guard offered > current else { return result(.current, nil) }
+        var declined = UserDefaults.standard.dictionary(forKey: Self.declinedUpdatesKey) as? [String: String] ?? [:]
+        if !retryDeclined, declined[item.id] == offered.description {
+            return result(.declined, "Version \(offered) was declined. Check Again lets you review it.")
+        }
         do {
-            // From where the reply says, when that is Google's; as the reply
-            // says it is, in hash and size; the version it says, signed by
-            // Google (CRXFile, as at install).
             let crx = try await download(item.id, from: update.package)
-            if let size = update.size, size != crx.count { throw Refused.notChecked("The update isn't the size the store said.") }
-            if let hash = update.sha256, hash.lowercased() != Self.sha256(crx) { throw Refused.notChecked("The update isn't the one the store described.") }
+            if let size = update.size, size != crx.count { throw Refused.notChecked("The downloaded size did not match the store's reply.") }
+            if let hash = update.sha256, hash.lowercased() != Self.sha256(crx) { throw Refused.notChecked("The downloaded update did not match the store's checksum.") }
             let archive = try CRXFile.archive(of: crx, id: item.id, fromStore: true)
-            return try await replace(item, with: archive, expecting: offered) { manifest in
-                let wants = manifest.grants
-                let had = item.granted ?? []
-                guard !Set(wants).isSubset(of: Set(had)) else { return true }
-                return await self.askToUpdate(item, wanting: Set(wants).subtracting(had).sorted())
+            guard let manifestData = ZipFile.file(in: archive, matching: { $0 == "manifest.json" }) else { throw Refused.noManifest }
+            let manifest = try ExtensionManifest(json: manifestData)
+            guard let version = ExtensionVersion(manifest.version), version == offered else { throw Refused.badVersion }
+            guard installed.first(where: { $0.id == item.id }) == item else { return result(.deferred, "Its settings changed while the update downloaded. Check again.") }
+            let wants = manifest.grants
+            let had = item.granted ?? []
+            if !Set(wants).isSubset(of: Set(had)) {
+                guard let owner = host ?? Session.shared.frontWindow?.window, owner.isVisible else {
+                    return result(.deferred, "Open Extensions in Settings to review the additional access, then Check Again.")
+                }
+                guard await askToUpdate(item, version: version.description, wanting: Set(wants).subtracting(had).sorted(), host: owner) else {
+                    declined[item.id] = version.description
+                    UserDefaults.standard.set(declined, forKey: Self.declinedUpdatesKey)
+                    return result(.declined, "Version \(version) was declined. The installed version keeps working.")
+                }
+                guard installed.first(where: { $0.id == item.id }) == item else { return result(.deferred, "The extension changed while you reviewed its access. Check again.") }
             }
+            let name = manifest.displayName(in: archive, fallback: item.name)
+            try await trial(archive, id: item.id)
+            guard installed.first(where: { $0.id == item.id }) == item else { return result(.deferred, "The extension changed during verification. Check again.") }
+            let installation = try keep(archive, id: item.id, name: name, version: version.description, source: .store,
+                                        access: item.siteAccess, spaces: item.spaces, granted: wants)
+            guard await installation.value else { return result(.failed, "The new version could not start. Safience retained the previous version; report the problem or try again later.") }
+            declined[item.id] = nil
+            UserDefaults.standard.set(declined, forKey: Self.declinedUpdatesKey)
+            return result(.updated, nil)
         } catch {
-            NSLog("Safience: the update of extension \(item.id) failed: \(error.localizedDescription)")
-            return false
+            return result(.failed, error.localizedDescription + " The installed version was retained. Try again or report the problem.")
         }
     }
 
     /// A new package for one installed, put in its place: its manifest read,
-    /// `approve` asked, tried (`trial`), then kept with the item's site
-    /// access, spaces and source. False, leaving the version there is in
-    /// place, when the package isn't `expected`'s version, `approve` says
-    /// no, or the item was removed, turned off or changed meanwhile.
+    /// tried (`trial`), then kept with the item's site access, spaces and
+    /// source. False, leaving the version there is in place, when the item
+    /// was removed, turned off or changed meanwhile. A store update has its
+    /// own steps (`apply`), which say why one didn't happen.
     @discardableResult
-    private func replace(_ item: Installed, with archive: Data, expecting expected: ExtensionVersion? = nil,
-                         folder: String? = nil,
-                         approve: (ExtensionManifest) async -> Bool = { _ in true }) async throws -> Bool {
+    private func replace(_ item: Installed, with archive: Data, folder: String? = nil) async throws -> Bool {
         guard let manifestData = ZipFile.file(in: archive, matching: { $0 == "manifest.json" }) else { throw Refused.noManifest }
         let manifest = try ExtensionManifest(json: manifestData)
-        let version = ExtensionVersion(manifest.version)
-        if let expected, version != expected { return false }
-        guard let version else { throw Refused.badVersion }
-        guard installed.first(where: { $0.id == item.id }) == item else { return false }
-        guard await approve(manifest) else { return false }
+        guard let version = ExtensionVersion(manifest.version) else { throw Refused.badVersion }
         guard installed.first(where: { $0.id == item.id }) == item else { return false }
         // One that won't start leaves the version there is in place.
         try await trial(archive, id: item.id)
         guard installed.first(where: { $0.id == item.id }) == item else { return false }
-        try keep(archive, id: item.id, name: manifest.name.hasPrefix("__MSG_") ? item.name : manifest.name,
+        try keep(archive, id: item.id, name: manifest.displayName(in: archive, fallback: item.name),
                  version: version.description, source: item.source, access: item.siteAccess, spaces: item.spaces,
                  granted: manifest.grants, folder: folder)
         return true
@@ -136,19 +170,17 @@ extension Extensions {
     }
 
     /// An update that wants more: asked in a sheet, as at install.
-    private func askToUpdate(_ item: Installed, wanting more: [String]) async -> Bool {
+    private func askToUpdate(_ item: Installed, version: String, wanting more: [String], host: NSWindow) async -> Bool {
         let alert = NSAlert()
-        alert.messageText = "An update to \u{201C}\(item.name)\u{201D} asks for more."
-        let sites = more.filter { $0.hasPrefix("site:") }.map { String($0.dropFirst(5)) }
-        let apis = more.filter { !$0.hasPrefix("site:") }
-        var lines: [String] = []
-        if !apis.isEmpty { lines.append("It asks for: " + apis.joined(separator: ", ") + ".") }
-        if !sites.isEmpty { lines.append("It wants to read and change: " + sites.joined(separator: ", ") + ".") }
-        lines.append("Until you update it, the version you have keeps working.")
+        alert.messageText = "Update \(item.name) to \(version)?"
+        var lines = ["Additional access:\n" + ExtensionAccessDescription.lines(for: more).map { "• " + $0 }.joined(separator: "\n")]
+        let spaces = item.spaces.compactMap { Session.shared.workspace.space($0)?.name }
+        lines.append("Enabled spaces: " + (spaces.isEmpty ? "None" : spaces.joined(separator: ", ")) + ". New spaces are not added automatically.")
+        lines.append("Not Now keeps the installed version and stops automatic prompts for this version. Check Again lets you review it later.")
         alert.informativeText = lines.joined(separator: "\n\n")
         alert.addButton(withTitle: "Update")
         alert.addButton(withTitle: "Not Now")
-        return await present(alert, in: Session.shared.frontWindow) == .alertFirstButtonReturn
+        return await present(alert, in: nil, host: host) == .alertFirstButtonReturn
     }
 
     // MARK: Loading from a folder
@@ -156,34 +188,36 @@ extension Extensions {
     /// Load Unpacked: a developer's folder, copied in as it is now. Its id
     /// is its path's, as Chrome makes one, so Reload finds it again and it
     /// can never be, or take the place of, a store extension.
-    func loadUnpacked(in window: WindowModel?) {
+    func loadUnpacked(in window: WindowModel?, host: NSWindow? = nil) {
+        let host = host ?? window?.window ?? NSApp.keyWindow
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.message = "Choose an extension's folder: the one with its manifest.json."
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
         Task {
+            guard await choose(panel, host: host) == .OK, let folder = panel.url else { return }
             do {
                 // Its real path, links resolved, as Chrome makes the id from.
                 let path = folder.resolvingSymlinksInPath().standardizedFileURL.path
                 let id = ExtensionID.id(forUnpackedPath: path)
-                try await offer(try await Self.zipped(folder), id: id, source: .unpacked, in: window, folder: path)
+                try await offer(try await Self.zipped(folder), id: id, source: .unpacked, in: window, folder: path, host: host)
             } catch {
-                tell(error, in: window)
+                tell(error, in: window, host: host)
             }
         }
     }
 
     /// The folder read again, for an unpacked extension; in its place, with
     /// its data and where it is on.
-    func reload(_ id: String) {
+    func reload(_ id: String, host: NSWindow? = nil) {
+        let host = host ?? NSApp.keyWindow
         guard let item = installed.first(where: { $0.id == id }), item.source == .unpacked, let path = item.folder else { return }
         Task {
             do {
                 let archive = try await Self.zipped(URL(fileURLWithPath: path, isDirectory: true))
                 try await replace(item, with: archive, folder: path)
             } catch {
-                tell(error, in: Session.shared.frontWindow)
+                tell(error, in: nil, host: host, title: "The extension could not be reloaded.")
             }
         }
     }

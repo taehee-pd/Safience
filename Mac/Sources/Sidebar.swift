@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// reload at the top; the address under them; the space's pinned tabs as
 /// tiles; its other tabs as rows, the newest last; and the spaces along the
 /// foot, with the space's own tools. It lies on the window's ground, the
-/// space's colour, with what holds something in Liquid Glass. Hidden (⌘S),
+/// space's colour, with what holds something in Liquid Glass. Hidden (⌃⌘S),
 /// it slides out over the page when the pointer reaches the window's left
 /// edge, as a pane of glass of its own.
 struct Sidebar: View {
@@ -99,7 +99,7 @@ private struct TopRow: View {
                 .padding(.leading, (Metrics.control - WindowButtons.side) / 2)
             Spacer(minLength: Metrics.gap)
             HStack(spacing: 2) {
-                PlainIcon("sidebar.left", help: model.sidebarShown ? "Hide Sidebar (⌘S)" : "Keep Sidebar Open (⌘S)") {
+                PlainIcon("sidebar.left", help: model.sidebarShown ? "Hide Sidebar (⌃⌘S)" : "Keep Sidebar Open (⌃⌘S)") {
                     model.toggleSidebar()
                 }
                 PlainIcon("chevron.left", help: "Back (⌘[)", enabled: model.canGoBack) { model.back() }
@@ -502,7 +502,7 @@ private struct BookmarksPanel: View {
     private var rows: some View {
         VStack(spacing: 2) {
             if space.bookmarks.isEmpty {
-                Text("Bookmark a page with ⇧⌘D")
+                Text("Bookmark a page with ⌘D")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 10)
@@ -699,21 +699,31 @@ private struct TabRow: View {
         let selected = model.tabID == tab.id
         let shape = RoundedRectangle(cornerRadius: Metrics.rowCorner, style: .continuous)
         HStack(spacing: 8) {
-            ZStack {
-                if selected, model.loading, model.page != nil {
-                    ProgressView().controlSize(.mini)
-                } else {
-                    SiteIconView(url: tab.url, size: 16)
-                        .opacity(Session.shared.pages.isLive(tab.id) || selected ? 1 : 0.75)
+            Button { model.select(tab.id) } label: {
+                HStack(spacing: 8) {
+                    ZStack {
+                        if selected, model.loading, model.page != nil {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            SiteIconView(url: tab.url, size: 16)
+                                .opacity(Session.shared.pages.isLive(tab.id) || selected ? 1 : 0.75)
+                        }
+                    }
+                    .frame(width: 16, height: 16)
+                    Text(tab.label)
+                        .font(.system(size: 13, weight: selected ? .medium : .regular))
+                        .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.85))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
             }
-            .frame(width: 16, height: 16)
-            Text(tab.label)
-                .font(.system(size: 13, weight: selected ? .medium : .regular))
-                .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.85))
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tab.label)
+            .accessibilityAddTraits(selected ? .isSelected : [])
             if hovering {
                 CloseButton { model.closeTab(tab.id) }
                     .transition(.opacity)
@@ -732,7 +742,6 @@ private struct TabRow: View {
         .overlay(alignment: .top) { DropLine(shown: targeted) }
         .contentShape(shape)
         .onHover { inside in withAnimation(.hover) { hovering = inside } }
-        .onTapGesture { model.select(tab.id) }
         .draggable(TabDrag(tab: tab.id)) {
             HStack(spacing: 6) {
                 SiteIconView(url: tab.url, size: 16)
@@ -748,8 +757,7 @@ private struct TabRow: View {
         } isTargeted: { targeted = $0 }
         .contextMenu { TabMenu(model: model, tab: tab) }
         .help(tab.url?.absoluteString ?? tab.label)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -819,6 +827,7 @@ struct TabMenu: View {
             // Where it is pinned, and going back there or pinning it here
             // instead, as the iPhone's pinned button has them.
             Section(tab.pinnedAddress.map { "Pinned to \($0)" } ?? "") {
+                Button("Reset Pinned Tab…") { model.resetPinnedTab(tab.id) }
                 Button("Back to Pinned Address") { model.backToPinned(tab.id) }
                     .disabled(!tab.isAwayFromPinned)
                 Button("Replace with Current Page") { model.repin(tab.id) }
@@ -858,7 +867,7 @@ struct TabMenu: View {
             }
         }
         Divider()
-        Button(tab.isPinned ? "Close and Unload" : "Close Tab") { model.closeTab(tab.id) }
+        Button(tab.isPinned ? "Hide Pinned Tab" : "Close Tab") { model.closeTab(tab.id) }
     }
 }
 

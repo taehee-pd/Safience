@@ -12,6 +12,8 @@ import PadCore
 final class SuggestionSources {
     /// The engine's words, and the text they answered.
     private(set) var answer: (query: String, words: [String]) = ("", [])
+    /// The engine that gave them: shown only while Settings still allows that one.
+    private(set) var answerProvider: String?
     /// The space's history for the text, and the text and the space it answered.
     private(set) var remembered: (query: String, space: UUID?, pages: [HistoryPage]) = ("", nil, [])
     /// What the model found the words mean, its searches, and the text it answered.
@@ -69,25 +71,30 @@ final class SuggestionSources {
         thought = ("", [], [])
     }
 
-    /// The engine's suggestions for `text`, when Settings has them on and
-    /// the engine offers them. Never for an address (suggestionsURL).
+    /// The approved provider's suggestions. Partial private names may be
+    /// sent before they become complete addresses, as Settings discloses.
+    /// Never for an address (suggestionsURL), and dropped when Settings
+    /// takes the approval back while they are on their way.
     func ask(_ text: String, preferences: Preferences) {
         asking?.cancel()
-        guard preferences.searchSuggestions,
-              let url = Autocomplete.suggestionsURL(for: text, engine: preferences.engine)
-        else {
+        guard let url = Autocomplete.suggestionsURL(for: text, preferences: preferences) else {
             asksEngine = false
             answer = ("", [])
             return
         }
         asksEngine = true
+        let engine = preferences.engine
         asking = Task { [weak self] in
             // A moment first, so a word typed quickly asks once, not once a letter.
             try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled, let reply = try? await SuggestionSources.session.data(from: url),
+            guard !Task.isCancelled, let self, self.query() == text,
+                  Session.shared.preferences.allowsRemoteSuggestions(for: engine) else { return }
+            guard let reply = try? await SuggestionSources.session.data(from: url),
                   (reply.1 as? HTTPURLResponse)?.statusCode == 200,
-                  !Task.isCancelled, let self, self.query() == text
+                  !Task.isCancelled, self.query() == text,
+                  Session.shared.preferences.allowsRemoteSuggestions(for: engine)
             else { return }
+            answerProvider = engine
             answer = (text, Autocomplete.parse(reply.0))
             changed()
         }
@@ -189,8 +196,8 @@ final class SuggestionSources {
         }
     }
 
-    /// No cookies and nothing kept: the engine hears the words, and nothing
-    /// about who typed them.
+    /// Cookies and cache are disabled. The provider still receives the
+    /// typed text and connection metadata, including the IP address.
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpShouldSetCookies = false

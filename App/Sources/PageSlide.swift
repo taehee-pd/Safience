@@ -34,9 +34,6 @@ final class PageSlide {
     /// The settling slide's end, for a finger that catches it (catchSlide),
     /// and its count, so the spring's own ending is ignored once caught.
     private var settling: (target: CGFloat, goes: TabRecord?, count: Int) = (0, nil, 0)
-    /// A tap as the drag crosses the line past which letting go goes to the tab beside.
-    private var slideTicked = false
-    private let slideTick = UIImpactFeedbackGenerator(style: .medium)
     /// Between two pages side by side, as between Safari's.
     private static let slideGap: CGFloat = 16
 
@@ -54,8 +51,6 @@ final class PageSlide {
         let caught = gesture == .settling ? catchSlide() : 0
         guard caught != 0 || neighbour(on: 1) != nil || neighbour(on: -1) != nil else { return false }
         slideBase = caught
-        slideTicked = false
-        slideTick.prepare()
         gesture = .sliding
         return true
     }
@@ -135,12 +130,6 @@ final class PageSlide {
         let moved = slideCard != nil ? distance : Throw.rubberband(distance, range: width)
         place(slide: moved)
         model.slide.offset = moved
-        // Felt as the drag crosses half the way: letting go slowly past it goes to the tab beside.
-        let past = slideCard != nil && abs(moved) > (width + Self.slideGap) / 2
-        if past != slideTicked {
-            slideTicked = past
-            slideTick.impactOccurred(intensity: past ? 1 : 0.6)
-        }
     }
 
     /// The tab beside on `side` (1 the right, -1 the left) as a card at the

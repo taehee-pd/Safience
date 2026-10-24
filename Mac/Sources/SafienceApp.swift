@@ -87,13 +87,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { LaunchState.shared.open(urls) }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        MainActor.assumeIsolated { if LaunchState.shared.ready { Session.shared.saveNow() } }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        guard !hasVisibleWindows else { return true }
+        return MainActor.assumeIsolated {
+            guard let showWindow = LaunchState.shared.showWindow else { return true }
+            showWindow()
+            // The event is handled. Allowing the default path would open a second window.
+            return false
+        }
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if !hasVisibleWindows { MainActor.assumeIsolated { LaunchState.shared.showWindow?() } }
-        return true
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated {
+            // Quitting during migration must not initialize browser services.
+            guard LaunchState.shared.ready else { return .terminateNow }
+            // This flow owns the durable save and the explicit Quit Without Saving choice.
+            return Session.shared.requestTermination(sender)
+        }
     }
 
     /// The last window closed leaves the app running, as Safari does.

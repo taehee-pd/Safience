@@ -42,39 +42,39 @@ public enum Command: String, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .everything: return "Commands"
-        case .newTab: return "New Tab"
-        case .closeTab: return "Close Tab"
-        case .reopenTab: return "Reopen Closed Tab"
-        case .address: return "Open Address"
-        case .reload: return "Reload Page"
-        case .stop: return "Stop Loading"
-        case .back: return "Back"
-        case .forward: return "Forward"
-        case .nextTab: return "Next Tab"
-        case .previousTab: return "Previous Tab"
-        case .nextSpace: return "Next Space"
-        case .previousSpace: return "Previous Space"
-        case .newSpace: return "New Space"
-        case .newWindow: return "New Window"
-        case .closeWindow: return "Close Window"
-        case .tabBar: return "Show or Hide Tab Bar"
-        case .diagnostics: return "Show or Hide Diagnostics"
-        case .settings: return "Settings"
-        case .focusPage: return "Give Keys Back to the Page"
-        case .pinTab: return "Pin or Unpin Tab"
-        case .splitTab: return "Split or Separate Tabs"
-        case .bookmark: return "Bookmark This Page"
-        case .share: return "Share Page…"
-        case .copyLink: return "Copy Link"
-        case .siteMode: return "Request Desktop or Mobile Site"
-        case .spaceSettings: return "Space Settings"
-        case .importBookmarks: return "Import Bookmarks"
-        case .contentBlocking: return "Block or Allow Ads on This Site"
-        case .linkMenu: return "Use or Leave This Site's Own Menus"
-        case .find: return "Find on Page…"
-        case .handoff: return "Handoff Page…"
-        case .history: return "Show All History"
+        case .everything: return BrowserText.localized("Commands")
+        case .newTab: return BrowserText.localized("New Tab")
+        case .closeTab: return BrowserText.localized("Close Tab")
+        case .reopenTab: return BrowserText.localized("Reopen Closed Tab")
+        case .address: return BrowserText.localized("Open Address")
+        case .reload: return BrowserText.localized("Reload Page")
+        case .stop: return BrowserText.localized("Stop Loading")
+        case .back: return BrowserText.localized("Back")
+        case .forward: return BrowserText.localized("Forward")
+        case .nextTab: return BrowserText.localized("Next Tab")
+        case .previousTab: return BrowserText.localized("Previous Tab")
+        case .nextSpace: return BrowserText.localized("Next Space")
+        case .previousSpace: return BrowserText.localized("Previous Space")
+        case .newSpace: return BrowserText.localized("New Space")
+        case .newWindow: return BrowserText.localized("New Window")
+        case .closeWindow: return BrowserText.localized("Close Window")
+        case .tabBar: return BrowserText.localized("Show or Hide Tab Bar")
+        case .diagnostics: return BrowserText.localized("Show or Hide Diagnostics")
+        case .settings: return BrowserText.localized("Settings")
+        case .focusPage: return BrowserText.localized("Focus Page")
+        case .pinTab: return BrowserText.localized("Pin or Unpin Tab")
+        case .splitTab: return BrowserText.localized("Split or Separate Tabs")
+        case .bookmark: return BrowserText.localized("Bookmark This Page")
+        case .share: return BrowserText.localized("Share Page…")
+        case .copyLink: return BrowserText.localized("Copy Link")
+        case .siteMode: return BrowserText.localized("Request Desktop or Mobile Site")
+        case .spaceSettings: return BrowserText.localized("Space Settings")
+        case .importBookmarks: return BrowserText.localized("Import Bookmarks")
+        case .contentBlocking: return BrowserText.localized("Block or Allow Ads on This Site")
+        case .linkMenu: return BrowserText.localized("Site Link Menus")
+        case .find: return BrowserText.localized("Find on Page…")
+        case .handoff: return BrowserText.localized("Send Page to App…")
+        case .history: return BrowserText.localized("Show All History")
         }
     }
 

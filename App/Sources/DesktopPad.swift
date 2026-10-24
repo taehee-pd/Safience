@@ -31,6 +31,15 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     private let minimap = Minimap()
     private let keyboardButton = UIButton(configuration: DesktopPad.buttonStyle())
     private let typing = DesktopTyping()
+    private let controls = UIView()
+    private let buttons = UIStackView()
+    private let focusLabel = UILabel()
+    private let zoomOutButton = UIButton(configuration: DesktopPad.buttonStyle())
+    private let zoomInButton = UIButton(configuration: DesktopPad.buttonStyle())
+    private let resetButton = UIButton(configuration: DesktopPad.buttonStyle())
+    private let moreButton = UIButton(configuration: DesktopPad.buttonStyle())
+    var exitRequested: (() -> Void)?
+    var helpRequested: (() -> Void)?
 
     private var clicks = ClickCount()
     private var lastMove: CGPoint = .zero
@@ -52,7 +61,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     private var minimapSoon: DispatchWorkItem?
     private var minimapTimer: Timer?
     /// Where the minimap is: a corner of the view, top right to start.
-    private var minimapCorner = Corner.topRight
+    private var minimapCorner = Corner(rawValue: UserDefaults.standard.string(forKey: "desktopMinimapCorner") ?? "") ?? .topRight
     private var minimapDragging = false
     private var minimapGrab: CGPoint = .zero
     private let pressFeel = UIImpactFeedbackGenerator(style: .light)
@@ -69,9 +78,10 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         desktop = DesktopView(viewWidth: Double(size.width), viewHeight: Double(size.height))
         super.init(frame: CGRect(origin: .zero, size: size))
         backgroundColor = .clear
-        isAccessibilityElement = true
-        accessibilityLabel = "Desktop view"
-        accessibilityHint = "Move one finger to move the cursor, tap to click, move two fingers to scroll."
+        isAccessibilityElement = false
+        accessibilityLabel = "Trackpad View controls"
+        typing.isAccessibilityElement = false
+        cursor.isAccessibilityElement = false
 
         move.maximumNumberOfTouches = 1
         scroll.minimumNumberOfTouches = 2
@@ -90,7 +100,9 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         addSubview(typing)
         addSubview(cursor)
         addSubview(minimap)
-        addSubview(keyboardButton)
+        configureControls()
+        minimap.isHidden = UserDefaults.standard.bool(forKey: "desktopMinimapHidden")
+        updateControlsMenu()
         minimap.dragged = { [weak self] pan in self?.dragMinimap(pan) }
         minimap.moved = { [weak self] x, y in
             guard let self else { return }
@@ -102,6 +114,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         keyboardButton.accessibilityLabel = "Keyboard"
         typing.typed = { [weak self] text, back in
             self?.lastTouched = CACurrentMediaTime()
+            guard self?.page?.editing == true else { return }
             self?.page?.type(text, back: back)
         }
         typing.pressed = { [weak self] key in
@@ -110,6 +123,11 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         }
         typing.changed = { [weak self] in self?.updateKeyboardButton() }
         page.pointer?.changed = { [weak self] in self?.updateCursorPicture() }
+        page.desktopFocusChanged = { [weak self] _ in self?.updateKeyboardButton() }
+        page.desktopContextResult = { [weak self] kept in
+            if kept { self?.cursor.pulse() }
+            else { self?.showStatus("No menu here. Use normal browsing for link menus.") }
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardChanged(_:)),
                                                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         updateCursorPicture()
@@ -134,6 +152,8 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         minimapSoon?.cancel()
         typing.resignFirstResponder()
         page?.pointer?.changed = nil
+        page?.desktopFocusChanged = nil
+        page?.desktopContextResult = nil
         if let view = page?.view { view.transform = .identity }
         removeFromSuperview()
     }
@@ -159,7 +179,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
 
     // MARK: The minimap's corner
 
-    private enum Corner: CaseIterable {
+    private enum Corner: String, CaseIterable {
         case topLeft, topRight, bottomLeft, bottomRight
     }
 
@@ -171,7 +191,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         let size = CGSize(width: width, height: width * CGFloat(DesktopView.height / DesktopView.width))
         let left = corner == .topLeft || corner == .bottomLeft
         let top = corner == .topLeft || corner == .topRight
-        let bottom = bounds.height - CGFloat(desktop.covered) - inset - (corner == .bottomRight ? 44 + 8 : 0)
+        let bottom = bounds.height - CGFloat(desktop.covered) - inset
         return CGRect(x: left ? inset : bounds.width - size.width - inset,
                       y: top ? inset : max(inset, bottom - size.height),
                       width: size.width, height: size.height)
@@ -202,6 +222,8 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
                 return hypot(a.midX - resting.x, a.midY - resting.y) < hypot(b.midX - resting.x, b.midY - resting.y)
             } ?? minimapCorner
             minimapCorner = corner
+            UserDefaults.standard.set(corner.rawValue, forKey: "desktopMinimapCorner")
+            updateControlsMenu()
             let target = minimapFrame(at: corner)
             let distance = hypot(target.midX - minimap.center.x, target.midY - minimap.center.y)
             let speed = hypot(velocity.x, velocity.y)
@@ -215,16 +237,103 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
         }
     }
 
+    private var controlsHeight: CGFloat { max(76, focusLabel.font.lineHeight + 54) }
+
     private func layoutKeyboardButton() {
-        let side: CGFloat = 44
-        let above = CGFloat(desktop.covered)
-        keyboardButton.frame = CGRect(x: bounds.width - side - 12, y: bounds.height - above - side - 12, width: side, height: side)
+        let width = min(max(bounds.width - 24, 1), 360)
+        // Browser's phone-bar backdrop begins 24 points above the bar.
+        let barClearance = barCovered > 0 ? barCovered + 24 : 0
+        let above = max(barClearance, keyboardCovered)
+        controls.frame = CGRect(x: (bounds.width - width) / 2, y: max(0, bounds.height - above - controlsHeight - 8), width: width, height: controlsHeight)
+        focusLabel.frame = CGRect(x: 10, y: 4, width: width - 20, height: controlsHeight - 52)
+        buttons.frame = CGRect(x: 4, y: controlsHeight - 48, width: width - 8, height: 44)
+    }
+
+    private func configureControls() {
+        controls.backgroundColor = .secondarySystemBackground
+        controls.layer.cornerRadius = 14
+        controls.layer.cornerCurve = .continuous
+        addSubview(controls)
+        focusLabel.font = .preferredFont(forTextStyle: .caption1)
+        focusLabel.adjustsFontForContentSizeCategory = true
+        focusLabel.textAlignment = .center
+        focusLabel.textColor = .secondaryLabel
+        controls.addSubview(focusLabel)
+        buttons.axis = .horizontal
+        buttons.distribution = .fillEqually
+        controls.addSubview(buttons)
+        let exit = UIButton(configuration: Self.buttonStyle())
+        configure(exit, symbol: "xmark", label: "Exit Trackpad View") { [weak self] in self?.exitRequested?() }
+        configure(zoomOutButton, symbol: "minus.magnifyingglass", label: "Zoom Out") { [weak self] in self?.changeZoom(by: 0.8) }
+        configure(resetButton, symbol: "arrow.counterclockwise", label: "Reset Zoom") { [weak self] in
+            guard let self else { return }
+            self.stopGlide()
+            self.desktop.resetZoom()
+            self.apply()
+        }
+        configure(zoomInButton, symbol: "plus.magnifyingglass", label: "Zoom In") { [weak self] in self?.changeZoom(by: 1.25) }
+        keyboardButton.configuration?.image = UIImage(systemName: "keyboard")
+        moreButton.configuration?.image = UIImage(systemName: "ellipsis.circle")
+        moreButton.accessibilityLabel = "Trackpad View Help and Options"
+        moreButton.showsMenuAsPrimaryAction = true
+        for button in [exit, zoomOutButton, resetButton, zoomInButton, keyboardButton, moreButton] { buttons.addArrangedSubview(button) }
+        updateControlsMenu()
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: DesktopPad, _) in
+            self.focusLabel.font = .preferredFont(forTextStyle: .caption1)
+            self.updateCover()
+            self.layoutKeyboardButton()
+            self.apply()
+        }
+    }
+
+    private func configure(_ button: UIButton, symbol: String, label: String, action: @escaping () -> Void) {
+        button.configuration?.image = UIImage(systemName: symbol)
+        button.accessibilityLabel = label
+        button.addAction(UIAction { _ in action() }, for: .primaryActionTriggered)
+    }
+
+    private func changeZoom(by factor: Double) {
+        stopGlide()
+        desktop.zoom(by: factor, aroundX: desktop.viewWidth / 2, y: max(desktop.viewHeight - desktop.covered, 1) / 2)
+        apply()
+        cursorMoved()
+    }
+
+    private func updateControlsMenu() {
+        let help = UIAction(title: "Trackpad View Help", image: UIImage(systemName: "questionmark.circle")) { [weak self] _ in self?.helpRequested?() }
+        let menu = UIAction(title: "Secondary Click at Cursor", image: UIImage(systemName: "cursorarrow.click.2")) { [weak self] _ in self?.secondaryClick() }
+        let hide = UIAction(title: minimap.isHidden ? "Show Minimap" : "Hide Minimap", image: UIImage(systemName: "map")) { [weak self] _ in
+            guard let self else { return }
+            self.minimap.isHidden.toggle()
+            UserDefaults.standard.set(self.minimap.isHidden, forKey: "desktopMinimapHidden")
+            self.updateControlsMenu()
+            if !self.minimap.isHidden { self.refreshMinimapSoon() }
+        }
+        let corners = Corner.allCases.map { corner in
+            let names: [Corner: String] = [.topLeft: "Top Left", .topRight: "Top Right", .bottomLeft: "Bottom Left", .bottomRight: "Bottom Right"]
+            return UIAction(title: names[corner] ?? "Corner", state: corner == minimapCorner ? .on : .off) { [weak self] _ in
+                guard let self else { return }
+                self.minimapCorner = corner
+                UserDefaults.standard.set(corner.rawValue, forKey: "desktopMinimapCorner")
+                self.minimap.frame = self.minimapFrame(at: corner)
+                self.updateControlsMenu()
+            }
+        }
+        moreButton.menu = UIMenu(children: [help, menu, hide, UIMenu(title: "Minimap Position", children: corners)])
+    }
+
+    private func showStatus(_ text: String) {
+        focusLabel.text = text
+        UIAccessibility.post(notification: .announcement, argument: text)
     }
 
     /// The page view, the cursor and the minimap where the desktop view has
     /// them now, with no animation: they follow the finger.
     private func apply() {
         guard let view = page?.view else { return }
+        resetButton.accessibilityValue = "\(Int((desktop.zoom * 100).rounded())) percent"
+        zoomOutButton.isEnabled = desktop.zoom > desktop.fitZoom + 0.001
+        zoomInButton.isEnabled = desktop.zoom < DesktopView.maxZoom - 0.001
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let size = CGSize(width: DesktopView.width, height: DesktopView.height)
@@ -283,7 +392,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         // The minimap and the keyboard button take their own touches.
         let point = gestureRecognizer.location(in: self)
-        return !minimap.frame.contains(point) && !keyboardButton.frame.insetBy(dx: -6, dy: -6).contains(point)
+        return (minimap.isHidden || !minimap.frame.contains(point)) && !controls.frame.contains(point)
     }
 
     @objc private func moved(_ pan: UIPanGestureRecognizer) {
@@ -335,9 +444,12 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     }
 
     @objc private func rightClicked(_ tap: UITapGestureRecognizer) {
+        secondaryClick()
+    }
+
+    private func secondaryClick() {
         stopGlide()
         page?.pointer("context", at: cursorPoint)
-        cursor.pulse()
     }
 
     /// Touch and hold, then move: the button goes down where the cursor is
@@ -511,6 +623,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     }
 
     private func refreshMinimap() {
+        guard !minimap.isHidden else { return }
         page?.preview(width: minimap.bounds.width) { [weak self] image in
             if let image { self?.minimap.image = image }
         }
@@ -519,11 +632,18 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     // MARK: Typing
 
     private func toggleKeyboard() {
-        if typing.isFirstResponder { typing.resignFirstResponder() } else { typing.becomeFirstResponder() }
+        if typing.isFirstResponder { typing.resignFirstResponder() }
+        else if page?.editing == true { typing.becomeFirstResponder() }
+        else { showStatus("Click a text field before opening the keyboard.") }
     }
 
     private func updateKeyboardButton() {
+        if page?.editing != true, typing.isFirstResponder { typing.resignFirstResponder() }
         let up = typing.isFirstResponder
+        let focused = page?.editing == true
+        focusLabel.text = focused ? "Text field selected" : "Click a text field to type"
+        keyboardButton.isEnabled = focused || up
+        keyboardButton.accessibilityHint = focused ? "Types into the selected page field" : "Click a text field on the page first"
         keyboardButton.configuration?.image = UIImage(systemName: up ? "keyboard.chevron.compact.down" : "keyboard")
         keyboardButton.accessibilityLabel = up ? "Hide Keyboard" : "Keyboard"
     }
@@ -533,7 +653,7 @@ final class DesktopPad: UIView, UIGestureRecognizerDelegate {
     private var keyboardCovered: CGFloat = 0
 
     private func updateCover() {
-        desktop.cover(bottom: Double(max(barCovered, keyboardCovered)))
+        desktop.cover(bottom: Double(max(barCovered, keyboardCovered) + controlsHeight + 16))
     }
 
     /// The keyboard covers the bottom of the view: the cursor stays above

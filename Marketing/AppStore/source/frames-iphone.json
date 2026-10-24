@@ -1,66 +1,66 @@
 {
- "w": 1320,
- "h": 2868,
- "out": "iPhone-6.9",
- "also": [
-  {
-   "out": "iPhone-6.3",
-   "w": 1206,
-   "h": 2622
-  }
- ],
- "params": {
-  "sw": "1040",
-  "top": "470",
-  "ct": "150",
-  "cs": "80",
-  "cp": "90",
-  "bezel": "promax-silver.png",
-  "bw": "1470",
-  "bh": "3000",
-  "hole": "75,66,1320,2868",
-  "corner": "184"
- },
- "frames": [
-  {
-   "name": "01-hero",
-   "params": {
-    "s": "The address bar is at the bottom,<br>within reach of your thumb.",
-    "img": "raw-iphone/1-hero.png",
-    "ring": "760,330,900"
-   }
+  "w": 1320,
+  "h": 2868,
+  "out": "iPhone-6.9",
+  "also": [
+    {
+      "out": "iPhone-6.3",
+      "w": 1206,
+      "h": 2622
+    }
+  ],
+  "params": {
+    "sw": "1040",
+    "top": "470",
+    "ct": "150",
+    "cs": "80",
+    "cp": "90",
+    "bezel": "promax-silver.png",
+    "bw": "1470",
+    "bh": "3000",
+    "hole": "75,66,1320,2868",
+    "corner": "184"
   },
-  {
-   "name": "02-desktop-view",
-   "params": {
-    "s": "Use a site's desktop version<br>with the screen as a trackpad.",
-    "img": "raw-iphone/7-desktop.png",
-    "ring": "-340,420,900"
-   }
-  },
-  {
-   "name": "03-spaces",
-   "params": {
-    "s": "Each space has its own<br>sign-ins and colour.",
-    "img": "raw-iphone/3-client.png",
-    "ring": "740,420,940"
-   }
-  },
-  {
-   "name": "04-palette",
-   "params": {
-    "s": "Type a few letters to find<br>a tab, a space or a command.",
-    "img": "raw-iphone/4-palette.png",
-    "ring": "-320,360,880"
-   }
-  },
-  {
-   "name": "05-bookmarks",
-   "params": {
-    "s": "Bookmarks for each space<br>sync through iCloud.",
-    "img": "raw-iphone/5-start.png",
-    "ring": "740,700,900"
-   }
-  }
- ]
+  "frames": [
+    {
+      "name": "01-hero",
+      "params": {
+        "s": "The address bar is at the bottom,<br>within reach of your thumb.",
+        "img": "raw-current/iphone/01-hero.png",
+        "ring": "760,330,900"
+      }
+    },
+    {
+      "name": "02-desktop-view",
+      "params": {
+        "s": "Desktop sites with a trackpad,<br>zoom and Exit always in reach.",
+        "img": "raw-current/iphone/02-desktop-view.png",
+        "ring": "-340,420,900"
+      }
+    },
+    {
+      "name": "03-spaces",
+      "params": {
+        "s": "Each space has its own<br>sign-ins and colour.",
+        "img": "raw-current/iphone/03-spaces.png",
+        "ring": "740,420,940"
+      }
+    },
+    {
+      "name": "04-palette",
+      "params": {
+        "s": "Find a tab, a space or a command<br>from the address bar.",
+        "img": "raw-current/iphone/04-palette.png",
+        "ring": "-320,360,880"
+      }
+    },
+    {
+      "name": "05-bookmarks",
+      "params": {
+        "s": "Keep bookmarks and folders<br>inside each space.",
+        "img": "raw-current/iphone/05-bookmarks.png",
+        "ring": "740,700,900"
+      }
+    }
+  ]
 }

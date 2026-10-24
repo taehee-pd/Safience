@@ -3,18 +3,72 @@ import PadCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings (⌃⌥,). Short, because most of what this app does is meant to
-/// stay out of sight; the switches here are for checking and adjusting the
-/// bridges on a real iPad.
-///
-/// A section has words under it only for what a person has to know to act:
-/// a step to take somewhere else, what a choice does to their data, where
-/// what they type is sent, whose work a list is, or that something failed.
-/// What a control's own label says is not said again under it.
+/// Settings categories, with direct routing from command search.
 struct SettingsView: View {
+    @ObservedObject var session: Session
+    let spaceID: UUID
+    var anchor: SettingsAnchor?
+    var phoneLayout = Device.phone
+    var padLayout = !Device.phone
+    let done: () -> Void
+    @State private var keyboard = GCKeyboard.coalesced != nil
+    @State private var path: [SettingsGroup] = []
+    @State private var openedAnchor = false
+    // Import failures and parsed-file recovery survive returning to categories.
+    @State private var importing = false
+    @State private var imported: BookmarkImportOutcome?
+    @State private var importWorking = false
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            List {
+                ForEach(SettingsGroup.allCases.filter {
+                    $0.isOffered(padLayout: padLayout, keyboard: keyboard, diagnostics: Device.diagnostics)
+                }, id: \.self) { group in
+                    NavigationLink(value: group) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(group == .input && !padLayout ? "Keyboard" : group.title)
+                            Text(group.detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done", action: done) }
+            }
+            .navigationDestination(for: SettingsGroup.self) { group in
+                SettingsDetail(session: session, spaceID: spaceID, group: group,
+                               anchor: anchor?.group == group ? anchor : nil,
+                               phoneLayout: phoneLayout, padLayout: padLayout,
+                               done: done, keyboard: keyboard,
+                               importing: $importing, imported: $imported, importWorking: $importWorking)
+            }
+            .task {
+                guard !openedAnchor else { return }
+                openedAnchor = true
+                if let anchor,
+                   anchor.group.isOffered(padLayout: padLayout, keyboard: keyboard, diagnostics: Device.diagnostics) {
+                    path = [anchor.group]
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in keyboard = true }
+            .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
+                keyboard = GCKeyboard.coalesced != nil
+            }
+        }
+    }
+}
+
+private struct SettingsDetail: View {
     @ObservedObject var session: Session
     /// The space of the window Settings opened from, which imports go into.
     let spaceID: UUID
+    let group: SettingsGroup
     /// The part to open at, when the address bar sent one (SettingsAnchor).
     var anchor: SettingsAnchor?
     /// Which layouts' parts to have (Device.settingsLayouts): a phone-width
@@ -25,10 +79,12 @@ struct SettingsView: View {
     let done: () -> Void
     /// A keyboard with keys is attached: a phone's Settings then have the
     /// keyboard's parts too (its shortcuts work, Browser.phoneKeys).
-    @State private var keyboard = GCKeyboard.coalesced != nil
-    @State private var importing = false
-    @State private var imported: (title: String, message: String)?
+    let keyboard: Bool
+    @Binding var importing: Bool
+    @Binding var imported: BookmarkImportOutcome?
+    @Binding var importWorking: Bool
     @State private var clearingHistory = false
+    @AppStorage(Menus.controlShortcutsKey) private var controlShortcuts = false
     /// The part the address bar sent Settings to, for a moment after it opens there.
     @State private var lit: SettingsAnchor?
     /// Apple Intelligence on this device, as Settings opens (Intelligence.swift).
@@ -36,232 +92,261 @@ struct SettingsView: View {
 
     /// Where what is typed goes, and that Apple Intelligence stays on the device where it is there.
     private var searchFooter: String {
-        var text = "What you type goes to your search engine for suggestions, without cookies. Complete addresses are excluded, but text typed before an address is recognized may be sent. Turn this off to keep address-bar typing on your device."
+        var text = Autocomplete.suggestionsDisclosure(engine: session.preferences.engine)
         if intelligence == .ready { text += " Apple Intelligence works on this \(Device.name) and sends nothing anywhere." }
         return text
     }
 
     var body: some View {
-        NavigationStack {
-            // The reader is how Settings opens at a part (anchor); every
-            // section's header is a place it can go (SettingsHeader).
-            ScrollViewReader { scroller in
+        // Direct search opens this category and scrolls to its section.
+        ScrollViewReader { scroller in
             Form {
-                DefaultBrowserSection()
+                if group == .general {
+                    DefaultBrowserSection()
+                    AppIconSection()
+                }
+                if group == .spaces {
+                    CloudSection(session: session)
+                }
 
-                CloudSection(session: session)
-
-                AppIconSection()
-
-                if phoneLayout {
-                    Section {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Cursor speed")
-                            HStack(spacing: 10) {
-                                Image(systemName: "tortoise.fill").foregroundStyle(.secondary)
-                                Slider(value: $session.preferences.cursorSpeed, in: DesktopView.cursorSpeeds)
-                                    .accessibilityLabel("Cursor speed")
-                                Image(systemName: "hare.fill").foregroundStyle(.secondary)
+                if group == .browsing {
+                    if phoneLayout {
+                        Section {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Cursor speed")
+                                HStack(spacing: 10) {
+                                    Image(systemName: "tortoise.fill").foregroundStyle(.secondary)
+                                    Slider(value: $session.preferences.cursorSpeed, in: DesktopView.cursorSpeeds)
+                                        .accessibilityLabel("Cursor speed")
+                                    Image(systemName: "hare.fill").foregroundStyle(.secondary)
+                                }
                             }
+                            .padding(.vertical, 4)
+                        } header: {
+                            SettingsHeader("Trackpad View", .desktopView)
                         }
-                        .padding(.vertical, 4)
-                    } header: {
-                        SettingsHeader("Desktop View", .desktopView)
+                        Section {
+                            // Its choices as rows: a menu beside a label this long has no room on a phone.
+                            Picker("The address bar shows", selection: $session.preferences.address) {
+                                Text("The page's address").tag(AddressMode.always)
+                                Text("The page's title").tag(AddressMode.automatic)
+                            }
+                            .pickerStyle(.inline)
+                            .labelsHidden()
+                        } header: {
+                            SettingsHeader("The address bar shows", .addressBar)
+                        } footer: {
+                            Text("Sign-in pages always show their address.")
+                        }
                     }
+                    if padLayout {
                     Section {
-                        // Its choices as rows: a menu beside a label this long has no room on a phone.
-                        Picker("The address bar shows", selection: $session.preferences.address) {
-                            Text("The page's address").tag(AddressMode.always)
-                            Text("The page's title").tag(AddressMode.automatic)
+                        // The name's capitals and the pictures' top edge as far from the
+                        // row's top as the name is from its left (17 points, measured).
+                        HStack(alignment: .top) {
+                            Text("Tabs")
+                                .padding(.top, -1.5)
+                            Spacer()
+                            // Nil is the iPad's own way: along the top.
+                            TabsLayoutPicker(selection: Binding {
+                                session.preferences.tabsPlacement ?? .top
+                            } set: {
+                                session.preferences.tabsPlacement = $0
+                            })
+                            .padding(.top, 2)
+                            .padding(.bottom, 6)
                         }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Tabs")
+                        if session.preferences.tabsPlacement == .sidebar {
+                            Toggle("Show the sidebar", isOn: $session.preferences.tabBar)
+                        } else {
+                            // Asked once: the phone layout's own part above already asks it.
+                            if !phoneLayout {
+                                Picker("The tab you are on shows", selection: $session.preferences.address) {
+                                    Text("Its address").tag(AddressMode.always)
+                                    Text("Its title").tag(AddressMode.automatic)
+                                }
+                            }
+                            Toggle("Show the tab bar", isOn: $session.preferences.tabBar)
+                        }
                     } header: {
-                        SettingsHeader("The address bar shows", .addressBar)
+                        SettingsHeader("Window", .window)
                     } footer: {
-                        Text("Sign-in pages always show their address.")
+                        if session.preferences.tabsPlacement == .sidebar {
+                            Text("With the sidebar hidden, ⌃⌥K lists every tab.")
+                        } else {
+                            Text("Sign-in pages always show their address. With the tab bar hidden, ⌃⌥K lists every tab.")
+                        }
                     }
+                    }
+
                 }
-                if padLayout {
-                Section {
-                    // The name's capitals and the pictures' top edge as far from the
-                    // row's top as the name is from its left (17 points, measured).
-                    HStack(alignment: .top) {
-                        Text("Tabs")
-                            .padding(.top, -1.5)
-                        Spacer()
-                        // Nil is the iPad's own way: along the top.
-                        TabsLayoutPicker(selection: Binding {
-                            session.preferences.tabsPlacement ?? .top
-                        } set: {
-                            session.preferences.tabsPlacement = $0
-                        })
-                        .padding(.top, 2)
-                        .padding(.bottom, 6)
-                    }
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Tabs")
-                    if session.preferences.tabsPlacement == .sidebar {
-                        Toggle("Show the sidebar", isOn: $session.preferences.tabBar)
-                    } else {
-                        // Asked once: the phone layout's own part above already asks it.
-                        if !phoneLayout {
-                            Picker("The tab you are on shows", selection: $session.preferences.address) {
-                                Text("Its address").tag(AddressMode.always)
-                                Text("Its title").tag(AddressMode.automatic)
+
+                if group == .spaces {
+                    Section {
+                        NavigationLink {
+                            SpaceList(session: session)
+                        } label: {
+                            HStack {
+                                Text("Spaces")
+                                Spacer()
+                                Text("\(session.workspace.spaces.count)")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
                             }
                         }
-                        Toggle("Show the tab bar", isOn: $session.preferences.tabBar)
-                    }
-                } header: {
-                    SettingsHeader("Window", .window)
-                } footer: {
-                    if session.preferences.tabsPlacement == .sidebar {
-                        Text("With the sidebar hidden, ⌃⌥K lists every tab.")
-                    } else {
-                        Text("Sign-in pages always show their address. With the tab bar hidden, ⌃⌥K lists every tab.")
-                    }
-                }
-                }
-
-                Section {
-                    NavigationLink {
-                        SpaceList(session: session)
-                    } label: {
-                        HStack {
-                            Text("Spaces")
-                            Spacer()
-                            Text("\(session.workspace.spaces.count)")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                        NavigationLink {
+                            PinnedTabList(session: session)
+                        } label: {
+                            HStack {
+                                Text("Pinned Tabs")
+                                Spacer()
+                                Text("\(session.workspace.spaces.reduce(0) { $0 + $1.pinnedCount })")
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
                         }
-                    }
-                    NavigationLink {
-                        PinnedTabList(session: session)
-                    } label: {
-                        HStack {
-                            Text("Pinned Tabs")
-                            Spacer()
-                            Text("\(session.workspace.spaces.reduce(0) { $0 + $1.pinnedCount })")
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                        Button("Import Bookmarks into \(session.workspace.space(spaceID)?.name ?? "This Space")…") {
+                            importing = true
                         }
-                    }
-                    Button("Import Bookmarks into \(session.workspace.space(spaceID)?.name ?? "This Space")…") {
-                        importing = true
-                    }
-                } header: {
-                    SettingsHeader("Spaces and bookmarks", .spaces)
-                } footer: {
-                    Text("Import a bookmarks file exported from Chrome or Safari.")
-                }
-
-                Section {
-                    Stepper(value: $session.preferences.limits.lightOffScreen, in: 0...6) {
-                        Text("Light tabs kept open: \(session.preferences.limits.lightOffScreen)")
-                    }
-                } header: {
-                    SettingsHeader("Memory", .memory)
-                } footer: {
-                    Text("Tabs past this number freeze and load again when you open them.")
-                }
-
-                if padLayout {
-                Section {
-                    Picker("Two-finger scroll", selection: $session.preferences.wheel) {
-                        Text("As each site needs").tag(WheelMode?.none)
-                        Text("Bridge when WebKit sends nothing").tag(WheelMode?.some(.auto))
-                        Text("Always bridge").tag(WheelMode?.some(.always))
-                        Text("Never bridge").tag(WheelMode?.some(.off))
-                    }
-                    Picker("Tab and arrow keys", selection: $session.preferences.keys) {
-                        Text("As each site needs").tag(Override.site)
-                        Text("Send to the page first").tag(Override.on)
-                        Text("Leave to the system").tag(Override.off)
-                    }
-                    Toggle("Show pages' own cursors", isOn: $session.preferences.pageCursors)
-                } header: {
-                    SettingsHeader("Trackpad and keyboard", .trackpad)
-                }
-                } else if keyboard {
-                Section {
-                    Picker("Tab and arrow keys", selection: $session.preferences.keys) {
-                        Text("As each site needs").tag(Override.site)
-                        Text("Send to the page first").tag(Override.on)
-                        Text("Leave to the system").tag(Override.off)
-                    }
-                } header: {
-                    SettingsHeader("Keyboard", .trackpad)
-                }
-                }
-
-                Section {
-                    Picker("Search engine", selection: $session.preferences.engine) {
-                        ForEach(Destination.engines, id: \.id) { engine in
-                            Text(engine.name).tag(engine.id)
-                        }
-                    }
-                    Toggle("Search engine suggestions", isOn: $session.preferences.searchSuggestions)
-                    // Only where Apple Intelligence is there to suggest: not turned off, not still getting ready.
-                    if intelligence == .ready {
-                        Toggle("Suggest with Apple Intelligence", isOn: $session.preferences.intelligence)
-                    }
-                } header: {
-                    SettingsHeader("Search", .search)
-                } footer: {
-                    Text(searchFooter)
-                }
-
-                Section {
-                    Picker("Keep history for", selection: $session.preferences.historyRetention) {
-                        ForEach(HistoryRetention.allCases, id: \.self) { retention in
-                            Text(retention.label).tag(retention)
-                        }
-                    }
-                    Button("Clear History…") { clearingHistory = true }
-                } header: {
-                    SettingsHeader("History", .history)
-                } footer: {
-                    Text("Each space keeps its own history. Pages older than this are deleted.")
-                }
-                .sheet(isPresented: $clearingHistory) {
-                    ClearHistoryView(spaceID: spaceID) { clearingHistory = false }
-                }
-
-                BlockingSection(session: session)
-
-                LinkMenuSection(session: session)
-
-                // Nothing of Handoff without Apple Intelligence: not even its switch.
-                if session.hasIntelligence {
-                    HandoffSection(session: session)
-                }
-
-                if Device.diagnostics {
-                    Section {
-                        Toggle("Show diagnostics", isOn: $session.preferences.diagnostics)
+                        .disabled(importWorking)
+                        if importWorking { ProgressView("Importing bookmarks") }
+                        BookmarkImportStatusView(session: session, outcome: $imported, chooseFile: { importing = true })
                     } header: {
-                        SettingsHeader("Diagnostics", .diagnostics)
+                        SettingsHeader("Spaces and bookmarks", .spaces)
+                    } footer: {
+                        Text("Import an HTML bookmarks export from Chrome, Firefox or Safari, or a Safari ZIP export that includes bookmarks.")
+                    }
+
+                }
+
+                if group == .browsing {
+                    Section {
+                        Stepper(value: $session.preferences.limits.lightOffScreen, in: 0...6) {
+                            Text("Inactive page limit: \(session.preferences.limits.lightOffScreen)")
+                        }
+                    } header: {
+                        SettingsHeader("Memory", .memory)
+                    } footer: {
+                        Text("Up to this many less demanding pages stay loaded in the background. Other inactive pages may reload when reopened.")
+                    }
+
+                    LinkMenuSection(session: session)
+                }
+
+                if group == .input {
+                    if padLayout {
+                    Section {
+                        Picker("Two-finger scroll", selection: $session.preferences.wheel) {
+                            Text("As each site needs").tag(WheelMode?.none)
+                            Text("Help when normal scrolling fails").tag(WheelMode?.some(.auto))
+                            Text("Always send scrolling to the page").tag(WheelMode?.some(.always))
+                            Text("Use system scrolling only").tag(WheelMode?.some(.off))
+                        }
+                        Picker("Tab and arrow keys", selection: $session.preferences.keys) {
+                            Text("As each site needs").tag(Override.site)
+                            Text("Send to the page first").tag(Override.on)
+                            Text("Leave to the system").tag(Override.off)
+                        }
+                        Toggle("Use the site's cursor style", isOn: $session.preferences.pageCursors)
+                    } header: {
+                        SettingsHeader("Trackpad and keyboard", .trackpad)
+                    } footer: {
+                        Text("Some web apps provide their own cursor shapes. Turn this off to use system cursor styles.")
+                    }
+                    } else if keyboard {
+                    Section {
+                        Picker("Tab and arrow keys", selection: $session.preferences.keys) {
+                            Text("As each site needs").tag(Override.site)
+                            Text("Send to the page first").tag(Override.on)
+                            Text("Leave to the system").tag(Override.off)
+                        }
+                    } header: {
+                        SettingsHeader("Keyboard", .trackpad)
+                    }
+                    }
+
+                }
+
+                if group == .privacy {
+                    Section {
+                        Picker("Search engine", selection: $session.preferences.engine) {
+                            ForEach(Destination.engines, id: \.id) { engine in
+                                Text(engine.name).tag(engine.id)
+                            }
+                        }
+                        Toggle("Send typing to \(Autocomplete.engineName(session.preferences.engine))", isOn: Binding(
+                            get: { session.preferences.allowsRemoteSuggestions(for: session.preferences.engine) },
+                            set: { session.preferences.setRemoteSuggestions($0) }))
+                            .disabled(!Autocomplete.offersSuggestions(engine: session.preferences.engine))
+                        // Only where Apple Intelligence is there to suggest: not turned off, not still getting ready.
+                        if intelligence == .ready {
+                            Toggle("Suggest with Apple Intelligence", isOn: $session.preferences.intelligence)
+                        }
+                    } header: {
+                        SettingsHeader("Search", .search)
+                    } footer: {
+                        Text(searchFooter)
+                    }
+
+                    Section {
+                        Picker("Keep history for", selection: $session.preferences.historyRetention) {
+                            ForEach(HistoryRetention.allCases, id: \.self) { retention in
+                                Text(retention.label).tag(retention)
+                            }
+                        }
+                        Button("Clear History…") { clearingHistory = true }
+                    } header: {
+                        SettingsHeader("History", .history)
+                    } footer: {
+                        Text("Each space keeps its own history. Pages older than this are deleted.")
+                    }
+                    .sheet(isPresented: $clearingHistory) {
+                        ClearHistoryView(spaceID: spaceID) { clearingHistory = false }
+                    }
+
+                    BlockingSection(session: session)
+
+                    // Nothing of Handoff without Apple Intelligence: not even its switch.
+                    if session.hasIntelligence {
+                        HandoffSection(session: session)
+                    }
+
+                }
+
+                if group == .diagnostics && Device.diagnostics {
+                    Section {
+                        Toggle("Show developer diagnostics", isOn: $session.preferences.diagnostics)
+                    } header: {
+                        SettingsHeader("Developer diagnostics", .diagnostics)
+                    } footer: {
+                        Text("Developer information for troubleshooting. Nothing in this panel is sent from your device.")
                     }
                 }
 
-                if padLayout || keyboard {
+                if group == .shortcuts && (padLayout || keyboard) {
                 Section {
+                    Toggle("Use Control shortcuts", isOn: $controlShortcuts)
+                        .onChange(of: controlShortcuts) { _, _ in UIMenuSystem.main.setNeedsRebuild() }
+                    Text("Uses Control instead of Control-Option for browser commands, avoiding VoiceOver's modifier. These keys can conflict with webpage or text-editing shortcuts. Reserved browser shortcuts stay the same.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     // By the menu each is in, as the command bar lists them.
                     ForEach(ShortcutGroup.allCases.flatMap(\.commands).filter { Device.offers($0, compact: !padLayout) }, id: \.self) { command in
                         HStack {
                             Text(command.title)
                             Spacer()
-                            KeyCaps(keys: Shortcuts.chord(for: command)?.caps ?? [])
+                            KeyCaps(keys: Menus.keyCaps(for: command) ?? [])
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(command.title)
-                        .accessibilityValue(Shortcuts.chord(for: command)?.label ?? "")
+                        .accessibilityValue(Menus.keyCaps(for: command)?.joined() ?? "")
                     }
                     HStack {
                         Text("A tab by its place, the last one")
                         Spacer()
-                        Text("⌃⌥1 … ⌃⌥9").foregroundStyle(.secondary).monospaced()
+                        Text(controlShortcuts ? "⌃1 … ⌃9" : "⌃⌥1 … ⌃⌥9").foregroundStyle(.secondary).monospaced()
                     }
                 } header: {
                     SettingsHeader("Shortcuts", .shortcuts)
@@ -271,27 +356,24 @@ struct SettingsView: View {
                     Text(Device.phone
                          ? "iOS keeps its own shortcuts (⌘Tab, ⌘Space, the Globe key); no app can give those to a page."
                          : "iPadOS keeps its own shortcuts (⌘Tab, ⌘Space, the Globe key) and its three- and four-finger gestures; no app can give those to a page.")
-                    Text("With VoiceOver on, ⌃⌥ is VoiceOver's own key; type a command's name in the address bar instead.")
+                    Text("With VoiceOver on, Control-Option is VoiceOver's modifier. Use Control shortcuts above or choose browser commands from the menus.")
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle(group == .input && !padLayout ? "Keyboard" : group.title)
             .navigationBarTitleDisplayMode(.inline)
             .fileImporter(isPresented: $importing, allowedContentTypes: [.html, .zip]) { result in
-                guard case .success(let file) = result else { return }
+                guard case .success(let file) = result else { imported = .cancelled; return }
+                importWorking = true
                 // Readable until the import has read it, which it does away from the main thread.
                 let scoped = file.startAccessingSecurityScopedResource()
                 session.importBookmarks(from: file, into: spaceID) { outcome in
                     if scoped { file.stopAccessingSecurityScopedResource() }
                     imported = outcome
+                    importWorking = false
                 }
-            }
-            .alert(imported?.title ?? "", isPresented: Binding(get: { imported != nil }, set: { if !$0 { imported = nil } })) {
-                Button("OK") { imported = nil }
-            } message: {
-                Text(imported?.message ?? "")
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -299,10 +381,6 @@ struct SettingsView: View {
                 }
             }
             .environment(\.settingsLit, lit)
-            .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidConnect)) { _ in keyboard = true }
-            .onReceive(NotificationCenter.default.publisher(for: .GCKeyboardDidDisconnect)) { _ in
-                keyboard = GCKeyboard.coalesced != nil
-            }
             // Sent to a part, the list goes to that section's first row, at
             // the top: its header, just above, would be under the title bar.
             // This much more kept clear there leaves the header in view. (A
@@ -322,13 +400,11 @@ struct SettingsView: View {
                 withAnimation(.easeOut(duration: 0.6)) { lit = nil }
             }
             }
-        }
     }
-
 }
 
 extension EnvironmentValues {
-    /// The part of Settings that was just gone to (SettingsView.lit).
+    /// The section highlighted after a direct search result opens it.
     @Entry var settingsLit: SettingsAnchor?
 }
 
@@ -346,7 +422,7 @@ struct SettingsHeader: View {
     static let room: CGFloat = 44
 
     init(_ title: String, _ anchor: SettingsAnchor) {
-        self.title = title
+        self.title = BrowserText.localized(title)
         self.anchor = anchor
     }
 
@@ -372,8 +448,11 @@ struct CloudSection: View {
             // with iCloud off there is nothing for it to go through.
             if syncing {
                 Toggle("Sync history", isOn: $session.preferences.historySync)
+                    .disabled(!sync.canConfigureHistory)
+                SyncStatusView()
             }
-            if syncing, let problem = sync.problem {
+            SyncAccountChoiceView()
+            if syncing, !sync.accountDecisionNeeded, let problem = sync.problem {
                 Label(problem, systemImage: "exclamationmark.icloud")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -381,8 +460,8 @@ struct CloudSection: View {
         } header: {
             SettingsHeader("iCloud", .sync)
         } footer: {
-            Text("Spaces, bookmarks, pinned tabs and open tabs show on your other devices. Sign-ins and site data stay on each one."
-                 + (syncing ? " Synced history is encrypted in iCloud, and clearing it on one device clears it on all." : ""))
+            Text("Spaces, bookmarks and pinned tabs sync between your devices. Open tabs and sign-ins stay on each device. Spaces with the same name stay separate unless they already share an iCloud identity."
+                 + (syncing ? " Synced history is encrypted in iCloud. " + sync.historyScopeDescription + " " + BrowserText.localized("Only visits saved after this Apple Account is approved can sync. Other history stays on this device.") : ""))
         }
     }
 }
@@ -397,7 +476,7 @@ private struct HandoffSection: View {
         Section {
             Toggle("Hand off the page to another app", isOn: $session.preferences.handoff)
         } header: {
-            SettingsHeader("Handoff", .handoff)
+            SettingsHeader("Send to App", .handoff)
         } footer: {
             Text("The page goes as text to the app you pick, such as Claude or ChatGPT, for your question. Nothing leaves this \(Device.name) until you pick one.")
         }

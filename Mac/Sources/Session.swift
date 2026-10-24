@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import PadCore
 import Security
-import os
+import UniformTypeIdentifiers
 
 /// What every window shares: the spaces and their tabs, the settings, the
 /// pages, and the windows themselves. The iPad's Session, for a Mac.
@@ -13,14 +13,9 @@ import os
 @MainActor
 final class Session: ObservableObject {
     static let shared = Session()
-    /// What went wrong where nothing is shown for it, for Console.
-    nonisolated private static let log = Logger(subsystem: "net.taehee.safience", category: "Session")
 
     @Published private(set) var workspace: Workspace
     @Published private(set) var workspaceProblem: WorkspaceFile.Failure?
-    /// The last workspace write failed: the workspace on screen is newer
-    /// than the one on disk until a write succeeds.
-    @Published private(set) var workspaceSaveFailed = false
     var canUseWorkspace: Bool { workspaceProblem == nil }
     @Published var preferences: Preferences {
         didSet {
@@ -41,7 +36,12 @@ final class Session: ObservableObject {
 
     let pages = Pages()
     private let windows = NSHashTable<WindowModel>.weakObjects()
-    private let store = WorkspaceStore(folder: Session.folder, snapshots: Snapshots.folder) { Session.written($0) }
+    /// Opens, retries and restores the workspace's file; its writes are persistence's.
+    private let store = WorkspaceStore(folder: Session.folder, snapshots: Snapshots.folder)
+    lazy var persistence = WorkspacePersistence(file: Session.workspaceFile)
+    private var terminationPending = false
+    private var quitWarningShown = false
+    private var allowUnsavedTermination = false
     /// Addresses another app asked to open before any window was there to take them.
     private var waiting: [URL] = []
     /// A new window showing a space, and the Settings window, through
@@ -62,16 +62,16 @@ final class Session: ObservableObject {
         return ((value as? [String]) ?? []).isEmpty == false
     }()
 
-    /// Asked from any thread: the filter lists are read and written away from the main one.
     nonisolated static var dataRootOverride: URL? {
-        let value = ProcessInfo.processInfo.environment["SAFIENCE_DATA_ROOT"]
-            ?? Bundle.main.object(forInfoDictionaryKey: "SAFIENCE_DATA_ROOT") as? String
-        guard let value, value.hasPrefix("/"), !value.isEmpty else { return nil }
-        return URL(fileURLWithPath: value, isDirectory: true)
+        for path in [ProcessInfo.processInfo.environment["SAFIENCE_DATA_ROOT"],
+                     Bundle.main.object(forInfoDictionaryKey: "SAFIENCE_DATA_ROOT") as? String].compactMap({ $0 }) {
+            if !path.isEmpty, path.hasPrefix("/") { return URL(fileURLWithPath: path, isDirectory: true) }
+        }
+        return nil
     }
 
     nonisolated static var folder: URL {
-        if let override = dataRootOverride { return override }
+        if let dataRootOverride { return dataRootOverride }
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return support.appendingPathComponent("Safience", isDirectory: true)
@@ -195,6 +195,7 @@ final class Session: ObservableObject {
     func change<T>(_ edit: (inout Workspace) -> T) -> T {
         var copy = workspace
         let result = edit(&copy)
+        Sync.shared.protectWorkspaceMutation(from: workspace, to: &copy)
         if Sync.shared.assigns { SyncPlan.assignIDs(&copy) }
         if canUseWorkspace, copy != workspace {
             let old = workspace
@@ -209,21 +210,106 @@ final class Session: ObservableObject {
 
     private func save() {
         guard canUseWorkspace else { return }
-        store.save(workspace)
+        persistence.changed(workspace)
+    }
+
+    func retryWorkspaceSave() {
+        guard canUseWorkspace else { return }
+        persistence.flush(workspace) { _ in }
+    }
+
+    func saveWorkspaceNow() async -> Bool {
+        guard canUseWorkspace else { return false }
+        return await withCheckedContinuation { continuation in
+            persistence.flush(workspace) { continuation.resume(returning: $0) }
+        }
     }
 
     /// Whatever is waiting to be saved, now: the app is quitting.
-    func saveNow() {
-        guard canUseWorkspace else { return }
-        store.saveAndWait(workspace)
+    @discardableResult
+    func saveNow() -> Bool {
+        guard canUseWorkspace else { return true }
+        return persistence.flushNow(workspace)
     }
 
-    /// After each workspace write: a failure is logged for Console and
-    /// marked in workspaceSaveFailed, which the next success clears.
-    private static func written(_ error: (any Error)?) {
-        if let error { log.error("Workspace not saved: \(error.localizedDescription, privacy: .public)") }
-        let failed = error != nil
-        if shared.workspaceSaveFailed != failed { shared.workspaceSaveFailed = failed }
+    /// AppKit waits for the latest durable acknowledgement before ending the process.
+    func requestTermination(_ app: NSApplication) -> NSApplication.TerminateReply {
+        if allowUnsavedTermination {
+            allowUnsavedTermination = false
+            return .terminateNow
+        }
+        guard canUseWorkspace, persistence.state.isDirty else { return .terminateNow }
+        guard !terminationPending, !quitWarningShown else { return .terminateCancel }
+        terminationPending = true
+        Task {
+            let saved = await saveWorkspaceNow()
+            terminationPending = false
+            app.reply(toApplicationShouldTerminate: saved)
+            if !saved { showQuitWarning(app) }
+        }
+        return .terminateLater
+    }
+
+    private func showQuitWarning(_ app: NSApplication) {
+        guard persistence.state.isDirty, !quitWarningShown else { return }
+        quitWarningShown = true
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Workspace Changes Haven't Been Saved"
+        alert.informativeText = "Keep Safience open to retry saving or export a workspace backup. Quitting without saving can lose changes to spaces, tabs and bookmarks. Unsaved website content is not included in a backup."
+        alert.addButton(withTitle: "Keep Open").keyEquivalent = "\u{1b}"
+        alert.addButton(withTitle: "Retry Save")
+        alert.addButton(withTitle: "Export Workspace Backup")
+        alert.addButton(withTitle: "Quit Without Saving").hasDestructiveAction = true
+        let finished: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self else { return }
+            quitWarningShown = false
+            switch response.rawValue {
+            case NSApplication.ModalResponse.alertSecondButtonReturn.rawValue:
+                retryWorkspaceSave()
+            case NSApplication.ModalResponse.alertThirdButtonReturn.rawValue:
+                exportWorkspaceBeforeQuit()
+            case NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + 3:
+                allowUnsavedTermination = true
+                app.terminate(nil)
+            default: break
+            }
+        }
+        if let window = app.keyWindow ?? app.windows.first(where: \.isVisible) {
+            alert.beginSheetModal(for: window, completionHandler: finished)
+        } else {
+            // Quit is an app-level action and still needs a choice with no windows open.
+            finished(alert.runModal())
+        }
+    }
+
+    private func exportWorkspaceBeforeQuit() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Safience Workspace Backup.json"
+        panel.message = "The backup includes spaces, tab addresses and bookmarks. Sign-ins and unsaved website content are not included."
+        let finished: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self, response == .OK, let destination = panel.url else { return }
+            do {
+                try WorkspaceFile.exportData(workspace).write(to: destination, options: .atomic)
+            } catch {
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = "The Workspace Backup Wasn't Exported"
+                alert.informativeText = "Keep Safience open, check available storage and choose another location to export the backup."
+                alert.addButton(withTitle: "OK")
+                if let window = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) {
+                    alert.beginSheetModal(for: window)
+                } else {
+                    alert.runModal()
+                }
+            }
+        }
+        if let window = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible) {
+            panel.beginSheetModal(for: window, completionHandler: finished)
+        } else {
+            panel.begin(completionHandler: finished)
+        }
     }
 
     /// What a page says about itself, its address and title, saved with
@@ -239,6 +325,7 @@ final class Session: ObservableObject {
     /// pinned page (Workspace.closeTab). Each window that showed it shows
     /// what its space has selected now.
     func closeTab(_ id: UUID) {
+        let pinned = workspace.tab(id)?.isPinned == true
         let next = change { $0.closeTab(id) }
         for window in allWindows where window.tabID == id {
             // The next tab may be on screen in another window already: this one shows its space's start instead.
@@ -249,7 +336,7 @@ final class Session: ObservableObject {
             // A pinned tab closed is the one selected still when it is the space's only tab: unloaded, not shown.
             window.show(tab: shown == id ? nil : shown, inSpace: window.spaceID)
         }
-        pages.close(id)
+        if !pinned { pages.close(id) }
     }
 
     /// Several tabs closed at once: the space's Clear, or Close Other Tabs.
@@ -270,21 +357,57 @@ final class Session: ObservableObject {
         // that an extension controller still holds.
         Extensions.shared.removeSpace(id)
         Stores.erase(id)
-        HistoryRecorder.shared.removeSpace(id)
+        HistoryRecorder.shared.removeSpace(id, cloudID: space.cloudID)
     }
 
     /// A tab into another space. A window that showed it shows what its own
     /// space has selected now, unless another window has that on screen.
-    func moveTab(_ id: UUID, to space: UUID) {
-        let from = workspace.spaceID(of: id)
-        guard change({ $0.moveTab(id, to: space) }) else { return }
-        for window in allWindows where window.tabID == id {
-            let next = from.flatMap { workspace.space($0)?.selected }
-            let shower = next.flatMap { self.window(showing: $0) }
-            window.show(tab: shower == nil || shower === window ? next : nil, inSpace: window.spaceID)
+    func moveTab(_ id: UUID, to space: UUID, from owner: WindowModel, before target: UUID? = nil,
+                 completion: @escaping @MainActor (UUID?) -> Void = { _ in }) {
+        guard canUseWorkspace, let window = owner.window,
+              window.isVisible, window.attachedSheet == nil,
+              let plan = TabMovePlan(workspace: workspace, tab: id, destination: space, before: target)
+        else { return completion(nil) }
+        let originalOwnerSpace = owner.spaceID
+        let live = pages.live[id]
+        let alert = NSAlert()
+        alert.messageText = plan.title
+        alert.informativeText = plan.message
+        alert.addButton(withTitle: BrowserText.localized("Move Tab"))
+        alert.addButton(withTitle: BrowserText.localized("Open a Copy"))
+        alert.addButton(withTitle: BrowserText.localized("Cancel"))
+        alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
+        alert.buttons[2].keyEquivalent = "\u{1b}"
+        alert.beginSheetModal(for: window) { [weak self, weak owner, weak window] answer in
+            guard let self else { return completion(nil) }
+            let choice: TabMovePlan.Choice
+            switch answer {
+            case .alertFirstButtonReturn: choice = .move
+            case .alertSecondButtonReturn: choice = .copy
+            default: return completion(nil)
+            }
+            guard let owner, let window, owner.window === window, window.isVisible,
+                  owner.spaceID == originalOwnerSpace else { return completion(nil) }
+            guard self.canUseWorkspace, plan.isValid(in: self.workspace), self.pages.live[id] === live else {
+                owner.show(ActionToast(symbol: "exclamationmark.triangle", text: BrowserText.localized("The tab or space changed. Try moving it again.")))
+                return completion(nil)
+            }
+            guard let result = self.change({ plan.apply(choice, to: &$0) }) else { return completion(nil) }
+            if choice == .move {
+                for window in self.allWindows where window.tabID == id {
+                    let next = self.workspace.space(plan.source)?.selected
+                    let shower = next.flatMap { self.window(showing: $0) }
+                    window.show(tab: shower == nil || shower === window ? next : nil, inSpace: window.spaceID)
+                }
+                // PR50 isolation is unchanged; a copy never releases the original page.
+                self.pages.moved(id)
+            } else {
+                owner.show(tab: result, inSpace: space)
+            }
+            completion(result)
         }
-        // Signed in somewhere else now: the page loads again in that space's store.
-        pages.moved(id)
     }
 
     // MARK: Windows

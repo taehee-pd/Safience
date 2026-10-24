@@ -87,6 +87,12 @@ struct BrowserView: View {
         .background(WindowReader(model: model))
         .frame(minWidth: 640, minHeight: 420)
         .focusedSceneObject(model)
+        .overlay(alignment: .bottom) {
+            WorkspaceSaveStatusView()
+                .frame(maxWidth: 600)
+                .padding(12)
+                .accessibilityHidden(model.commandBar != nil)
+        }
         .sheet(isPresented: $model.historyShown) {
             HistoryView(spaceID: model.spaceID) { url, newTab in
                 model.open(url, newTab: newTab)
@@ -548,11 +554,19 @@ private struct StartView: View {
     }
 
     private func empty(_ space: Space?, inFolder: Bool) -> some View {
-        Text(inFolder ? "Nothing in this folder yet."
-                      : "No bookmarks in \(space?.name ?? "this space") yet. Bookmark the page you’re on with ⇧⌘D, and it shows here.")
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(inFolder ? "Nothing in this folder yet."
+                          : "No bookmarks in \(space?.name ?? "this space") yet. Import bookmarks from Chrome, Firefox or Safari, or bookmark the current page from the Bookmarks menu.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if !inFolder {
+                Button("Import Bookmarks…") {
+                    guard let owner = model.window else { return }
+                    session.chooseBookmarksFile(into: model.spaceID, in: owner)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

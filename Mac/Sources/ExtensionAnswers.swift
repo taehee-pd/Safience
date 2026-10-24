@@ -112,6 +112,11 @@ extension Extensions {
         case "offscreen.hasDocument":
             return ExtensionOffscreen.hasDocument(id, in: space)
 
+        // Supplied text only. This endpoint never reads a tab or grants access.
+        case "i18n.detectLanguage":
+            guard let text = first as? String else { throw Unanswered(why: "Language detection requires text.") }
+            return ExtensionLanguage.detect(text).json
+
         // MARK: native messaging, asked for as Chrome asks
         case "permissions.native":
             // Only for an extension that asked for it as optional; one that

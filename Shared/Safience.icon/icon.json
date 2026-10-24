@@ -5,7 +5,7 @@
   "fill-specializations" : [
     {
       "value" : {
-        "automatic-gradient" : "display-p3:0.93812,0.93471,0.96674,1.00000"
+        "automatic-gradient" : "display-p3:0.93530,0.94508,1.00000,1.00000"
       }
     },
     {
@@ -146,8 +146,8 @@
             {
               "value" : {
                 "linear-gradient" : [
-                  "display-p3:0.36000,0.76000,1.00000,1.00000",
-                  "display-p3:0.06000,0.45000,0.96000,1.00000"
+                  "display-p3:0.24000,0.62000,0.98000,1.00000",
+                  "display-p3:0.03137,0.29804,0.80000,1.00000"
                 ]
               }
             },
@@ -156,7 +156,7 @@
               "value" : {
                 "linear-gradient" : [
                   "display-p3:0.24000,0.62000,0.98000,1.00000",
-                  "display-p3:0.03000,0.30000,0.80000,1.00000"
+                  "display-p3:0.03137,0.29804,0.80000,1.00000"
                 ]
               }
             },
@@ -173,39 +173,6 @@
           "name" : "oval",
           "position" : {
             "scale" : 1.08,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "blend-mode" : "normal",
-          "fill-specializations" : [
-            {
-              "value" : {
-                "solid" : "display-p3:0.10214,0.10214,0.11547,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "solid" : "display-p3:0.10214,0.10214,0.11547,1.00000"
-              }
-            },
-            {
-              "appearance" : "tinted",
-              "value" : {
-                "solid" : "display-p3:0.10214,0.10214,0.11547,1.00000"
-              }
-            }
-          ],
-          "glass" : true,
-          "hidden" : true,
-          "image-name" : "BG 2.svg",
-          "name" : "BG-2",
-          "position" : {
-            "scale" : 1.26,
             "translation-in-points" : [
               0,
               0
@@ -228,10 +195,10 @@
         "strength" : 0.5
       },
       "shadow" : {
-        "kind" : "none",
+        "kind" : "layer-color",
         "opacity" : 0.5
       },
-      "specular" : false,
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
         "value" : 0.3

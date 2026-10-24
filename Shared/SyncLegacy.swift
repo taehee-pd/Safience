@@ -18,7 +18,7 @@ extension SyncMirror {
     func adding(legacy spaces: [CloudSpace]) -> SyncMirror {
         let old = SyncPlan.mirror(fromLegacy: spaces)
         var out = self
-        for (id, space) in old.spaces where out.spaces[id] == nil {
+        for (id, space) in old.spaces where out.spaces[id] == nil && !out.removedSpaces.contains(id) {
             out.spaces[id] = space
             for bookmark in old.bookmarks.values where bookmark.space == id { out.bookmarks[bookmark.id] = bookmark }
         }

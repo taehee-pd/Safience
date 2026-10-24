@@ -13,9 +13,9 @@
   <a href="https://apps.apple.com/app/id6818395717"><img src="Docs/images/app-store-badge.svg" height="54" alt="Download on the App Store"></a>
 </p>
 
-Safience is a WebKit browser for working in web apps such as Figma, a whiteboard, a project board or a CMS. On iPad, sites load their desktop versions, and the trackpad's pinches and scrolling and every ⌘ shortcut go to the page, as they would in Safari on a Mac. On iPhone, the bar sits at the bottom within reach of your thumb, and Desktop View turns the screen into a trackpad for a site's desktop version. Spaces keep each client's sign-ins apart, and iCloud carries your spaces, bookmarks and tabs to your other devices.
+Safience is a WebKit browser for working in web apps such as Figma, a whiteboard, a project board or a CMS. On iPad, sites load their desktop versions, and the trackpad's pinches and scrolling and every ⌘ shortcut go to the page, as they would in Safari on a Mac. On iPhone, the bar sits at the bottom within reach of your thumb, and Desktop View turns the screen into a trackpad for a site's desktop version. Spaces keep each client's sign-ins apart, and iCloud carries your spaces, bookmarks and pinned tabs to your other devices. Open tabs stay on each device.
 
-No account, no server of ours, no analytics. What Safience keeps stays on your devices, or in your own iCloud if you turn sync on. Besides the pages you open, it asks the internet only for your search engine's suggestions as you type (Settings › Search turns them off), sites' icons and updated ad-blocking lists; and on a Mac, the Chrome extensions you add and their updates.
+No account, no server of ours, no analytics. What Safience keeps stays on your devices, or in your own iCloud if you turn sync on. Besides the pages you open, it can ask your search engine for suggestions after you explicitly enable them for that provider (off by default), sites' icons and updated ad-blocking lists; and on a Mac, the Chrome extensions you add and their updates.
 
 ## Contents
 
@@ -128,13 +128,13 @@ The address field and the command palette are one bar. On iPad it floats over th
 - **Suggestions as you type**, each row saying where it came from: an open tab, a pinned tab, a bookmark, a command, or the search engine. ↑, ↓ and Return choose one. An open tab is gone to rather than opened again.
 - **Your history**: pages you went to in the space, found by any part of a word, their address or what they say they are about ("은행" finds 우리은행, "materials glass" a page that only mentions glass), and searches you typed before. Words for when narrow it: "figma yesterday", "지난주 강좌".
 - **With Apple Intelligence** (iOS and iPadOS 26, macOS 26), Apple's on-device model also finds tabs, bookmarks, pages in your history and commands by what your words mean ("that article about window glass"), in any language it knows, and sends nothing anywhere.
-- The search engine's suggestions come without cookies and never for an address you type. Settings › Search chooses the engine (Google, DuckDuckGo, Bing, Ecosia, Startpage, Kagi, Brave Search or Qwant) and turns suggestions off.
+- Search engine suggestions are off by default. Settings › Search chooses the engine and lets you explicitly enable suggestions for that provider. Requests use no cookies. Recognized complete addresses are excluded; a partial address may be sent before recognition. Changing providers turns suggestions off again.
 
 ### History
 
 Show All History (⌘Y on a Mac, ⌃⌥Y on iPad, or the page menu's History) lists the space's pages by day, each page once a day, and searches them as the command bar does. With Apple Intelligence, press Return to search by what you remember: "the glass article from last Friday", "지난 금요일에 본 기사". A page goes from history with a swipe or its menu, a day with its Clear, and Clear History takes the last hour, today, today and yesterday, or everything, in one space or all of them; closed tabs from that time go from Reopen Closed Tab too.
 
-History is kept for a month unless Settings › History says otherwise (a day, a week, a year, or until cleared). Sign-in pages, pages that ask for a password and pop-ups are never kept. With Settings › iCloud › Sync history on, each device's history comes to the others, encrypted in your iCloud, and clearing it on one clears it on all.
+History is kept for a month unless Settings › History says otherwise (a day, a week, a year, or until cleared). Sign-in pages, pages that ask for a password and pop-ups are never kept. With Settings › iCloud › Sync history on, visits linked to the approved Apple Account can appear on your other devices, encrypted in your iCloud. Visits saved before account approval, while account verification is unavailable or while main iCloud sync is off stay on this device. Existing untagged history remains locally available after upgrading and is not newly uploaded. Previously synced records are retained until clearing or normal retention. Clearing history while approved history sync is active also clears it on devices syncing that account.
 
 ### Bookmarks on every new tab
 
@@ -336,7 +336,7 @@ Use or Leave This Site's Own Menus (⌃⌥⇧L, or the tab's menu on iPad) turns
 <details>
 <summary><b>Does Safience have extensions, a password manager, history or reader mode?</b></summary>
 
-On a Mac, Safience runs Chrome extensions ([Chrome extensions on the Mac](#chrome-extensions-on-the-mac)); on iPhone and iPad, it has none. It has no password manager, history or reader mode. Passkeys work, and the Passwords app's AutoFill offers the passwords you saved there.
+On a Mac, Safience runs Chrome extensions ([Chrome extensions on the Mac](#chrome-extensions-on-the-mac)); on iPhone and iPad, it has none. It includes per-space history. It has no built-in password manager or reader mode. Passkeys work, and the Passwords app's AutoFill offers the passwords you saved there.
 </details>
 
 <details>
@@ -373,7 +373,7 @@ There is no server of ours, no analytics and no telemetry. Here is everything Sa
 
 Besides the pages you open and the searches you make, Safience sends requests on its own only for these:
 
-- **Search suggestions**: what you type in the address bar goes to your search engine as you type, without cookies and never for an address. Settings › Search turns them off.
+- **Search suggestions**: off by default. After you explicitly enable them for a provider, address-bar typing can be sent there without cookies. Recognized complete addresses are excluded, but partial addresses may be sent. Changing providers requires a new choice.
 - **Sites' icons**: the icon a page you visited names, fetched without cookies.
 - **Ad-blocking lists**: the filter lists turned on in Settings, each from its authors' server (easylist.to, easylist-downloads.adblockplus.org, secure.fanboy.co.nz or raw.githubusercontent.com), at most once every four days and only if it changed.
 - **On a Mac, Chrome extensions**: an extension you add, and its updates, downloaded from Google's Chrome Web Store; and about once a day (again within the hour after a failure), unless Settings › Extensions turns it off, a check for updates that names your store extensions and their versions to Google, as Chrome's does. An extension's worker opens its WebSocket connections through Safience, to the servers it names, with no cookies but with whatever the extension sends. Extensions themselves send what they send, under their own policies.
@@ -388,7 +388,7 @@ The privacy policy, [PRIVACY.md](PRIVACY.md), lists everything that leaves your 
 - A page's own cursor is drawn by the app, so it can trail the pointer by a frame. Cursors given by name (`ew-resize`, `crosshair`, `grab`) show the iPad's pointer, and the text beam is the iPad's own. Settings › Show pages' own cursors turns them off.
 - A picture's menu is WebKit's own: the public API asks an app about a link's menu only. So it can't be given Open in New Tab, and at a secondary click the app can't hold it back for a page's own menu as it does a link's; a site that draws its own menus over pictures belongs in Settings › Link menu › Sites with their own menus.
 - A swipe sideways on the trackpad goes back only on a page the bridge reaches. A page in a frame from another site, or one that takes the wheel without saying so (a passive listener that moves things itself), can't be told apart from a page with no use for the swipe.
-- No password manager, history or reader mode, and no extensions on iPhone and iPad.
+- No built-in password manager or reader mode, and no extensions on iPhone and iPad.
 - On a Mac, Chrome extensions run on Apple's WebKit, which lacks some of Chrome's features: `notifications`, `bookmarks`, `history`, `downloads`, `identity`'s Google sign-in, tab capture and the old way of blocking requests, among others. Safience answers some itself (the side panel, offscreen pages, `runtime.getContexts`) and says in an extension's row when a feature it uses doesn't work. Tried on macOS 27.0.1; macOS 26 not yet.
 - Handoff is only on a device with Apple Intelligence. It tells what kind of page it has (an article, a landing page, a web app, a list of links, a video's page, a job posting) by counting and with Apple Intelligence on the device. A job posting is told where the page declares it (as Lever's, Ashby's, Workday's and Wanted's do), and on Greenhouse, Ashby and Workday boards by its address; the form to apply with is set aside. A discussion or a product page is not told apart yet and goes whole. Paragraphs of 200 characters or more always go whole, outside what the page calls its comments, its related links, its legal notices or its foot, which are named with their size and how they start; a page wrongly taken for a list would lose what its short items say past 160 characters. In Low Power Mode the file has no summary. A summary is the model's, and goes only as far as the page's own words bear it out; in Japanese and Chinese, which do not part their words, it is not checked. A video's transcript is read where the page shows one, and on YouTube from the site's own panel: on an iPhone, whose page has none, the video's desktop page is loaded once more out of sight for it, which takes up to 14 seconds and counts as another visit to that page. A video whose owner turned the transcript off has none. A PDF and a picture have nothing to read as text and go as their address alone; text inside pictures is not read, and the file says how many large pictures it could not read. A frame from another site is named and not read. A section that a page keeps folded away is read where the page says how it opens; one hidden by a script with no word of that is not. The file is the page as it showed in the browser: what a site shows you alone, signed in, is in it.
 - A bookmark of a site never opened in Safience shows the site's first letter until it is: its icon is fetched only from a page you open (Safari's export carries no icons, Chrome's does).

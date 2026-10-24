@@ -1,3 +1,4 @@
+import PadCore
 import UIKit
 import WebKit
 
@@ -42,12 +43,17 @@ enum Dialogs {
 
     /// A server asking for a name and password itself (HTTP authentication),
     /// as some companies' single sign-on does.
-    static func credentials(for space: URLProtectionSpace, on presenter: UIViewController,
+    static func credentials(for space: URLProtectionSpace, previousFailures: Int = 0, on presenter: UIViewController,
                             done: @escaping @MainActor (URLCredential?) -> Void) {
         let reply = DialogReply<URLCredential?>(fallback: nil, completion: done)
         let realm = space.realm.map { " (\($0))" } ?? ""
+        var message = "The server asks for your name and password\(realm)."
+        if previousFailures > 0 { message = "The name or password was not accepted. Try again.\n\n" + message }
+        if space.protocol?.lowercased() != "https" {
+            message += "\n\nThis connection is not encrypted. Your name and password could be read by others on the network."
+        }
         let alert = UIAlertController(title: "Sign in to \(space.host)",
-                                      message: "The server asks for your name and password\(realm).",
+                                      message: message,
                                       preferredStyle: .alert)
         alert.addTextField {
             $0.placeholder = "Name"
@@ -93,17 +99,27 @@ enum Dialogs {
             $0.clearButtonMode = .whileEditing
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in done(nil) })
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak alert] _ in
-            done(alert?.textFields?.first?.text ?? "")
-        })
+        let confirm = UIAlertAction(title: initial.isEmpty ? "Create" : "Rename", style: .default) { [weak alert] _ in
+            let name = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !name.isEmpty else { return }
+            done(name)
+        }
+        confirm.isEnabled = !initial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        alert.addAction(confirm)
+        alert.textFields?.first?.addAction(UIAction { [weak alert] _ in
+            guard let alert else { return }
+            let valid = !(alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            alert.actions.last?.isEnabled = valid
+            alert.message = valid ? message : [message, "Enter a name."].compactMap { $0 }.joined(separator: "\n\n")
+        }, for: .editingChanged)
         presenter.present(alert, animated: true)
     }
 
-    static func confirmRemoval(of space: String, tabs: Int, on presenter: UIViewController,
+    static func confirmRemoval(of space: Space, on presenter: UIViewController,
                                done: @escaping @MainActor (Bool) -> Void) {
         let alert = UIAlertController(
-            title: "Remove “\(space)”?",
-            message: "Its \(tabs) \(tabs == 1 ? "tab closes" : "tabs close"), and its sign-ins, cookies and site data are erased.",
+            title: "Remove \(space.name)?",
+            message: Sync.shared.spaceRemovalDescription(space),
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in done(false) })

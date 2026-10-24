@@ -48,8 +48,8 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
     private var shown = false
     private var scrolledToCurrent = false
 
-    private static let headerHeight: CGFloat = 52
-    private static let barHeight: CGFloat = 64
+    private static var headerHeight: CGFloat { max(52, UIFont.preferredFont(forTextStyle: .headline).lineHeight + 20) }
+    private static var barHeight: CGFloat { max(64, UIFont.preferredFont(forTextStyle: .body).lineHeight + 30) }
 
     init(session: Session, window: WindowModel, act: @escaping (BarAction) -> Void, done: @escaping (BarAction?) -> Void) {
         self.session = session
@@ -70,6 +70,7 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
         symbol.contentMode = .center
         symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
         heading.font = .preferredFont(forTextStyle: .headline)
+        heading.adjustsFontForContentSizeCategory = true
         heading.textColor = Palette.UI.ink
         header.addSubview(symbol)
         header.addSubview(heading)
@@ -105,6 +106,10 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
         session.$preferences.map(\.hiddenPinnedTabs).removeDuplicates().sink { [weak self] _ in self?.applySoon() }
             .store(in: &watching)
         watch(self, read: { _ = $0.window.tabID; _ = $0.window.spaceID }, changed: { $0.applySoon() })
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: TabOverviewController, _) in
+            self.collection.collectionViewLayout.invalidateLayout()
+            self.view.setNeedsLayout()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -131,8 +136,9 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
         collection.contentInset.bottom = below
         collection.verticalScrollIndicatorInsets.bottom = below
         newTab.frame = CGRect(x: bounds.minX + 16, y: y, width: 44, height: 44)
-        let fits = doneButton.sizeThatFits(CGSize(width: 200, height: 44))
-        doneButton.frame = CGRect(x: bounds.maxX - 16 - max(fits.width, 72), y: y, width: max(fits.width, 72), height: 44)
+        let controlHeight = Self.barHeight - 20
+        let fits = doneButton.sizeThatFits(CGSize(width: bounds.width - 100, height: controlHeight))
+        doneButton.frame = CGRect(x: bounds.maxX - 16 - max(fits.width, 72), y: y, width: max(fits.width, 72), height: controlHeight)
         // The tab on screen in the middle, once there is a grid to put it in.
         if !scrolledToCurrent, collection.bounds.height > 0, let current = window.tabID,
            let path = source.indexPath(for: .tab(current)) {
@@ -160,7 +166,7 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
             style.title = title
             style.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
                 var attributes = attributes
-                attributes.font = .systemFont(ofSize: 17, weight: .semibold)
+                attributes.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: .semibold))
                 return attributes
             }
             style.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 18, bottom: 10, trailing: 18)
@@ -246,8 +252,8 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
 
     private func apply() {
         guard source != nil else { return }
-        // Without the pinned tabs this device hides (Settings › Pinned Tabs).
-        let tabs = (space?.tabs ?? []).filter(session.preferences.shows)
+        // All Tabs includes pins hidden from the compact browsing chrome.
+        let tabs = space?.tabs ?? []
         let pinned = tabs.filter(\.isPinned)
         let others = tabs.filter { !$0.isPinned }
         symbol.image = UIImage(systemName: space?.symbol ?? "square.grid.2x2")
@@ -324,6 +330,7 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
             // instead, as the pinned button on the bar has them.
             let away: UIMenuElement.Attributes = tab.isAwayFromPinned ? [] : .disabled
             sections.append(UIMenu(title: tab.pinnedAddress.map { "Pinned to \($0)" } ?? "", options: .displayInline, children: [
+                UIAction(title: "Reset Pinned Tab…", image: UIImage(systemName: "arrow.counterclockwise")) { [weak self] _ in self?.act(.resetPinned(tab.id)) },
                 UIAction(title: "Back to Pinned Address", image: UIImage(systemName: "arrow.uturn.backward"), attributes: away) { [weak self] _ in
                     self?.act(.backToPinned(tab.id))
                 },
@@ -369,14 +376,12 @@ final class TabOverviewController: UIViewController, UICollectionViewDelegate {
             if ordinary.count > 1 {
                 close.append(UIAction(title: "Close All \(ordinary.count) Tabs", image: UIImage(systemName: "xmark.square.fill"),
                                       attributes: .destructive) { [weak self] _ in
-                    self?.act(.closeTabs(ordinary.map(\.id)))
-                    // Nothing left to choose from: the bar, and the start page.
-                    self?.done(nil)
+                    self?.done(.closeTabs(ordinary.map(\.id)))
                 })
             }
         }
-        // A pinned tab closes by going back to its address and letting its page go.
-        close.append(UIAction(title: "Close Tab", image: UIImage(systemName: "xmark"), attributes: .destructive) { [weak self] _ in
+        // Closing a pinned tab hides its live page; reset is explicit above.
+        close.append(UIAction(title: tab.isPinned ? "Hide Pinned Tab" : "Close Tab", image: UIImage(systemName: "xmark"), attributes: .destructive) { [weak self] _ in
             self?.act(.close(tab.id))
         })
         sections.append(UIMenu(options: .displayInline, children: close))
@@ -425,7 +430,7 @@ final class TabCardCell: UICollectionViewCell, UIGestureRecognizerDelegate, UICo
     /// Between the picture and the ring around the tab on screen.
     private static let gap: CGFloat = 4
     private static let ratio: CGFloat = 0.78
-    private static let label: CGFloat = 18
+    private static var label: CGFloat { UIFontMetrics(forTextStyle: .subheadline).scaledValue(for: 18) * 2 }
 
     /// How tall a card is for its width: the picture, the ring's room, the name.
     static func height(forWidth width: CGFloat) -> CGFloat {
@@ -455,7 +460,9 @@ final class TabCardCell: UICollectionViewCell, UIGestureRecognizerDelegate, UICo
         picture.addSubview(image)
         icon.size = 16
         card.addSubview(icon)
-        name.font = .systemFont(ofSize: 13, weight: .medium)
+        name.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: .systemFont(ofSize: 13, weight: .medium))
+        name.adjustsFontForContentSizeCategory = true
+        name.numberOfLines = 2
         name.textColor = Palette.UI.ink
         card.addSubview(name)
 
@@ -502,7 +509,7 @@ final class TabCardCell: UICollectionViewCell, UIGestureRecognizerDelegate, UICo
         placeholder.isHidden = found != nil
         icon.url = tab.url
         name.text = tab.label
-        name.font = .systemFont(ofSize: 13, weight: current ? .semibold : .medium)
+        name.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: .systemFont(ofSize: 13, weight: current ? .semibold : .medium))
         ring.layer.borderColor = color.cgColor
         ring.isHidden = !current
         close.accessibilityLabel = "Close \(tab.label)"
@@ -742,7 +749,9 @@ extension TabOverviewController: UICollectionViewDragDelegate, UICollectionViewD
     /// Among this space's tabs only, and only a card from this sheet.
     func collectionView(_ collectionView: UICollectionView, dropSessionDidUpdate drop: UIDropSession,
                         withDestinationIndexPath path: IndexPath?) -> UICollectionViewDropProposal {
-        guard drop.localDragSession != nil, let path, case .tabs = source.sectionIdentifier(for: path.section) else {
+        guard drop.localDragSession != nil, let id = drop.items.first?.localObject as? UUID,
+              session.workspace.spaceID(of: id) != nil,
+              let path, case .tabs = source.sectionIdentifier(for: path.section) else {
             return UICollectionViewDropProposal(operation: .cancel)
         }
         return UICollectionViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
@@ -755,8 +764,17 @@ extension TabOverviewController: UICollectionViewDragDelegate, UICollectionViewD
     func collectionView(_ collectionView: UICollectionView, performDropWith coordinator: UICollectionViewDropCoordinator) {
         guard let destination = coordinator.destinationIndexPath, let item = coordinator.items.first,
               let id = item.dragItem.localObject as? UUID,
-              let index = session.workspace.dropIndex(of: id, at: destination.item)
-        else { return }
+              let origin = session.workspace.spaceID(of: id) else { return }
+        if origin != window.spaceID {
+            if case .tab(let target) = source.itemIdentifier(for: destination) {
+                act(.placeTab(id, before: target))
+            } else {
+                act(.moveTab(id, window.spaceID))
+            }
+            coordinator.drop(item.dragItem, toItemAt: destination)
+            return
+        }
+        guard let index = session.workspace.dropIndex(of: id, at: destination.item) else { return }
         session.change { $0.moveTab(id, toIndex: index) }
         coordinator.drop(item.dragItem, toItemAt: destination)
     }

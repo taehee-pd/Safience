@@ -49,10 +49,9 @@ public struct ChromeLayout: Equatable, Sendable {
         // neither bar does. Put away, the address bar stays, with the way back.
         let side = placement == .sidebar
         sidebar = side && tabBar
-        // Along the top the tab on screen is the address: the row shows
-        // whenever an address must, even with the tab bar turned off.
-        topBar = !side && (tabBar || addressRequired)
-        addressBar = side && !tabBar
+        // Hiding tabs always retains navigation and a visible route back.
+        topBar = !side && tabBar
+        addressBar = !tabBar
         // The sidebar has its own Bookmarks section.
         self.bookmarksBar = !side && bookmarksBar
     }

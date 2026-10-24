@@ -38,6 +38,20 @@ public enum AppLink {
         return .ask
     }
 
+    public static func applicationName(for scheme: String?) -> String? {
+        switch scheme?.lowercased() {
+        case "mailto": return "your email app"
+        case "tel", "facetime", "facetime-audio": return "your calling app"
+        case "sms": return "Messages"
+        case "msteams", "ms-teams": return "Microsoft Teams"
+        case "zoommtg", "zoomus": return "Zoom"
+        case "slack": return "Slack"
+        case "spotify": return "Spotify"
+        case "itms-apps", "itms-appss": return "the App Store"
+        default: return nil
+        }
+    }
+
     /// How many nos it takes for a page to stop being let ask.
     public static let refusalsHeard = 2
 }

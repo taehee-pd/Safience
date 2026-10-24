@@ -35,6 +35,11 @@ struct HistoryView: View {
     /// The day whose Clear was pressed, asked about before it goes.
     @State private var dayAsked: HistoryDay?
     @State private var pageAsked: HistoryPage?
+    @State private var loadingProblem: HistoryOperationError?
+    @State private var clearRequest: HistoryRecorder.ClearRequest?
+    @State private var clearProblem: HistoryOperationError?
+    @State private var clearBusy = false
+    @ObservedObject private var sync = Sync.shared
 
     /// Visits asked for at a time.
     private static let batch = 300
@@ -53,12 +58,12 @@ struct HistoryView: View {
                 .onSubmit(of: .search) { Task { await understand() } }
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done", action: done)
+                        Button("Done", action: done).disabled(clearBusy)
                     }
                     // Apart from Done, at the other end on iPad, so neither is pressed for the other.
                     ToolbarItem(placement: Self.clearPlacement) {
                         Button("Clear…") { clearing = true }
-                            .disabled(loaded && entries.isEmpty && filter.isEmpty)
+                            .disabled(clearBusy || (loaded && loadingProblem == nil && entries.isEmpty && filter.isEmpty))
                     }
                 }
                 .modifier(BesideSearch(filter: filterMenu))
@@ -74,22 +79,37 @@ struct HistoryView: View {
                             titleVisibility: .visible, presenting: dayAsked) { day in
             Button("Clear \(Self.name(of: day.start))", role: .destructive) { clear(day) }
         } message: { _ in
-            Text("Every visit in this space on that day will be removed, including visits hidden by filters. When history sync is on, this also clears that day on your other devices.")
+            Text("Every visit in this space on that day will be removed, including visits hidden by filters. " + sync.historyScopeDescription)
         }
         .confirmationDialog("Delete This Page from History?",
                             isPresented: Binding(get: { pageAsked != nil }, set: { if !$0 { pageAsked = nil } }),
                             titleVisibility: .visible, presenting: pageAsked) { page in
             Button("Delete from History", role: .destructive) { delete(page) }
         } message: { _ in
-            Text("Every visit to this page in this space will be removed, including visits hidden by filters. When history sync is on, this also removes the page from history on your other devices.")
+            Text("Every visit to this page in this space will be removed, including visits hidden by filters. " + sync.historyScopeDescription)
         }
         .environment(\.spaceColor, Self.colour(of: spaceID))
+        .interactiveDismissDisabled(clearBusy)
     }
 
     @ViewBuilder
     private var list: some View {
         let searching = !text.trimmingCharacters(in: .whitespaces).isEmpty
         List {
+            if clearBusy { ProgressView("Clearing history…") }
+            if let issue = clearProblem {
+                Section {
+                    Text("History was not cleared. " + issue.message).foregroundStyle(.red)
+                    Button("Retry Clearing") { runClear() }.disabled(clearBusy)
+                    Button("Cancel Request") { clearRequest = nil; clearProblem = nil }
+                }
+            }
+            if let issue = recorder.writeProblem, clearProblem == nil {
+                Section {
+                    Text(issue.message).foregroundStyle(.red)
+                    Button("Retry Saving History") { Task { await recorder.retry(); await load() } }
+                }
+            }
             if searching {
                 Section {
                     ForEach(found) { page in
@@ -127,7 +147,15 @@ struct HistoryView: View {
         .listStyle(.inset)
         #endif
         .overlay {
-            if searching, searched == text.trimmingCharacters(in: .whitespaces), found.isEmpty {
+            if let issue = loadingProblem {
+                ContentUnavailableView {
+                    Label("History Unavailable", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(issue.message)
+                } actions: {
+                    Button("Retry") { Task { await recorder.retry(); await load() } }
+                }
+            } else if loaded, searching, searched == text.trimmingCharacters(in: .whitespaces), found.isEmpty {
                 ContentUnavailableView.search(text: text)
             } else if loaded, !searching, days.isEmpty {
                 if filter.isEmpty {
@@ -156,7 +184,7 @@ struct HistoryView: View {
                 Picker("Visited On", selection: $filter.source) {
                     Text("All Devices").tag(HistoryFilter.Source.all)
                     Text(Self.thisDevice).tag(HistoryFilter.Source.thisDevice)
-                    Text("Other Devices").tag(HistoryFilter.Source.otherDevices)
+                    Text("From Other Devices").tag(HistoryFilter.Source.otherDevices)
                 }
                 .pickerStyle(.inline)
             }
@@ -226,6 +254,7 @@ struct HistoryView: View {
             HistoryRow(page: page, time: time, showsDay: day)
         }
         .buttonStyle(.plain)
+        .disabled(clearBusy)
         .contextMenu {
             Button("Open in New Tab", systemImage: "plus.square.on.square") {
                 open(page.url, true)
@@ -284,6 +313,8 @@ struct HistoryView: View {
 
     private func load() async {
         stopPaging()
+        loaded = false
+        loadingProblem = nil
         let words = text.trimmingCharacters(in: .whitespaces)
         if words.isEmpty {
             found = []
@@ -294,21 +325,27 @@ struct HistoryView: View {
             guard !Task.isCancelled else { return }
             // What Apple Intelligence made of these words, if it was asked; else the words as typed.
             let query = understood?.text == words ? understood?.query : nil
-            let pages = if let query { await recorder.search(space: spaceID, query: query, limit: 100, filter: filter) }
-                        else { await recorder.search(space: spaceID, text: words, limit: 100, filter: filter) }
+            let parsed = query ?? HistoryQuery.parse(words, now: Date())
+            let result = await recorder.searchResult(space: spaceID, query: parsed, limit: 100, filter: filter)
             guard !Task.isCancelled else { return }
-            found = pages
-            searched = words
+            switch result {
+            case .success(let pages): found = pages; searched = words
+            case .failure(let issue): loadingProblem = issue; return
+            }
         }
         // The days as well while searching, so what was cleared meanwhile is
         // gone when the search is. As many as were showing, so a change
         // doesn't take the list back to its start.
         let wanted = max(entries.count, Self.batch)
-        let fresh = await recorder.entries(space: spaceID, limit: wanted, filter: filter)
+        let result = await recorder.entriesResult(space: spaceID, limit: wanted, filter: filter)
         guard !Task.isCancelled else { return }
-        show(fresh)
-        more = fresh.count == wanted
-        loaded = true
+        switch result {
+        case .success(let fresh):
+            show(fresh)
+            more = fresh.count == wanted
+            loaded = true
+        case .failure(let issue): loadingProblem = issue
+        }
     }
 
     private func showOlder() {
@@ -329,8 +366,13 @@ struct HistoryView: View {
     private func loadOlder() async {
         while more, let last = entries.last {
             let rows = days.reduce(0) { $0 + $1.entries.count }
-            let older = await recorder.entries(space: spaceID, before: last.time, limit: Self.batch, filter: filter)
+            let result = await recorder.entriesResult(space: spaceID, before: last.time, limit: Self.batch, filter: filter)
             guard !Task.isCancelled else { return }
+            let older: [HistoryEntry]
+            switch result {
+            case .success(let found): older = found
+            case .failure(let issue): loadingProblem = issue; return
+            }
             show(entries + older)
             more = older.count == Self.batch
             if days.reduce(0, { $0 + $1.entries.count }) > rows { return }
@@ -347,9 +389,9 @@ struct HistoryView: View {
     /// Every visit to the page in this space, as Safari deletes a history item.
     private func delete(_ page: HistoryPage) {
         stopPaging()
-        recorder.clear(space: spaceID, scope: .page(History.digest(ofKey: page.key)))
-        found.removeAll { $0.key == page.key }
-        show(entries.filter { $0.page.key != page.key })
+        guard !clearBusy else { return }
+        clearRequest = recorder.clearing(space: spaceID, scope: .page(History.digest(ofKey: page.key)))
+        runClear()
     }
 
     private func clear(_ day: HistoryDay) {
@@ -357,8 +399,25 @@ struct HistoryView: View {
         // To the day's last moment, not the next one's first (HistoryRemoval takes both ends).
         let end = (Calendar.current.date(byAdding: .day, value: 1, to: day.start) ?? day.start).addingTimeInterval(-0.001)
         let to = min(end, Date())
-        recorder.clear(space: spaceID, scope: .range(from: day.start, to: to))
-        show(entries.filter { $0.time < day.start || $0.time > to })
+        guard !clearBusy else { return }
+        clearRequest = recorder.clearing(space: spaceID, scope: .range(from: day.start, to: to))
+        runClear()
+    }
+
+    private func runClear() {
+        guard !clearBusy, let clearRequest else { return }
+        clearBusy = true
+        Task {
+            let result = await recorder.clear(clearRequest)
+            clearBusy = false
+            switch result {
+            case .success:
+                self.clearRequest = nil
+                clearProblem = nil
+                await load()
+            case .failure(let issue): clearProblem = issue
+            }
+        }
     }
 
     private func copy(_ url: URL) {
@@ -428,6 +487,10 @@ struct ClearHistoryView: View {
     /// The space it clears; nil for every one.
     @State private var space: UUID?
     @ObservedObject private var session = Session.shared
+    @ObservedObject private var sync = Sync.shared
+    @State private var request: HistoryRecorder.ClearRequest?
+    @State private var problem: HistoryOperationError?
+    @State private var busy = false
 
     /// Opened from a window, on its space; from Settings on a Mac, which has none, on every space.
     init(spaceID: UUID?, done: @escaping () -> Void) {
@@ -445,6 +508,7 @@ struct ClearHistoryView: View {
                         }
                     }
                     .pickerStyle(.inline)
+                    .disabled(busy || request != nil)
                     if session.workspace.spaces.count > 1 {
                         Picker("From", selection: $space) {
                             Text("Every Space").tag(UUID?.none)
@@ -452,9 +516,18 @@ struct ClearHistoryView: View {
                                 Text(space.name).tag(UUID?.some(space.id))
                             }
                         }
+                        .disabled(busy || request != nil)
                     }
                 } footer: {
-                    Text("Removes history for the selected time and spaces, including visits hidden by the History list’s filters. When history sync is on, this also clears history on your other devices when they sync. Closed tabs in that time leave Reopen Closed Tab. Sign-ins and what sites have stored stay.")
+                    Text("Removes history for the selected time and spaces, including visits hidden by the History list’s filters. " + sync.historyScopeDescription + " Closed tabs in that time leave Reopen Closed Tab. Sign-ins and what sites have stored stay.")
+                }
+                if busy { ProgressView("Clearing history…") }
+                if let problem {
+                    Section {
+                        Text("History was not cleared. " + problem.message).foregroundStyle(.red)
+                        Text("Your original time and space selection is kept for Retry.").font(.caption)
+                        Button("Change Selection") { request = nil; self.problem = nil }.disabled(busy)
+                    }
                 }
             }
             .formStyle(.grouped)
@@ -464,18 +537,31 @@ struct ClearHistoryView: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: done)
+                    Button("Cancel", action: done).disabled(busy)
                 }
                 ToolbarItem(placement: .destructiveAction) {
-                    Button("Clear History", role: .destructive) {
-                        HistoryRecorder.shared.clear(space: space, scope: span.scope(now: Date()))
-                        done()
+                    Button(problem == nil ? "Clear History" : "Retry Clearing", role: .destructive) {
+                        guard !busy else { return }
+                        let asked = request ?? HistoryRecorder.shared.clearing(space: space, scope: span.scope(now: Date()))
+                        request = asked
+                        busy = true
+                        Task {
+                            let result = await HistoryRecorder.shared.clear(asked)
+                            busy = false
+                            switch result {
+                            case .success: done()
+                            case .failure(let issue): problem = issue
+                            }
+                        }
                     }
+                    .disabled(busy)
                 }
             }
         }
+        .interactiveDismissDisabled(busy)
         #if os(macOS)
-        .frame(width: 420, height: 420)
+        .frame(width: 420)
+        .frame(minHeight: 420)
         #endif
     }
 }

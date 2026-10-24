@@ -343,7 +343,7 @@ private struct PopupPaneBody: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: PopupMetrics.corner, style: .continuous)
         let header = 4 + Metrics.control + 6
-        let wanted = popup.size ?? NSSize(width: 25, height: 25)
+        let wanted = popup.size ?? NSSize(width: 360, height: 160)
         let size = CGSize(width: max(25, min(wanted.width, room.width - 2 * PopupMetrics.inset)),
                           height: max(25, min(wanted.height, room.height - header - PopupMetrics.inset)))
         VStack(alignment: .leading, spacing: 6) {
@@ -382,6 +382,15 @@ private struct PopupPaneBody: View {
                 // In a beat behind the pane and its header.
                 .opacity(popup.isShown ? 1 : 0)
                 .animation(.bar.delay(0.08), value: popup.isShown)
+                .overlay {
+                    if !popup.isShown {
+                        VStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Preparing \(popup.name)…").font(.callout)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
         }
         // As narrow as the page wants, down to what its header needs.
         .frame(minWidth: 240, alignment: .leading)
@@ -391,10 +400,7 @@ private struct PopupPaneBody: View {
         .shadow(color: .black.opacity(0.08), radius: 2, y: 1)
         .shadow(color: .black.opacity(0.16), radius: 24, y: 10)
         .animation(.bar, value: popup.size)
-        // Unseen until measured; then in from a little above.
-        .opacity(popup.isShown ? 1 : 0)
-        .offset(y: popup.isShown ? 0 : -12)
-        .animation(.bar, value: popup.isShown)
+        // The header, cancel button, and preparation status are visible at once.
     }
 }
 

@@ -168,7 +168,7 @@ final class ExtensionSidePanels: ObservableObject {
 /// The panel beside the page's card: a card of its own, its extension's
 /// icon, name and × along its top, as the popup's pane has them. 360
 /// wide, narrower down to 240 to leave the page 320; in a window too narrow
-/// for even that, unseen until there is room, still open.
+/// for even that, a compact notice offers resize and close.
 struct ExtensionSidePanelView: View {
     @ObservedObject var model: WindowModel
     /// The width the page's card and the panel share.
@@ -214,6 +214,21 @@ struct ExtensionSidePanelView: View {
             .shadow(color: .black.opacity(0.16), radius: 1, y: 0.5)
             .shadow(color: .black.opacity(0.08), radius: 14, y: 6)
             .transition(.move(edge: .trailing).combined(with: .opacity))
+        } else if let panel = panels.panel(in: model) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(panel.name) side panel is open").font(.headline)
+                Text("Widen this window to show its content.").font(.callout).foregroundStyle(.secondary)
+                Button("Widen Window") {
+                    guard let window = model.window else { return }
+                    var size = window.contentLayoutRect.size
+                    size.width = max(size.width, 800)
+                    window.setContentSize(size)
+                }
+                Button("Close Side Panel") { panels.close(in: model) }
+            }
+            .padding(12)
+            .frame(width: min(200, max(120, room * 0.45)))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Metrics.card))
         }
     }
 }

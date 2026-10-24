@@ -28,11 +28,27 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var keys: Override = .site
     public var limits = LiveLimits()
     public var diagnostics = false
-    public var engine = Destination.standardEngine
-    /// The engine's suggestions under the address as it is typed
-    /// (Autocomplete), which sends what is typed to the engine; on unless
-    /// turned off.
-    public var searchSuggestions = true
+    public var engine = Destination.standardEngine {
+        didSet {
+            if engine != oldValue {
+                searchSuggestions = false
+                remoteSuggestionsProvider = nil
+            }
+        }
+    }
+    /// Remote suggestions require a choice naming this provider. A legacy
+    /// true flag alone does not authorize sending partial address-bar text.
+    public var searchSuggestions = false
+    public private(set) var remoteSuggestionsProvider: String?
+
+    public func allowsRemoteSuggestions(for provider: String) -> Bool {
+        searchSuggestions && engine == provider && remoteSuggestionsProvider == provider
+    }
+
+    public mutating func setRemoteSuggestions(_ enabled: Bool) {
+        searchSuggestions = enabled
+        remoteSuggestionsProvider = enabled ? engine : nil
+    }
     /// Apple Intelligence's on-device model finding tabs, bookmarks and
     /// commands by what the words typed mean (Autocomplete), where the device
     /// has it; on unless turned off. Nothing leaves the device for it.
@@ -106,7 +122,7 @@ public struct Preferences: Codable, Equatable, Sendable {
         // A layout with the address bar under the tabs (layout) once went with
         // these; one saved then is let go: the tab on screen is the address.
         case address, tabBar, wheel, keys, limits, diagnostics, engine, pageCursors, siteModes, iCloudSync, cursorSpeed
-        case blocksContent, unblockedSites, searchSuggestions, intelligence, ownMenuSites, filterLists
+        case blocksContent, unblockedSites, searchSuggestions, remoteSuggestionsProvider, intelligence, ownMenuSites, filterLists
         // A question of Handoff's own once went with the file; one saved then is let go.
         case handoff
         case hiddenPinnedTabs
@@ -127,7 +143,9 @@ public struct Preferences: Codable, Equatable, Sendable {
         limits = (try? c.decodeIfPresent(LiveLimits.self, forKey: .limits)) ?? LiveLimits()
         diagnostics = (try? c.decodeIfPresent(Bool.self, forKey: .diagnostics)) ?? false
         engine = (try? c.decodeIfPresent(String.self, forKey: .engine)) ?? Destination.standardEngine
-        searchSuggestions = (try? c.decodeIfPresent(Bool.self, forKey: .searchSuggestions)) ?? true
+        remoteSuggestionsProvider = (try? c.decodeIfPresent(String.self, forKey: .remoteSuggestionsProvider)) ?? nil
+        searchSuggestions = ((try? c.decodeIfPresent(Bool.self, forKey: .searchSuggestions)) ?? false)
+            && remoteSuggestionsProvider == engine
         intelligence = (try? c.decodeIfPresent(Bool.self, forKey: .intelligence)) ?? true
         pageCursors = (try? c.decodeIfPresent(Bool.self, forKey: .pageCursors)) ?? true
         siteModes = (try? c.decodeIfPresent([String: SiteMode].self, forKey: .siteModes)) ?? [:]

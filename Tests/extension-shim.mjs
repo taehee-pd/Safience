@@ -25,7 +25,7 @@ const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /// A world with WebKit's APIs as an extension's background, page or
 /// content script has them, the shim run in it `times` times.
-function world({ protocol = 'chrome-extension:', apis = true, times = 1, reply, background = false, lastError, channel = false, page = '/page.html' } = {}) {
+function world({ protocol = 'chrome-extension:', apis = true, times = 1, reply, background = false, lastError, channel = false, page = '/page.html', nativeReply, i18n = {} } = {}) {
   const native = [];
   const event = () => {
     const listeners = [];
@@ -35,13 +35,13 @@ function world({ protocol = 'chrome-extension:', apis = true, times = 1, reply, 
       removeListener(f) { const i = listeners.indexOf(f); if (i >= 0) listeners.splice(i, 1); },
       hasListener(f) { return listeners.includes(f); },
       // WebKit's rule: the first listener's return decides.
-      deliver(message) {
+      deliver(message, sender = { id: 'sender' }) {
         return new Promise((resolve, reject) => {
           let answered = false;
           const sendResponse = (value) => { if (!answered) { answered = true; resolve(value); } };
           let first;
           listeners.forEach((listener, i) => {
-            const result = listener(message, { id: 'sender' }, sendResponse);
+            const result = listener(message, sender, sendResponse);
             if (i === 0) first = result;
           });
           if (first === true) return;
@@ -58,11 +58,12 @@ function world({ protocol = 'chrome-extension:', apis = true, times = 1, reply, 
       onMessage: event(),
       onMessageExternal: event(),
       sendMessage: async (message) => (reply ? reply(message) : undefined),
-      sendNativeMessage: async (application, message) => { native.push({ application, message }); return { value: null }; },
+      sendNativeMessage: async (application, message) => { native.push({ application, message }); return nativeReply ? nativeReply(message) : { value: null }; },
       getURL: (path) => 'chrome-extension://abcdefghijklmnopabcdefghijklmnop/' + path,
       getManifest: () => ({ background: { service_worker: 'bg.js' } }),
     },
     tabs: { sendMessage: async () => undefined },
+    i18n,
   } : undefined;
   if (chrome && lastError) chrome.runtime.lastError = lastError;
   // A timer's throw reaches the world's error event, as in a browser.
@@ -84,6 +85,45 @@ function world({ protocol = 'chrome-extension:', apis = true, times = 1, reply, 
   }
   for (let i = 0; i < times; i++) vm.runInContext(shim, context, { filename: 'extension-shim.js' });
   return { context, chrome, native, target, run: (code) => vm.runInContext(code, context) };
+}
+
+// Missing language detection is supplied locally, including content-script callers.
+{
+  const result = { isReliable: true, languages: [{ language: 'en', percentage: 100 }] };
+  const w = world({ nativeReply: (message) => ({ value: message.api === 'i18n.detectLanguage' ? result : null }) });
+  const detect = w.run('chrome.i18n.detectLanguage');
+  check('missing i18n.detectLanguage is supplied', typeof detect === 'function');
+  if (typeof detect === 'function') {
+    check('language detection promise preserves the Chrome result', JSON.stringify(await detect('A synthetic English paragraph.')) === JSON.stringify(result));
+    const callback = await new Promise((done) => detect('Text', done));
+    check('language detection supports callback callers', JSON.stringify(callback) === JSON.stringify(result));
+    check('only supplied text is passed to the language endpoint', w.native.filter((n) => n.message.api === 'i18n.detectLanguage').every((n) => n.message.args.length === 1 && typeof n.message.args[0] === 'string'));
+    const sent = w.native.length;
+    const invalid = await detect({ text: 'not a string' }).then(() => false, (e) => e.name === 'TypeError');
+    check('invalid language input rejects without sending native data', invalid && w.native.length === sent);
+    const invalidCallback = await new Promise((done) => detect(null, () => done(w.chrome.runtime.lastError?.message)));
+    check('invalid callback language input exposes lastError only during callback', typeof invalidCallback === 'string' && w.chrome.runtime.lastError === undefined);
+
+  }
+  const native = () => Promise.resolve(result);
+  const given = world({ i18n: { detectLanguage: native } });
+  check('native i18n.detectLanguage is retained', given.run('chrome.i18n.detectLanguage') === native);
+  const worker = world({ background: true, nativeReply: () => ({ value: result }) });
+  const sender = { id: worker.chrome.runtime.id, url: 'https://synthetic.invalid/page' };
+  const envelope = { __safienceCall: { space: 'i18n', method: 'detectLanguage', args: ['Synthetic text'] } };
+  const answered = await worker.chrome.runtime.onMessage.deliver(envelope, sender);
+  check('same-extension content script can detect only supplied text', JSON.stringify(answered?.value) === JSON.stringify(result));
+  const before = worker.native.length;
+  await worker.chrome.runtime.onMessage.deliver(envelope, { id: 'another-extension', url: sender.url });
+  check('another extension cannot use the private language relay', worker.native.length === before);
+  const denied = await worker.chrome.runtime.onMessage.deliver({ __safienceCall: { space: 'tabs', method: 'query', args: [{}] } }, sender);
+  check('language relay does not grant a content script tab APIs', typeof denied?.error === 'string');
+  const content = world({ protocol: 'https:', reply: (message) => message.__safienceCall ? { value: result } : undefined });
+  const contentDetect = content.run('chrome.i18n.detectLanguage');
+  check('content scripts receive the language method', typeof contentDetect === 'function');
+  if (typeof contentDetect === 'function') {
+    check('content detection uses its worker instead of native messaging', JSON.stringify(await contentDetect('Text')) === JSON.stringify(result) && content.native.length === 0);
+  }
 }
 
 // A page's own world: no extension APIs, nothing left behind.

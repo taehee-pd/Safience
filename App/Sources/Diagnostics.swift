@@ -10,10 +10,19 @@ struct DiagnosticsView: View {
     let page: () -> Page?
     /// The window's own view, for its measures (Diagnostics.lines(forWindow:)).
     let window: () -> UIView?
+    let close: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
             VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("Developer Diagnostics").font(.headline)
+                    Spacer()
+                    Button(action: close) {
+                        Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Close Developer Diagnostics")
+                }
                 ForEach(Diagnostics.lines(for: page()) + Diagnostics.lines(forWindow: window()), id: \.self) { line in
                     Text(line)
                 }

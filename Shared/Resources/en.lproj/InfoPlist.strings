@@ -1,0 +1,3 @@
+"NSCameraUsageDescription" = "A site you use asks for the camera, for a video call for example.";
+"NSMicrophoneUsageDescription" = "A site you use asks for the microphone, for a call or a huddle for example.";
+"NSPhotoLibraryAddUsageDescription" = "Saves a picture you choose from a page to your Photos.";

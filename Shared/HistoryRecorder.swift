@@ -13,8 +13,19 @@ final class HistoryRecorder: ObservableObject {
 
     /// Goes up as history changes, for what shows it to look again.
     @Published private(set) var revision = 0
-    private let store: HistoryStore?
-    /// The last write, which the next one waits for.
+    @Published private(set) var availability = HistoryAvailability.unavailable(.unavailable)
+    @Published private(set) var writeProblem: HistoryOperationError?
+    @Published private(set) var readProblem: HistoryOperationError?
+    private var store: HistoryStore?
+    private let file: URL
+    private struct PendingWrite {
+        let changes: Bool
+        let work: @Sendable (HistoryStore) async throws -> Void
+        let retainOnFailure: Bool
+        let completion: (@MainActor (Result<Void, HistoryOperationError>) -> Void)?
+    }
+    private var pendingWrites: [PendingWrite] = []
+    private var writesBlocked = false
     private var chain: Task<Void, Never>?
     /// When history was last let go of past Settings' retention.
     private var pruned: Date?
@@ -27,19 +38,35 @@ final class HistoryRecorder: ObservableObject {
     private static let expectationWindow: TimeInterval = 15
 
     private init() {
-        let folder = Session.folder
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let file = folder.appendingPathComponent("history.sqlite")
-        store = try? HistoryStore(url: file)
-        #if os(iOS)
-        // Readable once the device has been unlocked after starting, as the workspace is.
-        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                                               ofItemAtPath: file.path)
-        #endif
-        // The sync clock (sync.json) may have been written before the last
-        // clearing or visit seen from a device ahead was: it starts after
-        // them, before any visit is made.
-        if let latest = store?.latestWhenOpened { Sync.shared.saw(latest) }
+        file = Session.folder.appendingPathComponent("history.sqlite")
+        openStore()
+    }
+
+    private func openStore() {
+        guard store == nil else { return }
+        do {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let opened = try HistoryStore(url: file)
+            store = opened
+            availability = .available
+            #if os(iOS)
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                                                   ofItemAtPath: file.path)
+            #endif
+            if let latest = opened.latestWhenOpened { Sync.shared.saw(latest) }
+        } catch { availability = .unavailable(.unavailable) }
+    }
+
+    /// Reopens without replacing the database, then retries retained writes in their original order.
+    func retry() async {
+        let recovering = store == nil || writesBlocked || writeProblem != nil || readProblem != nil
+        openStore()
+        guard store != nil else { return }
+        writesBlocked = false
+        startWrites()
+        await chain?.value
+        if pendingWrites.isEmpty { writeProblem = nil }
+        if recovering, !writesBlocked { HistoryCloud.shared.storageRecovered() }
     }
 
     // MARK: Pages
@@ -86,41 +113,45 @@ final class HistoryRecorder: ObservableObject {
         // stamp by the sync clock, later than any clearing this device has taken.
         let visit = HistoryVisit(space: space, url: address, title: title ?? "", time: Date(), stamp: Sync.shared.stampNow(),
                                  device: Sync.shared.deviceID, kind: kind, search: search)
-        then { try await $0.record(visit) }
+        let context = HistoryCloud.shared.localWriteContext()
         HistoryCloud.shared.recorded(visit.id)
-        HistoryCloud.shared.visited(space: space, time: visit.time)
+        then { store in
+            try await store.record(visit, syncEpoch: context.syncEpoch)
+            await MainActor.run { HistoryCloud.shared.visited(space: space, time: visit.time, context: context) }
+        }
         prune()
         return visit.id
     }
 
     /// What a page is called, or says it is about, as that comes in.
-    func page(space: UUID, url: URL, title: String?, summary: String?) {
+    func page(visit: UUID, space: UUID, url: URL, title: String?, summary: String?, context: HistoryCloud.LocalWriteContext) {
         guard History.keeps(url) else { return }
         let address = History.address(url)
         let me = Sync.shared.deviceID
         then { store in
-            // The day of this device's last visit to it, which may be
-            // yesterday's (by iCloud's day) for a name that came after midnight:
-            // its record goes again, with the name and description it has now.
-            guard let time = try await store.update(space: space, url: address, title: title, summary: summary, device: me)
+            guard await MainActor.run(body: { HistoryCloud.shared.localWriteContext() == context }) else { return }
+            // Only the originating eligible visit can change an upload
+            // snapshot. Local display metadata remains independent.
+            guard let time = try await store.update(space: space, url: address, title: title, summary: summary, device: me, syncEpoch: context.syncEpoch, visit: visit)
             else { return }
-            await MainActor.run { HistoryCloud.shared.visited(space: space, time: time) }
+            await MainActor.run { HistoryCloud.shared.visited(space: space, time: time, context: context) }
         }
     }
 
     /// A visit taken back: the page asked for a password after all.
     func forget(_ visit: UUID) {
+        let context = HistoryCloud.shared.localWriteContext()
         then { store in
             guard let gone = try await store.forget(visit: visit) else { return }
             // Its day goes again without it, if it went at all.
-            await MainActor.run { HistoryCloud.shared.visited(space: gone.space, time: gone.time) }
+            await MainActor.run { HistoryCloud.shared.visited(space: gone.space, time: gone.time, context: context) }
             // Old enough to have gone to iCloud already: the other devices
             // that took it let it go too, as they do what a clearing covers.
             guard await MainActor.run(body: { HistoryCloud.shared.mayHaveSent(visit) }) else { return }
             let made = await MainActor.run { Sync.shared.stampNow() }
             let removal = HistoryRemoval(space: gone.space, scope: .visit(visit), made: made, wall: Date())
             try await store.remove(removal)
-            await MainActor.run { HistoryCloud.shared.withdrawn(removal) }
+            await MainActor.run { HistoryCloud.shared.withdrawn(removal, context: context) }
         }
     }
 
@@ -128,24 +159,37 @@ final class HistoryRecorder: ObservableObject {
 
     /// History cleared in a space, or every one: the store's, and the
     /// closed tabs' that Reopen Closed Tab would bring back.
-    func clear(space: UUID?, scope: HistoryRemoval.Scope) {
-        // By the sync clock: later than every visit this device has seen,
-        // so it clears all it showed, whatever the other devices' clocks.
+    struct ClearRequest {
+        let removal: HistoryRemoval
+        let device: String
+        let context: HistoryCloud.LocalWriteContext
+    }
+
+    func clearing(space: UUID?, scope: HistoryRemoval.Scope) -> ClearRequest {
         let made = Sync.shared.stampNow()
         var scope = scope
-        // A stretch up to now runs up to the clearing's own time: a visit
-        // from a device whose clock is ahead is dated after now here, but
-        // never after the clearing's stamp, once this device has seen it.
         if case let .range(from, to) = scope, to >= Date().addingTimeInterval(-1) {
             scope = .range(from: from, to: max(to, made))
         }
-        let removal = HistoryRemoval(space: space, scope: scope, made: made, wall: Date())
-        let me = Sync.shared.deviceID
-        then { store in
-            let days = try await store.remove(removal, daysOf: me)
-            await MainActor.run { HistoryCloud.shared.cleared(removal, days: days) }
+        return ClearRequest(removal: HistoryRemoval(space: space, scope: scope, made: made, wall: Date()),
+                            device: Sync.shared.deviceID, context: HistoryCloud.shared.localWriteContext())
+    }
+
+    /// Acknowledged only after SQLite commits. A failed request stays with its presenting view for explicit retry.
+    func clear(_ request: ClearRequest) async -> Result<Void, HistoryOperationError> {
+        await retry()
+        guard Session.shared.canUseWorkspace, store != nil else { return .failure(.unavailable) }
+        guard !writesBlocked else { return .failure(.writeFailed) }
+        return await withCheckedContinuation { done in
+            enqueue(changes: true, retainOnFailure: false, completion: { done.resume(returning: $0) }) { store in
+                let removal = request.removal
+                let days = try await store.remove(removal, daysOf: request.device, syncAccount: request.context.syncAccount)
+                await MainActor.run {
+                    self.dropClosedTabs(space: removal.space, scope: removal.scope, madeAt: removal.wall ?? removal.made)
+                    HistoryCloud.shared.cleared(removal, days: days, context: request.context)
+                }
+            }
         }
-        dropClosedTabs(space: space, scope: scope, madeAt: removal.wall ?? removal.made)
     }
 
     /// The closed tabs a clearing covers, here or on another device: Reopen Closed Tab brings none of them back.
@@ -181,13 +225,16 @@ final class HistoryRecorder: ObservableObject {
         then { store in
             try await store.prune(keeping: retention, now: now)
             try await store.keepSpaces(spaces)
+            await MainActor.run { HistoryCloud.shared.pruned(before: retention.cutoff(now: now)) }
         }
-        HistoryCloud.shared.pruned(before: retention.cutoff(now: now))
     }
 
-    func removeSpace(_ space: UUID) {
-        then { try await $0.removeSpace(space) }
-        HistoryCloud.shared.spaceRemoved()
+    func removeSpace(_ space: UUID, cloudID: UUID? = nil) {
+        let context = HistoryCloud.shared.localWriteContext()
+        then { store in
+            try await store.removeSpace(space)
+            await MainActor.run { HistoryCloud.shared.spaceRemoved(cloud: cloudID, context: context) }
+        }
     }
 
     // MARK: Finding
@@ -199,10 +246,12 @@ final class HistoryRecorder: ObservableObject {
     }
 
     func search(space: UUID, query: HistoryQuery, limit: Int = 30, filter: HistoryFilter = HistoryFilter()) async -> [HistoryPage] {
-        guard let store else { return [] }
-        await chain?.value
+        (try? await searchResult(space: space, query: query, limit: limit, filter: filter).get()) ?? []
+    }
+
+    func searchResult(space: UUID, query: HistoryQuery, limit: Int = 30, filter: HistoryFilter = HistoryFilter()) async -> Result<[HistoryPage], HistoryOperationError> {
         let scope = filter.scope(device: Sync.shared.deviceID, now: Date())
-        return (try? await store.search(space: space, query: query, limit: limit, scope: scope)) ?? []
+        return await readResult { try await $0.search(space: space, query: query, limit: limit, scope: scope) }
     }
 
     /// Words too common to look for a page by, when any one of the words will do.
@@ -232,45 +281,123 @@ final class HistoryRecorder: ObservableObject {
         }
         var unique: [String] = []
         for word in words where !unique.contains(word) { unique.append(word) }
-        for word in unique.prefix(5) {
-            add((try? await store.search(space: space, query: HistoryQuery(words: word, from: query.from, to: query.to), limit: 5)) ?? [])
+        do {
+            for word in unique.prefix(5) {
+                add(try await store.search(space: space, query: HistoryQuery(words: word, from: query.from, to: query.to), limit: 5))
+            }
+            add(try await store.search(space: space, query: HistoryQuery(words: "", from: query.from, to: query.to), limit: limit))
+            readProblem = nil
+            return pages
+        } catch {
+            readProblem = .readFailed
+            return []
         }
-        add((try? await store.search(space: space, query: HistoryQuery(words: "", from: query.from, to: query.to), limit: limit)) ?? [])
-        return pages
     }
 
     /// The space's visits the filter lets in, newest first, for the History list.
     func entries(space: UUID, before: Date? = nil, limit: Int = 200, filter: HistoryFilter = HistoryFilter()) async -> [HistoryEntry] {
-        guard let store else { return [] }
-        await chain?.value
+        (try? await entriesResult(space: space, before: before, limit: limit, filter: filter).get()) ?? []
+    }
+
+    func entriesResult(space: UUID, before: Date? = nil, limit: Int = 200, filter: HistoryFilter = HistoryFilter()) async -> Result<[HistoryEntry], HistoryOperationError> {
         let scope = filter.scope(device: Sync.shared.deviceID, now: Date())
-        return (try? await store.entries(space: space, before: before, limit: limit, scope: scope)) ?? []
+        return await readResult { try await $0.entries(space: space, before: before, limit: limit, scope: scope) }
     }
 
     // MARK: Writing in order
 
-    /// A write, after those before it. `changes`: what shows history looks again after it.
     private func then(changes: Bool = true, _ work: @escaping @Sendable (HistoryStore) async throws -> Void) {
-        guard Session.shared.canUseWorkspace, let store else { return }
-        let previous = chain
+        enqueue(changes: changes, retainOnFailure: true, completion: nil, work)
+    }
+
+    private func enqueue(changes: Bool, retainOnFailure: Bool,
+                         completion: (@MainActor (Result<Void, HistoryOperationError>) -> Void)?,
+                         _ work: @escaping @Sendable (HistoryStore) async throws -> Void) {
+        guard Session.shared.canUseWorkspace else { completion?(.failure(.unavailable)); return }
+        if writesBlocked, !retainOnFailure { completion?(.failure(.writeFailed)); return }
+        pendingWrites.append(PendingWrite(changes: changes, work: work, retainOnFailure: retainOnFailure, completion: completion))
+        startWrites()
+    }
+
+    private func startWrites() {
+        guard chain == nil, !writesBlocked, !pendingWrites.isEmpty else { return }
         chain = Task { [weak self] in
-            await previous?.value
-            try? await work(store)
-            if changes { self?.revision += 1 }
+            guard let self else { return }
+            while let next = pendingWrites.first {
+                guard let store else {
+                    writesBlocked = true
+                    availability = .unavailable(.unavailable)
+                    if !next.retainOnFailure { pendingWrites.removeFirst() }
+                    next.completion?(.failure(.unavailable))
+                    failWaitingAcknowledgements(.unavailable)
+                    break
+                }
+                do {
+                    let before = await store.revision
+                    try await next.work(store)
+                    let after = await store.revision
+                    pendingWrites.removeFirst()
+                    if next.changes, after != before { revision += 1 }
+                    next.completion?(.success(()))
+                } catch {
+                    if !next.retainOnFailure { pendingWrites.removeFirst() }
+                    writesBlocked = true
+                    writeProblem = .writeFailed
+                    next.completion?(.failure(.writeFailed))
+                    failWaitingAcknowledgements(.writeFailed)
+                    break
+                }
+            }
+            if pendingWrites.isEmpty, !writesBlocked { writeProblem = nil }
+            chain = nil
         }
+    }
+
+    /// A blocked earlier write must not leave a later explicit acknowledgement
+    /// suspended indefinitely. Retained local history work stays in its queue.
+    private func failWaitingAcknowledgements(_ failure: HistoryOperationError) {
+        let waiting = pendingWrites.filter { !$0.retainOnFailure }
+        pendingWrites.removeAll { !$0.retainOnFailure }
+        for write in waiting { write.completion?(.failure(failure)) }
     }
 
     // MARK: For iCloud (HistoryCloud)
 
-    func read<T: Sendable>(_ work: @escaping @Sendable (HistoryStore) async throws -> T) async -> T? {
-        guard let store else { return nil }
+    private func readResult<T: Sendable>(_ work: @escaping @Sendable (HistoryStore) async throws -> T) async -> Result<T, HistoryOperationError> {
+        guard let store else { return .failure(.unavailable) }
         await chain?.value
-        return try? await work(store)
+        do {
+            let value = try await work(store)
+            readProblem = nil
+            return .success(value)
+        } catch {
+            readProblem = .readFailed
+            return .failure(.readFailed)
+        }
+    }
+
+    func readOutcome<T: Sendable>(_ work: @escaping @Sendable (HistoryStore) async throws -> T) async -> Result<T, HistoryOperationError> {
+        await readResult(work)
+    }
+    func reportReadFailure() { readProblem = .readFailed }
+
+    func read<T: Sendable>(_ work: @escaping @Sendable (HistoryStore) async throws -> T) async -> T? {
+        try? await readResult(work).get()
+    }
+
+    /// Ordered with visits, clearings and other metadata. A failure is reported
+    /// to the caller; account normalization is retried explicitly by HistoryCloud.
+    func writeAcknowledged(_ work: @escaping @Sendable (HistoryStore) async throws -> Void) async -> Bool {
+        await withCheckedContinuation { done in
+            enqueue(changes: false, retainOnFailure: false,
+                    completion: { result in done.resume(returning: (try? result.get()) != nil) }, work)
+        }
     }
 
     func write(changes: Bool = true, _ work: @escaping @Sendable (HistoryStore) async throws -> Void) {
         then(changes: changes, work)
     }
+
 }
 
 /// What a page knows of its own history: how its next document is being
@@ -292,6 +419,15 @@ struct PageHistory {
     private var next = Next.none
     /// The visit the document on screen is, and its page.
     private var visit: UUID?
+    struct MetadataOrigin: Equatable, Sendable {
+        let visit: UUID
+        let context: HistoryCloud.LocalWriteContext
+    }
+    /// Capture before asynchronous metadata work begins, never at completion.
+    var metadataOrigin: MetadataOrigin? {
+        guard !withheld, let visit else { return nil }
+        return MetadataOrigin(visit: visit, context: HistoryCloud.shared.localWriteContext())
+    }
     private var key: String?
     /// A sign-in page turned up in this document: nothing of it is kept.
     private var withheld = false
@@ -379,10 +515,10 @@ struct PageHistory {
         let now = History.pageKey(url)
         if now == key {
             // A new name, while the page is still coming in or had none yet.
-            if !withheld, visit != nil, let title, !title.isEmpty, title != named,
+            if let origin = metadataOrigin, let title, !title.isEmpty, title != named,
                named?.isEmpty ?? true || Date().timeIntervalSince(began) < Self.naming {
                 named = title
-                HistoryRecorder.shared.page(space: space, url: url, title: title, summary: nil)
+                HistoryRecorder.shared.page(visit: origin.visit, space: space, url: url, title: title, summary: nil, context: origin.context)
             }
             return
         }
@@ -411,9 +547,9 @@ struct PageHistory {
     }
 
     /// What the page says it is about (its meta description).
-    func described(_ text: String?, url: URL?, space: UUID) {
-        guard !withheld, visit != nil, let url, let text, !text.isEmpty, History.pageKey(url) == key else { return }
-        HistoryRecorder.shared.page(space: space, url: url, title: nil, summary: text)
+    func described(_ text: String?, url: URL?, space: UUID, origin: MetadataOrigin?) {
+        guard let origin, metadataOrigin == origin, let url, let text, !text.isEmpty, History.pageKey(url) == key else { return }
+        HistoryRecorder.shared.page(visit: origin.visit, space: space, url: url, title: nil, summary: text, context: origin.context)
     }
 
     /// The page asks for a password: its visit taken back, and nothing more of it kept.

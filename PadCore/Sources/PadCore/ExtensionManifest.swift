@@ -24,6 +24,7 @@ public struct ExtensionManifest: Equatable, Sendable {
 
     public var manifestVersion: Int
     public var name: String
+    public var defaultLocale: String?
     public var version: String
     /// API permissions: "storage", "tabs", "sidePanel".
     public var permissions: [String]
@@ -76,6 +77,7 @@ public struct ExtensionManifest: Equatable, Sendable {
         keys = Set(object.keys)
         manifestVersion = object["manifest_version"] as? Int ?? 2
         name = object["name"] as? String ?? ""
+        defaultLocale = object["default_locale"] as? String
         self.version = version
         let listed = strings(object["permissions"])
         let optional = strings(object["optional_permissions"])
@@ -106,6 +108,95 @@ public struct ExtensionManifest: Equatable, Sendable {
         sidePanel = (object["side_panel"] as? [String: Any])?["default_path"] as? String
         usesChromeSignIn = object["oauth2"] != nil
         minimumChromeVersion = object["minimum_chrome_version"] as? String
+    }
+
+    /// Chrome manifest messages use the UI locale, its base language, then
+    /// default_locale, with fallback for each individual message. Resolve
+    /// names from the retained original archive, without changing its bytes.
+    public func displayName(in archive: Data, fallback: String,
+                            locale: String = Locale.preferredLanguages.first ?? "en") -> String {
+        guard let resolved = localizedName(in: archive, locale: locale) else {
+            return Self.usableName(fallback) ?? "Extension"
+        }
+        return resolved
+    }
+
+    private func localizedName(in archive: Data, locale: String) -> String? {
+        guard name.contains("__MSG_") else { return Self.usableName(name) }
+        let pattern = try! NSRegularExpression(pattern: "__MSG_([A-Za-z0-9_@]+)__")
+        let matches = pattern.matches(in: name, range: NSRange(name.startIndex..., in: name))
+        guard !matches.isEmpty else { return nil }
+        func safeLocale(_ value: String) -> String? {
+            let value = value.replacingOccurrences(of: "-", with: "_")
+            let parts = value.split(separator: "_", omittingEmptySubsequences: false)
+            guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0.utf8.allSatisfy {
+                (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0)
+            } }) else { return nil }
+            return value
+        }
+        var locales: [String] = []
+        if let preferred = safeLocale(locale) {
+            locales.append(preferred)
+            if let base = preferred.split(separator: "_").first { locales.append(String(base)) }
+        }
+        if let defaultLocale = defaultLocale.flatMap(safeLocale) { locales.append(defaultLocale) }
+        var messages: [String: String] = [:]
+        for locale in locales.reversed() {
+            let path = "_locales/\(locale)/messages.json"
+            guard let data = ZipFile.file(in: archive, matching: { $0.caseInsensitiveCompare(path) == .orderedSame }),
+                  let entries = try? JSONSerialization.jsonObject(with: Data(Self.withoutComments(String(decoding: data, as: UTF8.self)).utf8)) as? [String: Any]
+            else { continue }
+            for (key, entry) in entries {
+                guard let entry = entry as? [String: Any], let value = Self.staticMessage(entry),
+                      let value = Self.usableName(value) else { continue }
+                messages[key.lowercased()] = value
+            }
+        }
+        var resolved = name
+        for match in matches.reversed() {
+            guard let keyRange = Range(match.range(at: 1), in: name),
+                  let value = messages[String(name[keyRange]).lowercased()],
+                  let range = Range(match.range, in: resolved) else { return nil }
+            resolved.replaceSubrange(range, with: value)
+        }
+        return Self.usableName(resolved)
+    }
+
+    /// Manifest names have no runtime substitution arguments. Named static
+    /// placeholders and escaped dollars work; positional arguments cannot
+    /// be supplied here, so the default catalog or retained name must win.
+    private static func staticMessage(_ entry: [String: Any]) -> String? {
+        guard let message = entry["message"] as? String else { return nil }
+        let pattern = try! NSRegularExpression(pattern: #"\$\$|\$([A-Za-z0-9_@]+)\$|\$[1-9]"#)
+        let substitutions = (entry["placeholders"] as? [String: Any] ?? [:]).reduce(into: [String: String]()) { found, item in
+            if let placeholder = item.value as? [String: Any], let content = placeholder["content"] as? String {
+                found[item.key.lowercased()] = content
+            }
+        }
+        var result = ""
+        var cursor = message.startIndex
+        for match in pattern.matches(in: message, range: NSRange(message.startIndex..., in: message)) {
+            guard let range = Range(match.range, in: message) else { return nil }
+            result += message[cursor..<range.lowerBound]
+            if message[range] == "$$" {
+                result += "$"
+            } else if let keyRange = Range(match.range(at: 1), in: message),
+                      let content = substitutions[String(message[keyRange]).lowercased()] {
+                let tokens = pattern.matches(in: content, range: NSRange(content.startIndex..., in: content))
+                guard tokens.allSatisfy({ Range($0.range, in: content).map { content[$0] == "$$" } ?? false }) else { return nil }
+                result += content.replacingOccurrences(of: "$$", with: "$")
+            } else {
+                return nil
+            }
+            cursor = range.upperBound
+        }
+        result += message[cursor...]
+        return result
+    }
+
+    private static func usableName(_ value: String) -> String? {
+        let clean = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty || clean.contains("__MSG_") ? nil : clean
     }
 
     /// The text without its // and /* */ comments, strings left as they
@@ -183,6 +274,7 @@ public struct ExtensionAPITable: Equatable, Sendable {
         "management.getSelf": .shim,
         "management.get": .shim,
         "runtime.getContexts": .shim,
+        "i18n.detectLanguage": .shim,
     ]
 
     public init(answers: [String: Answer]) {

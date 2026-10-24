@@ -22,13 +22,16 @@ struct BrowserCommands: Commands {
             Button("Reopen Closed Tab") { window?.reopenTab() }
                 .keyboardShortcut("t", modifiers: [.command, .shift])
                 .disabled(session.workspace.closed.isEmpty)
-            Divider()
-            Button("Close Tab") { window?.closeTab() }
-                .keyboardShortcut("w")
-            Button("Close Window") { window?.window?.performClose(nil) }
-                .keyboardShortcut("w", modifiers: [.command, .shift])
+
         }
+        BrowserCloseCommands()
         CommandGroup(after: .newItem) {
+            Divider()
+            Button("Import Bookmarks…") {
+                guard let window, let owner = window.window else { return }
+                session.chooseBookmarksFile(into: window.spaceID, in: owner)
+            }
+            .disabled(window?.window == nil || !session.canUseWorkspace)
             Divider()
             Button("Share…") { window?.pageActionsShown = true }
                 .disabled(window?.url == nil)
@@ -61,7 +64,7 @@ struct BrowserCommands: Commands {
         }
         CommandGroup(replacing: .sidebar) {
             Button(window?.sidebarShown == false ? "Keep Sidebar Open" : "Hide Sidebar") { window?.toggleSidebar() }
-                .keyboardShortcut("s")
+                .keyboardShortcut("s", modifiers: [.command, .control])
                 .disabled(window?.tabsInSidebar == false)
             Button(session.preferences.tabsPlacement == .top ? "Show Tabs in Sidebar" : "Show Tabs Along the Top") {
                 session.preferences.tabsPlacement = session.preferences.tabsPlacement == .top ? .sidebar : .top
@@ -79,6 +82,12 @@ struct BrowserCommands: Commands {
             Button("Stop Loading") { window?.stop() }
                 .keyboardShortcut(".")
                 .disabled(window?.loading != true)
+            if window?.page?.hasPendingDialog == true {
+                Button("Review Page Dialog…") { window?.page?.reviewPendingDialog() }
+            }
+            if window?.page?.refusedAppLink != nil {
+                Button("Review External App Request…") { window?.page?.reviewExternalRequest() }
+            }
             Divider()
             Button("Actual Size") { window?.page?.zoom(by: 0) }
                 .keyboardShortcut("0")
@@ -119,10 +128,10 @@ struct BrowserCommands: Commands {
                 .keyboardShortcut(.upArrow, modifiers: [.command, .option])
             Divider()
             Button(window?.tab?.isPinned == true ? "Unpin Tab" : "Pin Tab") { window?.togglePin() }
-                .keyboardShortcut("d")
+                .keyboardShortcut("d", modifiers: [.command, .shift])
                 .disabled(window?.tab?.url == nil)
             Button(window?.isBookmarked == true ? "Remove Bookmark" : "Bookmark This Page") { window?.toggleBookmark() }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
+                .keyboardShortcut("d")
                 .disabled(window?.url == nil)
             Button("Duplicate Tab") { window?.duplicate() }
                 .disabled(window?.tab?.url == nil)
@@ -166,6 +175,8 @@ struct BrowserCommands: Commands {
                     Menu(item.name) {
                         if on {
                             Button("Use \u{201C}\(item.name)\u{201D}") { extensions.run(item.id, in: window) }
+                                .disabled(extensions.unavailableReason(item.id, in: window) != nil)
+                            if let reason = extensions.unavailableReason(item.id, in: window) { Text(reason) }
                             if let verdict = extensions.verdicts[window.spaceID]?[item.id] {
                                 Section(verdict.title) {
                                     ForEach(verdict.lines, id: \.self) { Text($0) }
@@ -174,14 +185,15 @@ struct BrowserCommands: Commands {
                             Divider()
                             Button("Turn Off in This Space") { extensions.turn(item.id, on: false, in: window.spaceID) }
                             // Its data in this space goes too; turning it off keeps it.
-                            Button("Remove from This Space") { extensions.remove(item.id, from: window.spaceID) }
+                            Button("Remove Data from This Space…") { extensions.confirmRemoval(of: item.id, from: window.spaceID, in: window) }
                         } else {
                             Button("Turn On in This Space") { extensions.turn(item.id, on: true, in: window.spaceID) }
+                                .disabled(extensions.isIncompatible(item.id))
                         }
                         if item.source == .unpacked {
                             Button("Reload") { extensions.reload(item.id) }
                         }
-                        Button("Remove from Safience") { extensions.remove(item.id) }
+                        Button("Remove from Safience…") { extensions.confirmRemoval(of: item.id, in: window) }
                     }
                 }
             }
@@ -205,7 +217,17 @@ struct BrowserCommands: Commands {
                 }
             }
             Divider()
-            Button("Check for Extension Updates") { Task { await extensions.checkForUpdates(now: true) } }
+            Button("Check for Extension Updates…") {
+                let host = NSApp.keyWindow
+                Task {
+                    let report = await extensions.checkForUpdates(now: true, host: host)
+                    let alert = NSAlert()
+                    alert.messageText = report.summary
+                    alert.informativeText = report.entries.compactMap { entry in entry.detail.map { "\(entry.name): " + $0 } }.joined(separator: "\n\n")
+                    alert.addButton(withTitle: "Done")
+                    _ = await extensions.present(alert, in: window, host: host)
+                }
+            }
                 .disabled(!extensions.installed.contains { $0.source == .store })
         }
         CommandGroup(after: .appSettings) {

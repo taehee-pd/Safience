@@ -67,13 +67,13 @@ public actor HistoryStore {
     // MARK: Recording
 
     /// A visit made on this device, unless a clearing already covers it.
-    public func record(_ visit: HistoryVisit, now: Date = Date()) throws {
+    public func record(_ visit: HistoryVisit, now: Date = Date(), syncEpoch: UUID? = nil) throws {
         let key = History.pageKey(visit.url)
         try query("SELECT title, summary FROM pages WHERE space = ? AND page = ?", [.text(visit.space.uuidString), .text(key)]) { row in
             named.append((visit.id, row.text(0), row.text(1)))
         }
         if named.count > 64 { named.removeFirst(named.count - 64) }
-        try merge([visit], now: now)
+        _ = try merge([visit], now: now, syncEpoch: syncEpoch)
     }
 
     /// What a page was called and said of itself before a visit made here
@@ -85,15 +85,21 @@ public actor HistoryStore {
     /// each once, none a clearing covers. Returns those kept.
     @discardableResult
     public func merge(_ visits: [HistoryVisit], now: Date = Date()) throws -> [HistoryVisit] {
+        try merge(visits, now: now, syncEpoch: nil)
+    }
+
+    private func merge(_ visits: [HistoryVisit], now: Date, syncEpoch: UUID?) throws -> [HistoryVisit] {
         var kept: [HistoryVisit] = []
         var touched: Set<PageID> = []
         try transaction {
             for visit in visits where !removals.contains(where: { $0.covers(visit) }) {
                 let key = History.pageKey(visit.url)
-                try run("INSERT OR IGNORE INTO visits(id, space, page, url, time, device, kind, search, stamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                try run("INSERT OR IGNORE INTO visits(id, space, page, url, time, device, kind, search, stamp, sync_epoch, sync_title, sync_summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         [.text(visit.id.uuidString), .text(visit.space.uuidString), .text(key), .text(visit.url.absoluteString),
                          .real(visit.time.timeIntervalSince1970), .text(visit.device), .text(visit.kind.rawValue),
-                         visit.search.map { .text($0) } ?? .null, visit.stamp.map { .real($0.timeIntervalSince1970) } ?? .null])
+                         visit.search.map { .text($0) } ?? .null, visit.stamp.map { .real($0.timeIntervalSince1970) } ?? .null,
+                         syncEpoch.map { .text($0.uuidString) } ?? .null,
+                         syncEpoch == nil ? .null : .text(visit.title), syncEpoch == nil ? .null : .text(History.summary(visit.summary))])
                 // Had already: only the page's name and description, which may have come since.
                 let new = sqlite3_changes(db) > 0
                 if !new {
@@ -127,16 +133,26 @@ public actor HistoryStore {
             }
             for page in touched { try refresh(page, now: now) }
         }
-        if !kept.isEmpty { revision += 1 }
+        if !touched.isEmpty { revision += 1 }
         return kept
     }
 
     /// A page's name and description, as they come in after the visit was made.
     /// Returns the time of `device`'s last visit to the page, whose day's record then has its new name.
     @discardableResult
-    public func update(space: UUID, url: URL, title: String?, summary: String?, device: String? = nil) throws -> Date? {
+    public func update(space: UUID, url: URL, title: String?, summary: String?, device: String? = nil, syncEpoch: UUID? = nil, visit: UUID? = nil) throws -> Date? {
         let page = PageID(space: space, key: History.pageKey(url))
         try transaction {
+            if let syncEpoch, let device, let visit {
+                if let title, !title.isEmpty {
+                    try run("UPDATE visits SET sync_title = ? WHERE id = ? AND space = ? AND page = ? AND device = ? AND sync_epoch = ?",
+                            [.text(title), .text(visit.uuidString), .text(space.uuidString), .text(page.key), .text(device), .text(syncEpoch.uuidString)])
+                }
+                if let summary {
+                    try run("UPDATE visits SET sync_summary = ? WHERE id = ? AND space = ? AND page = ? AND device = ? AND sync_epoch = ?",
+                            [.text(History.summary(summary)), .text(visit.uuidString), .text(space.uuidString), .text(page.key), .text(device), .text(syncEpoch.uuidString)])
+                }
+            }
             if let title, !title.isEmpty {
                 try run("UPDATE pages SET title = ? WHERE space = ? AND page = ?", [.text(title), .text(space.uuidString), .text(page.key)])
             }
@@ -148,9 +164,17 @@ public actor HistoryStore {
         }
         revision += 1
         var last: Date?
-        try query("SELECT MAX(time) FROM visits WHERE space = ? AND page = ? AND device = ?",
-                  [.text(space.uuidString), .text(page.key), .text(device ?? "")]) { row in
-            if let time = row.optionalReal(0) { last = Date(timeIntervalSince1970: time) }
+        if let visit {
+            guard let syncEpoch, let device else { return nil }
+            try query("SELECT time FROM visits WHERE id = ? AND space = ? AND page = ? AND device = ? AND sync_epoch = ?",
+                      [.text(visit.uuidString), .text(space.uuidString), .text(page.key), .text(device), .text(syncEpoch.uuidString)]) { row in
+                if let time = row.optionalReal(0) { last = Date(timeIntervalSince1970: time) }
+            }
+        } else {
+            try query("SELECT MAX(time) FROM visits WHERE space = ? AND page = ? AND device = ?",
+                      [.text(space.uuidString), .text(page.key), .text(device ?? "")]) { row in
+                if let time = row.optionalReal(0) { last = Date(timeIntervalSince1970: time) }
+            }
         }
         return last
     }
@@ -306,6 +330,34 @@ public actor HistoryStore {
                    [.text(device), .text(space.uuidString), .real(from.timeIntervalSince1970), .real(to.timeIntervalSince1970)])
     }
 
+    /// Upload-only rows. A visit receives its immutable epoch when recorded;
+    /// unknown, paused, imported and legacy visits remain visible locally only.
+    public func visitsForSync(device: String, space: UUID, from: Date, to: Date, epoch: UUID) throws -> [HistoryVisit] {
+        var visits: [HistoryVisit] = []
+        try query("""
+            SELECT id, space, url, sync_title, sync_summary, time, device, kind, search, stamp
+            FROM visits WHERE device = ? AND space = ? AND time >= ? AND time <= ? AND sync_epoch = ? ORDER BY time
+            """, [.text(device), .text(space.uuidString), .real(from.timeIntervalSince1970), .real(to.timeIntervalSince1970), .text(epoch.uuidString)]) { row in
+            guard let id = UUID(uuidString: row.text(0)), let space = UUID(uuidString: row.text(1)),
+                  let url = URL(string: row.text(2)) else { return }
+            visits.append(HistoryVisit(id: id, space: space, url: url, title: row.text(3), summary: row.text(4),
+                                       time: Date(timeIntervalSince1970: row.real(5)),
+                                       stamp: row.optionalReal(9).map(Date.init(timeIntervalSince1970:)), device: row.text(6),
+                                       kind: HistoryKind(rawValue: row.text(7)) ?? .other, search: row.optionalText(8)))
+        }
+        return visits
+    }
+
+    public func daysForSync(device: String, since: Date, epoch: UUID) throws -> Set<HistoryDayOfSpace> {
+        var days: Set<HistoryDayOfSpace> = []
+        try query("SELECT space, time FROM visits WHERE device = ? AND time > ? AND sync_epoch = ?",
+                  [.text(device), .real(since.timeIntervalSince1970), .text(epoch.uuidString)]) { row in
+            guard let space = UUID(uuidString: row.text(0)) else { return }
+            days.insert(HistoryDayOfSpace(space: space, day: HistoryCloudDay.key(for: Date(timeIntervalSince1970: row.real(1)))))
+        }
+        return days
+    }
+
     /// The spaces and days (HistoryCloudDay) a device has visits on, after `since` if given.
     public func days(device: String, since: Date? = nil) throws -> Set<HistoryDayOfSpace> {
         var days: Set<HistoryDayOfSpace> = []
@@ -361,7 +413,7 @@ public actor HistoryStore {
     /// History cleared, and kept as cleared: visits arriving later that it covers are let go too.
     /// Returns the days `device`'s visits it took were on, for those days to be sent again.
     @discardableResult
-    public func remove(_ removal: HistoryRemoval, now: Date = Date(), daysOf device: String? = nil) throws -> Set<HistoryDayOfSpace> {
+    public func remove(_ removal: HistoryRemoval, now: Date = Date(), daysOf device: String? = nil, syncAccount: String? = nil) throws -> Set<HistoryDayOfSpace> {
         var condition = "COALESCE(stamp, time) <= ?"
         var values: [Value] = [.real(removal.made.timeIntervalSince1970)]
         if let space = removal.space {
@@ -396,20 +448,49 @@ public actor HistoryStore {
             }
         }
         let scope = String(data: try JSONEncoder().encode(removal.scope), encoding: .utf8) ?? "{}"
-        let subsumed = removals.filter { removal.subsumes($0) }
+        let subsumed = try removals.filter { old in
+            guard removal.subsumes(old) else { return false }
+            return try syncValue("pending-clear:" + old.id.uuidString) == nil
+        }
+        let subsumedIDs = Set(subsumed.map(\.id))
         try transaction {
             try run("INSERT OR IGNORE INTO removals(id, space, scope, made, wall) VALUES (?, ?, ?, ?, ?)",
                     [.text(removal.id.uuidString), removal.space.map { .text($0.uuidString) } ?? .null, .text(scope),
                      .real(removal.made.timeIntervalSince1970), removal.wall.map { .real($0.timeIntervalSince1970) } ?? .null])
+            // This intent commits with the deletion, so a metadata/read failure cannot lose its eventual sync.
+            if let syncAccount {
+                try setSyncValue(Data(syncAccount.utf8), for: "pending-clear:" + removal.id.uuidString)
+            }
             // Everything cleared holds for the clearings before it: they go.
             for old in subsumed { try run("DELETE FROM removals WHERE id = ?", [.text(old.id.uuidString)]) }
             try run("DELETE FROM visits WHERE \(condition)", values)
             for page in touched { try refresh(page, now: now) }
         }
-        removals.removeAll { removal.subsumes($0) }
+        removals.removeAll { subsumedIDs.contains($0.id) }
         if !removals.contains(where: { $0.id == removal.id }) { removals.append(removal) }
         revision += 1
         return days
+    }
+
+    /// Durable local clear intents belonging to this exact Apple Account.
+    public func pendingClearings(for account: String) throws -> [HistoryRemoval] {
+        var ids: Set<UUID> = []
+        try query("SELECT name, value FROM sync_state WHERE name LIKE 'pending-clear:%'", []) { row in
+            guard String(data: row.blob(1), encoding: .utf8) == account,
+                  let id = UUID(uuidString: String(row.text(0).dropFirst("pending-clear:".count))) else { return }
+            ids.insert(id)
+        }
+        return removals.filter { ids.contains($0.id) }
+    }
+
+    public func clearingSynced(_ id: UUID) throws {
+        try setSyncValue(nil, for: "pending-clear:" + id.uuidString)
+    }
+
+    /// Every account's clear intents let go, the clearings themselves kept:
+    /// history sync was turned off before iCloud had them, and sends none of them later.
+    public func dropPendingClearings() throws {
+        try run("DELETE FROM sync_state WHERE name LIKE 'pending-clear:%'", [])
     }
 
     /// The clearings made, for other devices.
@@ -564,6 +645,14 @@ public actor HistoryStore {
             while try info.step() { columns.insert(Row(statement: info).text(1)) }
             let add = columns.contains(column) ? "" : "ALTER TABLE \(table) ADD COLUMN \(column) REAL; "
             try exec(db, "BEGIN; \(add)PRAGMA user_version = \(number); COMMIT;")
+        }
+        if at < 4 {
+            var columns: Set<String> = []
+            let info = try Statement(db, "PRAGMA table_info(visits)")
+            while try info.step() { columns.insert(Row(statement: info).text(1)) }
+            let add = ["sync_epoch", "sync_title", "sync_summary"].filter { !columns.contains($0) }
+                .map { "ALTER TABLE visits ADD COLUMN \($0) TEXT;" }.joined(separator: " ")
+            try exec(db, "BEGIN; \(add) CREATE INDEX IF NOT EXISTS visits_by_sync_epoch ON visits(sync_epoch, device, space, time); PRAGMA user_version = 4; COMMIT;")
         }
     }
 

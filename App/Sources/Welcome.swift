@@ -26,7 +26,8 @@ struct Welcome: View {
     @State private var forward = true
     @State private var name = ""
     @State private var importing = false
-    @State private var imported: (title: String, message: String)?
+    @State private var imported: BookmarkImportOutcome?
+    @State private var importWorking = false
     @ObservedObject private var browser = DefaultBrowser.shared
     @ObservedObject private var sync = Sync.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -67,12 +68,14 @@ struct Welcome: View {
         // Back from Settings: the answer may have changed there.
         .onChange(of: phase) { _, new in if new == .active { browser.refresh() } }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.html, .zip]) { result in
-            guard case .success(let file) = result else { return }
+            guard case .success(let file) = result else { imported = .cancelled; return }
+            importWorking = true
             // Readable until the import has read it, which it does away from the main thread.
             let scoped = file.startAccessingSecurityScopedResource()
             session.importBookmarks(from: file, into: spaceID) { outcome in
                 if scoped { file.stopAccessingSecurityScopedResource() }
                 imported = outcome
+                importWorking = false
             }
         }
     }
@@ -123,7 +126,7 @@ struct Welcome: View {
                 .opacity(step == .hello ? 0 : 1)
                 .disabled(step == .hello)
                 Spacer()
-                Button("Skip", action: done)
+                Button("Skip Setup", action: done)
                     .font(.body)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
@@ -138,7 +141,7 @@ struct Welcome: View {
 
     private var footer: some View {
         VStack(spacing: 4) {
-            Button(action: step == .bookmarks && imported == nil ? { importing = true } : advance) {
+            Button(action: primaryAction) {
                 Text(primary)
                     .font(.headline)
                     .foregroundStyle(colour.ink)
@@ -148,13 +151,15 @@ struct Welcome: View {
             }
             .buttonStyle(PressScale())
             .keyboardShortcut(.defaultAction)
+            .disabled(importWorking || (step == .space && name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                      || (step == .bookmarks && (imported?.parsed != nil || imported?.needsSave == true)))
             // The same height on every page, so the button never moves under the finger.
-            Button("Not Now", action: advance)
+            Button("Skip This Step", action: advance)
                 .font(.body)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
-                .opacity(step == .bookmarks && imported == nil ? 1 : 0)
-                .disabled(!(step == .bookmarks && imported == nil))
+                .opacity(step == .bookmarks ? 1 : 0)
+                .disabled(step != .bookmarks || importWorking)
         }
         .frame(maxWidth: 420)
         .padding(.horizontal, 24)
@@ -164,9 +169,19 @@ struct Welcome: View {
     private var primary: String {
         switch step {
         case .hello, .space: return "Continue"
-        case .bookmarks: return imported == nil ? "Choose a File…" : "Continue"
+        case .bookmarks:
+            if importWorking { return "Importing Bookmarks…" }
+            if imported?.isComplete == true { return "Continue" }
+            if imported?.parsed != nil { return "Choose a Space Above" }
+            if imported?.needsSave == true { return "Save Bookmarks Above" }
+            return imported == nil ? "Choose a File…" : "Choose Another File…"
         case .finish: return "Start Browsing"
         }
+    }
+
+    private func primaryAction() {
+        if step == .bookmarks, imported?.isComplete != true { importing = true }
+        else { advance() }
     }
 
     @ViewBuilder private var page: some View {
@@ -214,7 +229,7 @@ struct Welcome: View {
             heading("Welcome to Safience", "A browser for desktop web apps.")
             VStack(alignment: .leading, spacing: 20) {
                 if Device.phone {
-                    Feature(symbol: "desktopcomputer", title: "Desktop View",
+                    Feature(symbol: "desktopcomputer", title: "Trackpad View",
                             text: "Open a site's desktop version from the page's menu, with the screen as a trackpad.")
                 } else {
                     Feature(symbol: "cursorarrow.motionlines", title: "Trackpad and keyboard go to the page",
@@ -246,12 +261,16 @@ struct Welcome: View {
                     .background(colour.color, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .animation(.bar, value: colour)
                 TextField("Name", text: $name)
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.body.weight(.medium))
                     .submitLabel(.done)
             }
             // The chip's corner (10) and the 8 points around it.
             .padding(8)
             .background(Palette.wash, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Enter a name. This space is still named \(space?.name ?? "Space") until a valid name is entered.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 label("Colour")
                 ColourRow(selected: colour) { chosen in
@@ -280,17 +299,11 @@ struct Welcome: View {
             badge("bookmark.fill")
             heading("Bring your bookmarks",
                     "Import a bookmarks file from Chrome, Firefox or Safari into \(space?.name ?? "your space"). They show on every new tab.")
-            if let imported {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(imported.title)
-                        .font(.headline)
-                    Text(imported.message)
-                        .font(.subheadline)
-                        .foregroundStyle(Palette.muted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .background(Palette.wash, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if imported != nil {
+                BookmarkImportStatusView(session: session, outcome: $imported, chooseFile: { importing = true }, showFileChoice: false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Palette.wash, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 VStack(alignment: .leading, spacing: 14) {
                     Source(name: "Chrome", path: "Bookmark Manager › Export Bookmarks")
@@ -326,11 +339,11 @@ struct Welcome: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(colour.ink)
                             .padding(.horizontal, 16)
-                            .frame(minHeight: 36)
+                            .frame(minHeight: 44)
                             .background(colour.color, in: Capsule())
                             .contentShape(Rectangle())
                             .buttonStyle(PressScale())
-                        Text("There, choose Browser App, then Safience.")
+                        Text(browser.instructions)
                             .font(.footnote)
                             .foregroundStyle(Palette.muted)
                     }
@@ -343,10 +356,12 @@ struct Welcome: View {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle(isOn: $session.preferences.iCloudSync) {
                     choice("icloud", "Sync with iCloud",
-                           "Your spaces, bookmarks and pinned tabs show on your other iPhones and iPads. Sign-ins stay on each device.")
+                           "Spaces, bookmarks and pinned tabs sync between devices after you approve the Apple Account. Open tabs and sign-ins stay on each device.")
                 }
                 .toggleStyle(.switch)
-                if session.preferences.iCloudSync, let problem = sync.problem {
+                SyncAccountChoiceView()
+                if session.preferences.iCloudSync { SyncStatusView() }
+                if session.preferences.iCloudSync, !sync.accountDecisionNeeded, let problem = sync.problem {
                     Label(problem, systemImage: "exclamationmark.icloud")
                         .font(.footnote)
                         .foregroundStyle(Palette.muted)

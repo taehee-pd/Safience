@@ -47,7 +47,7 @@ enum Device {
     /// iPad has them; a phone only while a keyboard with keys is attached.
     static func keys(for command: Command) -> String? {
         guard !phone || GCKeyboard.coalesced != nil else { return nil }
-        return Shortcuts.chord(for: command)?.label
+        return Menus.keyCaps(for: command)?.joined()
     }
 
     /// Whether a window offers the command. An iPad's as the iPad does. A
@@ -69,7 +69,9 @@ enum Device {
     /// Whether this window offers the command: as offers(_:compact:) for
     /// its width, and New Window only where it can open one.
     static func offers(_ command: Command, in window: WindowModel) -> Bool {
-        command == .newWindow ? window.makesWindows : offers(command, compact: window.phone)
+        if command == .contentBlocking { return window.blocking != nil }
+        if command == .linkMenu { return window.ownMenus != nil }
+        return command == .newWindow ? window.makesWindows : offers(command, compact: window.phone)
     }
 
     /// Whether a window on this screen can open another. Not on an iPhone;
@@ -150,6 +152,13 @@ extension Command {
 
 @MainActor
 enum Menus {
+    static let controlShortcutsKey = "browserControlShortcuts"
+    static var controlShortcuts: Bool { UserDefaults.standard.bool(forKey: controlShortcutsKey) }
+
+    static func keyCaps(for command: Command) -> [String]? {
+        guard let chord = Shortcuts.chord(for: command) else { return nil }
+        return controlShortcuts && chord.base == .controlOption ? chord.caps.filter { $0 != "⌥" } : chord.caps
+    }
     /// Whether UIKit has asked for the main menu in this run: on iPad and
     /// Mac it does; on the iPhone idiom (the iPhone Duo too) it may not.
     private(set) static var built = false
@@ -261,7 +270,7 @@ enum Menus {
     private static func flags(_ chord: Chord) -> UIKeyModifierFlags {
         var flags: UIKeyModifierFlags
         switch chord.base {
-        case .controlOption: flags = [.control, .alternate]
+        case .controlOption: flags = controlShortcuts ? [.control] : [.control, .alternate]
         case .command: flags = .command
         case .control: flags = .control
         }
