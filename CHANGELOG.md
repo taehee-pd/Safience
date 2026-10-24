@@ -12,6 +12,7 @@ What changes in Safience from one version to the next, newest first. A change th
 
 ### Fixed
 
+- On the Mac, the icons in Settings' sidebar sit in their tiles with even room around each, instead of the widest running to the tile's edges.
 - On the Mac, the Debug build's picture-in-picture test calls into its page through Page.swift, as every call into a page must, so the page-call policy test passes again.
 - A download that can't start because its temporary folder can't be created now says why, instead of stopping without a message.
 - Log failures to read or save iCloud sync state.

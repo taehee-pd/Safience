@@ -158,8 +158,13 @@ private struct SymbolTile: View {
     var size: CGFloat = 20
 
     var body: some View {
+        // Each symbol fitted into the same box, half the tile: by a font
+        // size, a wide one (the cloud, the puzzle piece) ran to the tile's
+        // edges while a narrow one (the pin) stayed small.
         Image(systemName: symbol)
-            .font(.system(size: size * 0.55, weight: .semibold))
+            .resizable()
+            .scaledToFit()
+            .frame(width: size * 0.5, height: size * 0.5)
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: size * 0.24, style: .continuous).fill(color.gradient))
