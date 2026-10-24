@@ -83,6 +83,19 @@ public struct Preferences: Codable, Equatable, Sendable {
     /// The parts of a new tab's page left out (its Customize): every part
     /// shows until left out, one added later too.
     public var hiddenStartSections: Set<StartSection> = []
+    /// A link from a pinned tab to another site opens in a Peek over the
+    /// tab (Peek.opensFromPinned), as in Arc; on unless turned off. The Mac's alone.
+    public var peekFromPinnedTabs = true
+    /// Where a link from another app opens, with Safience the default
+    /// browser: a little window of its own, as Arc's Little Arc, or a new
+    /// tab of the window in front. The Mac's alone.
+    public var linksFromApps = LinksFromApps.littleWindow
+
+    /// Where a link from another app opens (Settings › General › Links).
+    public enum LinksFromApps: String, Codable, CaseIterable, Sendable {
+        case littleWindow
+        case newTab
+    }
 
     /// A part of a new tab's page, under the address field.
     public enum StartSection: String, Codable, CaseIterable, Sendable {
@@ -116,6 +129,7 @@ public struct Preferences: Codable, Equatable, Sendable {
         case bookmarksBar
         case historyRetention, historySync
         case hiddenStartSections
+        case peekFromPinnedTabs, linksFromApps
     }
 
     public init(from decoder: Decoder) throws {
@@ -145,6 +159,8 @@ public struct Preferences: Codable, Equatable, Sendable {
         historyRetention = (try? c.decodeIfPresent(HistoryRetention.self, forKey: .historyRetention)) ?? .month
         historySync = (try? c.decodeIfPresent(Bool.self, forKey: .historySync)) ?? false
         hiddenStartSections = (try? c.decodeIfPresent(Set<StartSection>.self, forKey: .hiddenStartSections)) ?? []
+        peekFromPinnedTabs = (try? c.decodeIfPresent(Bool.self, forKey: .peekFromPinnedTabs)) ?? true
+        linksFromApps = (try? c.decodeIfPresent(LinksFromApps.self, forKey: .linksFromApps)) ?? .littleWindow
     }
 
     /// Whether a page at `host` has ads and trackers blocked.

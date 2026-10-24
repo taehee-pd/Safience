@@ -200,6 +200,17 @@ private struct GeneralSettings: View {
                 Text("Window")
             }
             Section {
+                Picker("Links from other apps open in", selection: $session.preferences.linksFromApps) {
+                    Text("A Little Window").tag(Preferences.LinksFromApps.littleWindow)
+                    Text("A New Tab").tag(Preferences.LinksFromApps.newTab)
+                }
+                Toggle("Open other sites from pinned tabs in Peek", isOn: $session.preferences.peekFromPinnedTabs)
+            } header: {
+                Text("Links")
+            } footer: {
+                Note("A little window keeps a link to itself until you open it in a tab with ⌃⌥O. A Peek shows a page over the tab it came from; pop-ups open in one too. ⌃⌥O opens it in a tab, ⌘W closes it.")
+            }
+            Section {
                 Picker("Search engine", selection: $session.preferences.engine) {
                     ForEach(Destination.engines, id: \.id) { engine in
                         Text(engine.name).tag(engine.id)

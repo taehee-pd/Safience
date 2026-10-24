@@ -371,6 +371,18 @@ struct PageHistory {
         began = Date()
     }
 
+    /// The page became a tab's as it is, with no load (a Mac's Peek or little
+    /// window opened in a tab): the document on screen, kept nowhere while
+    /// the page was no tab's, is a visit now, unless it is a sign-in's.
+    mutating func adopted(url: URL?, title: String?, entry: WKBackForwardListItem?, space: UUID, tab: UUID) {
+        guard visit == nil, !withheld, !password, let url, Session.shared.workspace.tab(tab) != nil else { return }
+        entered(entry)
+        key = History.pageKey(url)
+        visit = HistoryRecorder.shared.visit(space: space, url: url, title: title, kind: .link)
+        named = title
+        began = Date()
+    }
+
     /// The page's address or name changed: its name for the visit; or, with
     /// no load under way, a page that moved to another of its own pages
     /// without loading (a web app), a visit of its own.

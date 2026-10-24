@@ -62,6 +62,13 @@ final class Pages {
         return page
     }
 
+    /// A page made before its tab, a Peek's or a little window's: the tab's
+    /// page from now on, as it is.
+    func adopt(_ page: Page) {
+        live[page.tab] = page
+        addresses[page.tab] = page.view.url
+    }
+
     func isLive(_ tab: UUID) -> Bool {
         live[tab] != nil
     }

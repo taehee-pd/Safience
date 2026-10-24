@@ -10,6 +10,11 @@ What changes in Safience from one version to the next, newest first. A change th
 
 - Track and log workspace save failures until a later save succeeds.
 
+### Added
+
+- On the Mac, Peek, as in Arc: a pop-up a page opens, a link from a pinned tab to another site, or a link's Open Link in Peek shows over the tab in a pane of glass, as an extension's popup does. A click beside it, its × or ⌘W puts it away; ⌃⌥O, or its button, opens its page as it is in a tab of its own, or beside the tab in Split View. Settings › General › Links turns it off for pinned tabs.
+- On the Mac, little windows, as Arc's Little Arc: a link from another app opens in a small window of its own with only back, its address, Copy Link and Open in New Tab (⌃⌥O), which takes the page as it is into a tab, in its space or another from the button's menu. ⌃⌥N opens an empty one. Settings › General › Links opens such links in a new tab instead.
+
 ### Fixed
 
 - On the Mac, the Debug build's picture-in-picture test calls into its page through Page.swift, as every call into a page must, so the page-call policy test passes again.

@@ -275,10 +275,13 @@ public struct Workspace: Codable, Equatable, Sendable {
 
     /// A new tab in `space`, right after `after` when that tab is in the same
     /// space, at the end otherwise; selected. Nil when there is no such space.
+    /// `id`: the one a live page was made for already (a Peek's, a little
+    /// window's), which becomes the tab's page as it is; nil when a tab has it.
     @discardableResult
-    public mutating func openTab(_ url: URL?, in space: UUID, after: UUID? = nil, now: Date = Date()) -> UUID? {
-        guard let s = spaces.firstIndex(where: { $0.id == space }) else { return nil }
-        let tab = TabRecord(url: url, shown: now)
+    public mutating func openTab(_ url: URL?, in space: UUID, after: UUID? = nil, id: UUID = UUID(),
+                                 now: Date = Date()) -> UUID? {
+        guard let s = spaces.firstIndex(where: { $0.id == space }), self.tab(id) == nil else { return nil }
+        let tab = TabRecord(id: id, url: url, shown: now)
         if let after, let index = spaces[s].tabs.firstIndex(where: { $0.id == after }) {
             // Opened from a pinned tab: first of the others, never among the pinned.
             spaces[s].tabs.insert(tab, at: max(index + 1, spaces[s].pinnedCount))

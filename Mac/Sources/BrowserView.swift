@@ -229,6 +229,10 @@ private struct PageArea: View {
                 PaneCard(model: model, tab: model.tabID, page: model.page, focused: true, paired: false)
             }
         }
+        // A Peek over the pages, its tab's (Peek.swift), under an extension's popup.
+        .overlay {
+            PeekLayer(model: model)
+        }
         // An extension's popup, in a pane as Handoff's, at the corner nearest its button (ExtensionPopup.swift).
         .overlay(alignment: .top) {
             ExtensionPopupPane(model: model)
@@ -585,7 +589,7 @@ private struct StartTile: View {
 }
 
 /// Why the page didn't load, and a way to try again.
-private struct FailureView: View {
+struct FailureView: View {
     let message: String
     let url: URL?
     let retry: () -> Void

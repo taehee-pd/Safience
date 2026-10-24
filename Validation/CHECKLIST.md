@@ -354,3 +354,20 @@ On the signed DMG, not a build run from Xcode, and on each macOS the release nam
 - [ ] Settings › Extensions: each extension's site access and its switch in each space; Check Now says "Everything is up to date." or how many it updated (an update it declined or that failed its trial isn't counted).
 - [ ] Two Macs signed in to the same iCloud, sync on: an extension added on one is offered on the other under On Your Other Macs; Add shows that Mac's own sheet, and it goes on in the spaces it is on in on the first Mac too. Turned off in a space on one, it goes off on the other. Removed on one, it goes from the other. Don't Offer on This Mac stops an offer. In the CloudKit Console, the Extension and ExtensionUse records' fields are encrypted and their names say nothing about the extension; an open Chrome Web Store page isn't in the other devices' lists of open tabs.
 - [ ] Narrow window (640 points), sidebar wide: the side panel narrows, then goes until there is room.
+
+## 19. Peek and little windows on a Mac
+
+Two spaces, Work and Personal; Figma pinned in Work and signed in there only.
+
+- [ ] A site's Sign in with Google or Apple button (on a site that opens it as a pop-up): the sign-in opens in a Peek over the tab, at the size the site asked for, the tab dimmed behind it; it closes by itself once signed in, the site is signed in, and the keys are the page's again.
+- [ ] In the pinned Figma tab, a link to github.com opens in a Peek, nearly the card's size; a link to help.figma.com stays in the tab; ⌘-click on the GitHub link still opens a tab behind. Settings › General › Links › Open other sites from pinned tabs in Peek off: the link goes in the tab, as before.
+- [ ] A link's menu has Open Link in Peek after Open Link in New Tab; chosen, the link opens in a Peek over the tab. Not on accounts.google.com, nor in a Peek or a little window.
+- [ ] A Peek goes with a click on the dimmed card beside it, its ×, and ⌘W, which leaves the tab open. A pop-up the Peek's page opened goes with it. Another tab and back: the Peek is where it was. Closing the tab closes it.
+- [ ] ⌃⌥O, or the Peek's expand button: its page is a tab right after the one it came from, on screen, as it was in the Peek (scrolled, signed in, a form half filled), with no reload, and History (⌘Y) lists it; a sign-in page it was on is not listed. From an ordinary tab, the split button puts it beside that tab in Split View; from a pinned tab the button isn't there.
+- [ ] Back in the Peek's header shows once it has gone on to a second page, and goes back.
+- [ ] With Safience the default browser, a link clicked in Slack, Mail or Messages opens in a little window over the app in front, in the space of the browser window in front, signed in as that space is; the window's ground is that space's colour, its close, minimise and zoom buttons on the header's line, and its header drags the window. A second link opens a second little window, a step down and along.
+- [ ] In a little window, ⌃⌥O, or the expand button: the page is a tab of a browser window showing that space, as it was, with no reload, and in History; the little window goes. The arrow beside it lists the spaces; Personal opens the page there, afresh and signed out of what only Work is signed in to.
+- [ ] ⌃⌥N: an empty little window with its address field taking the keys; an address or a search, and Return, go there. A click on the address, or ⌘L, shows the whole address to change; Escape leaves it as it was.
+- [ ] In a little window, ⌘W and ⇧⌘W close it and no browser tab; ⌘R reloads it; ⇧⌘C copies its link; a ⌘-click opens a tab of its space in a browser window behind; a pop-up opens over it in a window of its own.
+- [ ] Settings › General › Links › Links from other apps open in A New Tab: a link from Slack opens in a new tab of the window in front, as before.
+- [ ] Light and dark, Reduce Transparency, and VoiceOver: the Peek reads as "Peek" with its buttons named, and Escape from VoiceOver closes it.

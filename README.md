@@ -134,7 +134,7 @@ The address field and the command palette are one bar. On iPad it floats over th
 
 Show All History (⌘Y on a Mac, ⌃⌥Y on iPad, or the page menu's History) lists the space's pages by day, each page once a day, and searches them as the command bar does. With Apple Intelligence, press Return to search by what you remember: "the glass article from last Friday", "지난 금요일에 본 기사". A page goes from history with a swipe or its menu, a day with its Clear, and Clear History takes the last hour, today, today and yesterday, or everything, in one space or all of them; closed tabs from that time go from Reopen Closed Tab too.
 
-History is kept for a month unless Settings › History says otherwise (a day, a week, a year, or until cleared). Sign-in pages, pages that ask for a password and pop-ups are never kept. With Settings › iCloud › Sync history on, each device's history comes to the others, encrypted in your iCloud, and clearing it on one clears it on all.
+History is kept for a month unless Settings › History says otherwise (a day, a week, a year, or until cleared). Sign-in pages, pages that ask for a password and pop-ups are never kept, nor on a Mac a page in a Peek or a little window until you open it in a tab. With Settings › iCloud › Sync history on, each device's history comes to the others, encrypted in your iCloud, and clearing it on one clears it on all.
 
 ### Bookmarks on every new tab
 
@@ -213,6 +213,13 @@ Safience for Mac runs Chrome extensions on Apple's WebKit. It ships as a DMG out
 - **It says when something doesn't work.** On install, Safience reads the extension and tries its pages in a temporary space that keeps no data, though they can reach the servers the extension uses. A row says nothing until something is found: "Some Features Don't Work" when some of it doesn't, and "Incompatible", with a warning triangle in place of its switch, when it can't run on this Mac. No warning is no promise: only what was tried was checked. This Looks Wrong hides a warning and gives an incompatible one its switch back; Report a Problem… shows a report to copy or save, and sends nothing.
 - **Updates** come from the Chrome Web Store about once a day, tried before they replace the version you have; one that asks for more asks you first. Settings › Extensions turns the daily check off, and Check Now checks at once.
 - **Between Macs**, with iCloud sync on, the list of your Chrome Web Store extensions follows you, encrypted: each one's name and site access, and the spaces it is on in. Each Mac downloads an extension itself; one you haven't got on a Mac is offered in its puzzle button's list, under On Your Other Macs. Removing one on a Mac removes it, with what it kept, on your other Macs too. Extensions from a file or a folder stay on their Mac.
+
+### Peek and little windows on the Mac
+
+Two of Arc's ways to look at a page without losing your place.
+
+- **Peek** shows a page over the tab it came from, in a pane of glass as an extension's popup is, with the tab dimmed behind it. A pop-up a page opens (a sign-in, a share dialog) opens in one at the size it asked for; so does a link from a pinned tab to another site, so the pinned tab stays on its own; and any link, with Open Link in Peek in its menu. A click beside it, its ×, or ⌘W puts it away. ⌃⌥O, or its button, opens its page as it is in a tab of its own, signed in and scrolled where it was; another button puts that tab beside the one it came from in Split View. A Peek belongs to its tab: it waits while you look at other tabs, and goes when the tab closes. Settings › General › Links turns it off for pinned tabs.
+- **A little window** is where a link from another app opens, as Arc's Little Arc: a small window of its own with only back, the page's address, Copy Link and Open in New Tab (⌃⌥O), which takes the page as it is into a tab of a browser window. It opens in the space of the window in front, signed in as you are there; the arrow beside the button opens the page in another space instead. ⌃⌥N opens an empty one to type an address in. Settings › General › Links opens links from other apps in a new tab instead.
 
 ### And more
 

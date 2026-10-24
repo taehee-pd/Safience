@@ -37,7 +37,7 @@ final class LaunchState: ObservableObject {
                 #if DIRECT
                 Updates.shared.start()
                 #endif
-                if !waiting.isEmpty { Session.shared.open(waiting); waiting.removeAll() }
+                if !waiting.isEmpty { Session.shared.open(waiting, fromOtherApp: true); waiting.removeAll() }
             } catch {
                 problem = error.localizedDescription
             }
@@ -45,8 +45,9 @@ final class LaunchState: ObservableObject {
         }
     }
 
+    /// Links from other apps, and web pages opened from Finder.
     func open(_ urls: [URL]) {
-        if ready { Session.shared.open(urls) } else { waiting += urls; showWindow?() }
+        if ready { Session.shared.open(urls, fromOtherApp: true) } else { waiting += urls; showWindow?() }
     }
 }
 

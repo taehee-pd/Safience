@@ -322,13 +322,22 @@ final class Session: ObservableObject {
             ?? allWindows.first
     }
 
-    /// Links from other apps, each in a new tab of the window in front; a
-    /// new window for them when there is none.
-    func open(_ urls: [URL]) {
+    /// Links from other apps (`fromOtherApp`), each in a little window of
+    /// its own, as Arc's Little Arc, unless Settings › General › Links says
+    /// a tab (Preferences.linksFromApps). Files from Finder, the app's own
+    /// links and links from other apps otherwise, each in a new tab of the
+    /// window in front; a new window for them when there is none.
+    func open(_ urls: [URL], fromOtherApp: Bool = false) {
         guard canUseWorkspace else { waiting += urls; return }
         let pages = urls.filter { ["http", "https", "file"].contains($0.scheme?.lowercased() ?? "") }
         guard !pages.isEmpty else { return }
         pages.filter(\.isFileURL).forEach { FileAccess.keep($0) }
+        if fromOtherApp, preferences.linksFromApps == .littleWindow {
+            for url in pages where !url.isFileURL { LittleWindow.open(url) }
+            let files = pages.filter(\.isFileURL)
+            guard !files.isEmpty else { return }
+            return open(files)
+        }
         if let window = frontWindow {
             for url in pages { window.open(url, newTab: true) }
             window.window?.makeKeyAndOrderFront(nil)
